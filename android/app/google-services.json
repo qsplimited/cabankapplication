@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "655354932359",
+    "project_id": "cabankapp-f517c",
+    "storage_bucket": "cabankapp-f517c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:655354932359:android:f88ce47066c865e60b9c22",
+        "android_client_info": {
+          "package_name": "com.test.cabankapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPBD7TPGponoStaJHY0_Xnn_zhIfr3AbQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
