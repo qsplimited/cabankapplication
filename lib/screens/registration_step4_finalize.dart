@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/i_device_service.dart';
 import '../main.dart'; // To access globalDeviceService and AppRouter
 
-// Placeholder for the device ID utility (in a real app, this would use device_info_plus)
+
 String getUniqueDeviceId() {
   return 'MOCK-DEVICE-ID-CA-BANK-12345';
 }
@@ -57,9 +57,7 @@ class _RegistrationStep4FinalizeState extends State<RegistrationStep4Finalize> {
             _statusMessage = 'Success! Device bound and registration complete.';
           });
 
-          // CRUCIAL: After success, navigate to the AppRouter
-          // This call triggers the router to re-check device status, 
-          // which now returns TRUE (as set in MockService), redirecting to Dashboard.
+
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
               // Clear the entire registration stack and go to the root route ('/')

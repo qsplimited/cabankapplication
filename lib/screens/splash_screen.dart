@@ -24,13 +24,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
 
-    // Setup the animation controller for the "blinking" logo effect
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800), // Cycle duration
     )..repeat(reverse: true); // Repeat: Fades back and forth
 
-    // Define the animation range (fading between 50% and 100% opacity)
     _animation = Tween(begin: 0.5, end: 1.0).animate(_controller);
 
     _startNavigationTimer();
@@ -40,9 +39,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void _startNavigationTimer() {
     // Wait for the total splash duration (3 seconds) before navigating
     Timer(const Duration(seconds: SplashScreen.splashDuration), () {
-      // --- CRITICAL FIX HERE ---
-      // We must navigate to the AppRouter, which handles the check:
-      // AppRouter -> (Check Mock API) -> LoginScreen OR RegistrationLandingScreen
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const AppRouter(), // <--- NEW DESTINATION
@@ -57,7 +54,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
-  // ... (rest of your build and _AnimatedLogo code remains the same)
+
   @override
   Widget build(BuildContext context) {
 
@@ -105,7 +102,7 @@ class _AnimatedLogo extends StatelessWidget {
       child: const Icon(
         Icons.account_balance,
         size: 100,
-        color: Color(0xFF004D40), // Dark Teal
+        color: Color(0xFF004D40),
       ),
     );
   }

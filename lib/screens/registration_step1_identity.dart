@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../main.dart'; // Needed to access globalDeviceService
 import 'registration_step2_otp.dart'; // IMPORTANT: New Import for Step 2
+import 'registration_step3_mpin.dart'; // Needed for the successRoute
 
 class RegistrationStep1Identity extends StatefulWidget {
   const RegistrationStep1Identity({super.key});
@@ -11,9 +12,10 @@ class RegistrationStep1Identity extends StatefulWidget {
 
 class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _accountController = TextEditingController();
-  final TextEditingController _mobileController = TextEditingController();
-  final TextEditingController _dobController = TextEditingController();
+  // Pre-populating with mock data for easy testing:
+  final TextEditingController _accountController = TextEditingController(text: '123456');
+  final TextEditingController _mobileController = TextEditingController(text: '9999999999');
+  final TextEditingController _dobController = TextEditingController(text: '01/01/1980');
 
   bool _isLoading = false;
   String _errorMessage = '';
@@ -58,12 +60,16 @@ class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
           // ----------------------------------------------------
           // SUCCESS PATH: Identity Matched! Proceed to Step 2 (OTP)
           // ----------------------------------------------------
+          final String otpCode = response['otp_code'] as String;
+          final String verifiedMobile = response['mobile_number'] as String;
+
 
           // Show the fixed OTP in a dialogue for DEVELOPMENT/TESTING only,
           // then navigate to the next screen.
           _showOtpSentDialog(
             response['message'] as String,
-            mobileNumber, // Pass mobile number for navigation
+            otpCode, // Pass OTP code
+            verifiedMobile, // Pass mobile number
           );
 
         } else {
@@ -84,7 +90,7 @@ class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
   }
 
   // Helper function to display the Mock OTP code to the developer
-  void _showOtpSentDialog(String message, String mobileNumber) {
+  void _showOtpSentDialog(String message, String otpCode, String mobileNumber) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -100,10 +106,15 @@ class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
                 // 1. Dismiss the dialog
                 Navigator.of(context).pop();
 
-                // 2. Navigate to the OTP verification screen, passing the mobile number
+                // 2. Navigate to the OTP verification screen, passing all REQUIRED parameters
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => RegistrationStep2Otp(mobileNumber: mobileNumber),
+                    builder: (context) => RegistrationStep2Otp(
+                      mobileNumber: mobileNumber,
+                      otpCode: otpCode,
+                      // The success route for registration is Step 3: Set MPIN
+                      successRoute: RegistrationStep3Mpin(mobileNumber: mobileNumber),
+                    ),
                   ),
                 );
               },

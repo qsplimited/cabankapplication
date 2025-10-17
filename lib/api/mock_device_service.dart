@@ -10,10 +10,8 @@ class MockDeviceService implements IDeviceService {
   static const String _testDob = '01/01/1980';
   static const String _fixedOtp = '123456';
 
-  // FIX: Set a default MPIN for development testing.
-  // This value will be available immediately after a restart.
   static bool _isDeviceBound = false;
-  static String _storedMpin = '112233'; // <-- Use this MPIN to test login after a full restart!
+  static String _storedMpin = '112233';
   // ---------------------------------
 
   @override
@@ -49,17 +47,25 @@ class MockDeviceService implements IDeviceService {
   Future<bool> verifyOtp({
     required String mobileNumber,
     required String otp,
+    // NOTE: The optional 'mockOtpCheck' parameter must be handled *outside*
+    // the contract. For simplicity in this flow, we will assume all verification
+    // uses the *fixed* OTP once the identity is verified.
   }) async {
     await Future.delayed(_simulatedNetworkDelay);
-    return otp == _fixedOtp;
+
+    // For this simplified mock, we always check against the fixed OTP.
+    // In a real app, this logic would depend on a server-side state lookup.
+    final String validationCode = _fixedOtp;
+
+    print('MockService: Verifying OTP. Input: $otp, Required: $validationCode');
+    return otp == validationCode;
   }
 
   @override
   Future<void> setMpin({required String mpin}) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    // When registration runs, it successfully stores the chosen MPIN.
     _storedMpin = mpin;
-    print('MockService: MPIN successfully set to: $_storedMpin');
+    print('MockService: MPIN successfully set during registration: $_storedMpin');
   }
 
   @override
@@ -81,9 +87,7 @@ class MockDeviceService implements IDeviceService {
   @override
   Future<bool> loginWithMpin({required String mpin}) async {
     await Future.delayed(_simulatedNetworkDelay);
-
     print('MockService: Attempting login with MPIN: $mpin. Stored MPIN: $_storedMpin');
-
 
     if (_storedMpin.isEmpty) {
       return false;
@@ -92,12 +96,24 @@ class MockDeviceService implements IDeviceService {
     return mpin == _storedMpin;
   }
 
+  @override
+  Future<Map<String, dynamic>> resetMpin({required String newMpin}) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Set the new MPIN, completing the reset process.
+    _storedMpin = newMpin;
+
+    print('MockService: MPIN successfully reset to: $_storedMpin');
+
+    return {
+      'success': true,
+      'message': 'Your MPIN has been successfully reset. Please login with your new MPIN.',
+    };
+  }
+
   // DEBUG/RESET METHOD
   void resetBinding() {
     _isDeviceBound = false;
-    // We intentionally do NOT reset _storedMpin here.
-    // This allows the user to log back in after re-registering the device,
-    // simulating MPIN persistence on the server.
     print('MockService: Binding has been reset (allowing re-registration).');
   }
 }

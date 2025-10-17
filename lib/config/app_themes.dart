@@ -1,42 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// --- Branding Colors (Define once) ---
-const Color _cabankPrimary = Color(0xFF004D40); // Dark Teal
-const Color _cabankAccent = Color(0xFF00796B); // Brighter Teal (for contrast)
-const Color _lightBackground = Colors.white;
-const Color _darkBackground = Color(0xFF121212); // Deep dark gray
 
-// --- Shared Styling (Used in both themes) ---
+const Color _cabankPrimary = Color(0xFF004D40);
+const Color _cabankAccent = Color(0xFF00796B);
+const Color _lightBackground = Colors.white;
+const Color _darkBackground = Color(0xFF121212);
+
+
 const double _defaultBorderRadius = 8.0;
 
-// --- 1. LIGHT MODE THEME ---
+
 final lightTheme = ThemeData(
-  // Core colors
-  primarySwatch: Colors.teal, // Provides a range of teal shades
+
+  primarySwatch: Colors.teal,
   primaryColor: _cabankPrimary,
   brightness: Brightness.light,
   useMaterial3: true,
 
-  // Background/UI colors
+
   scaffoldBackgroundColor: _lightBackground,
   cardColor: Colors.white,
 
-  // Typography
+
   textTheme: const TextTheme(
     bodyLarge: TextStyle(color: Colors.black87),
     bodyMedium: TextStyle(color: Colors.black54),
   ),
 
-  // App Bar Style
+
   appBarTheme: const AppBarTheme(
     color: _cabankPrimary,
     foregroundColor: Colors.white,
     elevation: 0,
-    systemOverlayStyle: SystemUiOverlayStyle.light, // Status bar icons are light
+    systemOverlayStyle: SystemUiOverlayStyle.light,
   ),
 
-  // Button Styles (Matching your initial design)
+
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
       backgroundColor: _cabankPrimary,
@@ -64,11 +64,11 @@ final lightTheme = ThemeData(
 );
 
 
-// --- 2. DARK MODE THEME ---
+
 final darkTheme = ThemeData(
   // Core colors
   primarySwatch: Colors.teal,
-  primaryColor: _cabankAccent, // Use brighter teal for visibility on dark background
+  primaryColor: _cabankAccent,
   brightness: Brightness.dark,
   useMaterial3: true,
 
@@ -76,18 +76,18 @@ final darkTheme = ThemeData(
   scaffoldBackgroundColor: _darkBackground,
   cardColor: const Color(0xFF1E1E1E), // Slightly lighter than background for depth
 
-  // Typography
+
   textTheme: const TextTheme(
     bodyLarge: TextStyle(color: Colors.white),
     bodyMedium: TextStyle(color: Colors.white70),
   ),
 
-  // App Bar Style
+
   appBarTheme: const AppBarTheme(
     color: Colors.black, // True black background
     foregroundColor: Colors.white,
     elevation: 0,
-    systemOverlayStyle: SystemUiOverlayStyle.dark, // Status bar icons are dark
+    systemOverlayStyle: SystemUiOverlayStyle.dark,
   ),
 
 
@@ -103,7 +103,7 @@ final darkTheme = ThemeData(
     ),
   ),
 
-  // Input Field Style
+
   inputDecorationTheme: const InputDecorationTheme(
     border: OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(_defaultBorderRadius)),
@@ -116,3 +116,4 @@ final darkTheme = ThemeData(
     labelStyle: TextStyle(color: Colors.white70),
   ),
 );
+

@@ -1,21 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../api/i_device_service.dart';
-import '../main.dart'; // To access globalDeviceService
-import 'registration_step3_mpin.dart'; // NEW IMPORT
+import '../main.dart'; // Access to globalDeviceService
+
+// CRITICAL FIX: The successRoute must be of type Widget to accept any screen.
+typedef SuccessRouteBuilder = Widget;
 
 class RegistrationStep2Otp extends StatefulWidget {
   final String mobileNumber;
+  // REQUIRED: The actual OTP code expected for verification (used in the mock service)
+  final String otpCode;
+  // REQUIRED: The widget (screen) to navigate to after successful OTP verification
+  final SuccessRouteBuilder successRoute;
 
-  const RegistrationStep2Otp({super.key, required this.mobileNumber});
+  const RegistrationStep2Otp({
+    super.key,
+    required this.mobileNumber,
+    required this.otpCode,
+    required this.successRoute,
+  });
 
   @override
   State<RegistrationStep2Otp> createState() => _RegistrationStep2OtpState();
 }
 
 class _RegistrationStep2OtpState extends State<RegistrationStep2Otp> {
-  final _otpController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _otpController = TextEditingController();
+
   bool _isLoading = false;
   String _errorMessage = '';
 
@@ -25,58 +36,50 @@ class _RegistrationStep2OtpState extends State<RegistrationStep2Otp> {
     super.dispose();
   }
 
-  void _handleOtpVerification() async {
-    if (!_formKey.currentState!.validate()) return;
+  // --- Handle OTP Verification Logic ---
+  void _verifyOtp() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
     setState(() {
       _isLoading = true;
       _errorMessage = '';
     });
 
-    final otp = _otpController.text;
-    final IDeviceService deviceService = globalDeviceService;
-
     try {
-      // Calls the Mock API service (where OTP is checked against '123456')
-      final success = await deviceService.verifyOtp(
+      final String enteredOtp = _otpController.text.trim();
+
+      final bool success = await globalDeviceService.verifyOtp(
         mobileNumber: widget.mobileNumber,
-        otp: otp,
+        otp: enteredOtp,
       );
 
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
         if (success) {
-          // Success: OTP is correct. Proceed to Step 3 (Set MPIN).
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('OTP Verified successfully! Proceeding to Step 3: Set MPIN.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-
-          // --- NAVIGATION TO STEP 3 ---
-          // Use pushReplacement to prevent the user from going back to the OTP screen
-          Navigator.of(context).pushReplacement(
+          // SUCCESS PATH: Navigate to the designated success route
+          Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => RegistrationStep3Mpin(mobileNumber: widget.mobileNumber),
+              // Use the provided successRouteBuilder to build the next screen
+              builder: (context) => widget.successRoute,
             ),
           );
-
         } else {
+          // FAILURE PATH: OTP mismatch
           setState(() {
-            _errorMessage = 'OTP is incorrect or expired. Please check the code.';
+            _errorMessage = 'Invalid OTP. Please check the code and try again.';
           });
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'An unexpected error occurred during verification. Please retry.';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
           _isLoading = false;
+          _errorMessage = 'A network error occurred during OTP verification.';
         });
       }
     }
@@ -98,29 +101,29 @@ class _RegistrationStep2OtpState extends State<RegistrationStep2Otp> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               Text(
-                'Enter the 6-digit verification code sent to:',
+                'Enter the 6-digit OTP sent to your mobile number:',
                 style: theme.textTheme.titleMedium,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
-                // Displays the mobile number with the first 6 digits masked
-                'XXXXXX${widget.mobileNumber.substring(6)}',
-                style: theme.textTheme.headlineSmall!.copyWith(fontWeight: FontWeight.bold),
+                widget.mobileNumber,
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: theme.primaryColor),
               ),
               const SizedBox(height: 30),
 
-              // OTP Input Field
+              // 1. OTP Input Field
               TextFormField(
                 controller: _otpController,
                 keyboardType: TextInputType.number,
-                maxLength: 6,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.headlineMedium!.copyWith(letterSpacing: 10),
+                maxLength: 6,
+                style: theme.textTheme.headlineMedium,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
-                  labelText: 'Verification Code',
+                  labelText: 'Enter OTP',
                   hintText: '• • • • • •',
-                  counterText: '', // Hide length counter
+                  counterText: '',
+                  border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.length != 6) {
@@ -129,24 +132,26 @@ class _RegistrationStep2OtpState extends State<RegistrationStep2Otp> {
                   return null;
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 20),
 
-              // Error Message Display
+
               if (_errorMessage.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 15.0),
+                  padding: const EdgeInsets.only(bottom: 20.0),
                   child: Text(
                     _errorMessage,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium!.copyWith(color: Colors.red),
                   ),
                 ),
 
-              const SizedBox(height: 40),
-
-              // Verify Button
+              // Submission Button
               ElevatedButton(
-                onPressed: _isLoading ? null : _handleOtpVerification,
+                onPressed: _isLoading ? null : _verifyOtp,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
                 child: _isLoading
                     ? const SizedBox(
                   width: 20,
@@ -156,18 +161,14 @@ class _RegistrationStep2OtpState extends State<RegistrationStep2Otp> {
                     strokeWidth: 2,
                   ),
                 )
-                    : const Text('VERIFY CODE'),
+                    : const Text('VERIFY OTP', style: TextStyle(fontSize: 16)),
               ),
-              const SizedBox(height: 20),
 
-              // Resend OTP Link
+              const SizedBox(height: 20),
               TextButton(
                 onPressed: _isLoading ? null : () {
-                  // In a real app, this would call globalDeviceService.resendOtp(...)
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('OTP Resend functionality is currently mocked.'),
-                    ),
+                    const SnackBar(content: Text('Mock: New OTP sent! (Still 123456)')),
                   );
                 },
                 child: const Text('Resend OTP'),

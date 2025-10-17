@@ -1,6 +1,7 @@
-
+import 'dart:async';
 
 abstract class IDeviceService {
+
 
   Future<bool> checkDeviceBinding(String deviceId);
 
@@ -9,7 +10,6 @@ abstract class IDeviceService {
     required String mobileNumber,
     required String dateOfBirth,
   });
-
 
   Future<bool> verifyOtp({
     required String mobileNumber,
@@ -24,5 +24,5 @@ abstract class IDeviceService {
 
   Future<bool> loginWithMpin({required String mpin});
 
-
+  Future<Map<String, dynamic>> resetMpin({required String newMpin});
 }
