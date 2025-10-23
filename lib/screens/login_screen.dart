@@ -27,12 +27,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final String mpin = _mpinController.text.trim();
 
-    // Authenticates against the stored (mocked) MPIN
+
     final bool success = await globalDeviceService.loginWithMpin(mpin: mpin);
 
     if (mounted) {
       if (success) {
-        // Success: Navigate to the Dashboard
+      
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const DashboardScreen()),
         );
