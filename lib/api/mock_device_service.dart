@@ -47,9 +47,8 @@ class MockDeviceService implements IDeviceService {
   Future<bool> verifyOtp({
     required String mobileNumber,
     required String otp,
-    // NOTE: The optional 'mockOtpCheck' parameter must be handled *outside*
-    // the contract. For simplicity in this flow, we will assume all verification
-    // uses the *fixed* OTP once the identity is verified.
+
+
   }) async {
     await Future.delayed(_simulatedNetworkDelay);
 
