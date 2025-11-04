@@ -1,8 +1,10 @@
-import 'dart:async'; // Required for Enum definitions if needed, though primarily for service
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 // Enum to define different types of transfers
 enum TransferType { imps, neft, rtgs }
+
+// Enum to define different types of transactions
 enum TransactionType { debit, credit }
 
 /// User details model.

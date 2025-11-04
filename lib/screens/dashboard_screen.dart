@@ -1,3 +1,4 @@
+import 'package:cabankapplication/screens/transaction_history_screen.dart';
 import 'package:flutter/material.dart';
 import '../api/banking_service.dart'; // Retaining user's service path
 import '../main.dart'; // Retaining user's main import
@@ -490,8 +491,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: const Text('Transaction History'),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Transaction History Screen is next!')),
+                _navigateTo(
+                  // 🚀 FIX APPLIED HERE: Pass the required 'bankingService' instance.
+                  TransactionHistoryScreen(bankingService: _bankingService),
                 );
               },
             ),
