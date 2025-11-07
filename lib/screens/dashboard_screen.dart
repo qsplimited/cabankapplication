@@ -1,12 +1,16 @@
-import 'package:cabankapplication/screens/transaction_history_screen.dart';
 import 'package:flutter/material.dart';
-import '../api/banking_service.dart'; // Retaining user's service path
-import '../main.dart'; // Retaining user's main import
+import '../api/banking_service.dart'; // This is the canonical source for BankingService
+import '../main.dart'; // Assumed to contain UserProfile, Account, Transaction models
 
 import 'transfer_funds_screen.dart';
-// FIX: Import the file containing the unified TpinManagementScreen.
-import 'tpin_management_screen.dart'; // <-- CORRECTED IMPORT
+import 'tpin_management_screen.dart';
 
+// CRITICAL FIX: Use prefixes for screens that are incorrectly defining duplicate types.
+import 'transaction_history_screen.dart' as ths;
+import 'beneficiary_management_screen.dart' as bms;
+
+// NOTE: Assuming BankingService is correctly defined in '../api/banking_service.dart'
+// and can be instantiated like this.
 final BankingService _bankingService = BankingService();
 
 class DashboardScreen extends StatefulWidget {
@@ -39,6 +43,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Color _withdrawColor = const Color(0xFFFFEBEE);
   final Color _billPayColor = const Color(0xFFFFECB3);
   final Color _loansColor = const Color(0xFFE8F5E9);
+  final Color _payeeColor = const Color(0xFFF3E5F5); // Light Purple/Pink for new action
+  final Color _payeeIconColor = const Color(0xFF9C27B0); // Dark Purple for icon
 
   @override
   void initState() {
@@ -181,8 +187,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 2. Quick Actions Grid
   Widget _buildQuickActions() {
+    // UPDATED: Added Manage Payees action
     final List<Map<String, dynamic>> actions = [
       {'label': 'Transfer', 'icon': Icons.send_outlined, 'color': _primaryNavyBlue, 'bgColor': _transferColor, 'screen': TransferFundsScreen(bankingService: _bankingService)},
+      // CRITICAL FIX: Removed the bankingService argument for BeneficiaryManagementScreen
+      // and added const for performance.
+      {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': _payeeIconColor, 'bgColor': _payeeColor, 'screen': const bms.BeneficiaryManagementScreen()},
       {'label': 'Withdraw', 'icon': Icons.account_balance_wallet_outlined, 'color': _accentRed, 'bgColor': _withdrawColor, 'screen': null}, // Placeholder
       {'label': 'Bill Pay', 'icon': Icons.receipt_long_outlined, 'color': _primaryNavyBlue, 'bgColor': _billPayColor, 'screen': null}, // Placeholder
       {'label': 'My Loans', 'icon': Icons.savings_outlined, 'color': _accentGreen, 'bgColor': _loansColor, 'screen': null}, // Placeholder
@@ -443,7 +453,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: _lightBackground,
-      // --- DRAWER ---
+      // --- DRAWER (Menu Bar) ---
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -486,14 +496,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _navigateTo(TransferFundsScreen(bankingService: _bankingService));
               },
             ),
+            // FIX APPLIED HERE: Navigation to Beneficiary Management Screen (Using 'bms.' prefix
+            // and removing the unnecessary 'bankingService' parameter to match the screen's constructor)
+            ListTile(
+              leading: Icon(Icons.people_alt_outlined, color: _primaryNavyBlue),
+              title: const Text('Beneficiary Management'),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(const bms.BeneficiaryManagementScreen());
+              },
+            ),
             ListTile(
               leading: Icon(Icons.history_toggle_off_outlined, color: _primaryNavyBlue),
               title: const Text('Transaction History'),
               onTap: () {
                 Navigator.pop(context);
                 _navigateTo(
-                  // 🚀 FIX APPLIED HERE: Pass the required 'bankingService' instance.
-                  TransactionHistoryScreen(bankingService: _bankingService),
+                  // Using 'ths.' prefix and passing required service
+                  ths.TransactionHistoryScreen(bankingService: _bankingService),
                 );
               },
             ),
