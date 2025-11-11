@@ -1,10 +1,13 @@
+// File: banking_service.dart (CONSOLIDATED & UPDATED)
+
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'dart:math';
 
 // Enum to define different types of transfers
-enum TransferType { imps, neft, rtgs }
+enum TransferType { imps, neft, rtgs, internal }
 enum TransactionType { debit, credit }
+enum AccountType { savings, current, fixedDeposit, recurringDeposit }
 
 /// User details model.
 class UserProfile {
@@ -17,7 +20,7 @@ class UserProfile {
 /// Account model for balance and type.
 class Account {
   final String accountNumber;
-  final String accountType;
+  final AccountType accountType;
   final double balance;
   final String nickname;
   Account({
@@ -90,7 +93,6 @@ class Beneficiary {
 }
 
 // --- DATA MODEL: ADD BENEFICIARY PAYLOAD ---
-/// This model is essential if your real API will accept a single JSON payload instead of individual arguments.
 class AddBeneficiaryPayload {
   final String name;
   final String accountNumber;
@@ -125,11 +127,19 @@ class BankingService {
   // Private constructor
   BankingService._internal();
 
-  // --- STATE MANAGEMENT: T-PIN, OTP, AND BALANCE ---
-  // Set a mock 4-digit T-PIN for testing, as the UI uses a 4-digit standard.
-  String? _currentTPIN = '1234';
-  static const int _tpinLength = 4; // Used for consistency
-  String? _mockOtp; // For OTP storage
+  // --- MOCK FEES AND LIMITS ---
+  static const double _impsFeeRate = 0.005;
+  static const double _neftFeeFixed = 5.0;
+  static const double _rtgsFeeMin = 25.0;
+  static const double _dailyTransferLimit = 200000.00;
+  double _todayTransferredAmount = 15000.00;
+
+  // --- STATE MANAGEMENT: T-PIN, OTP, AND ACCOUNT DATA ---
+  // 💥 UPDATED MOCK T-PIN to 6 digits
+  String? _currentTPIN = '456789';
+  // 💥 UPDATED T-PIN length to 6 digits
+  static const int _tpinLength = 6;
+  String? _mockOtp;
   static const String _registeredMobileNumber = '9876541234';
   String _targetMobileForReset = '';
 
@@ -140,12 +150,12 @@ class BankingService {
     lastLogin: DateTime.now().subtract(const Duration(hours: 2, minutes: 15)),
   );
 
-  Account _primaryAccount = Account(
-    accountNumber: '123456789012',
-    accountType: 'Savings Account',
-    balance: 55678.50,
-    nickname: 'My Primary Account',
-  );
+  final List<Account> _mockUserAccounts = [
+    Account(accountNumber: '123456789012', accountType: AccountType.savings, balance: 55678.50, nickname: 'My Primary Account'),
+    Account(accountNumber: '987654321098', accountType: AccountType.current, balance: 152000.00, nickname: 'Business Current'),
+    Account(accountNumber: '555544443333', accountType: AccountType.fixedDeposit, balance: 300000.00, nickname: 'Emergency Fund'),
+  ];
+
 
   final List<Transaction> _mockTransactions = [
     Transaction(description: 'Groceries at SuperMart', amount: 1250.00, date: DateTime.now().subtract(const Duration(hours: 1)), type: TransactionType.debit),
@@ -155,7 +165,6 @@ class BankingService {
     Transaction(description: 'ATM Withdrawal', amount: 10000.00, date: DateTime.now().subtract(const Duration(days: 10)), type: TransactionType.debit),
   ];
 
-  // --- BENEFICIARY MOCK DATA (The list of existing payees) ---
   final List<Beneficiary> _mockBeneficiaries = [
     Beneficiary(
       beneficiaryId: 'BENF1',
@@ -215,6 +224,33 @@ class BankingService {
     return maskedPart + lastFour;
   }
 
+  // Method to fetch all accounts (needed by the fund transfer menu)
+  Future<List<Account>> fetchUserAccounts() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    return List.from(_mockUserAccounts);
+  }
+
+  // 💥 NEW: Method to fetch the primary account (REQUIRED BY BENEFICIARY MANAGEMENT SCREEN)
+  /// Fetches the user's primary account, typically the first one in the list.
+  Future<Account> fetchPrimaryAccount() async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (_mockUserAccounts.isEmpty) {
+      throw Exception('No accounts found for the user.');
+    }
+    // Assume the first account is the primary account
+    return _mockUserAccounts.first;
+  }
+
+  // --- NEW: Transfer Rules Data (REQUIRED FOR UI) ---
+  Map<TransferType, String> getTransferTypeRules() {
+    return {
+      TransferType.imps: "Immediate payment service. Available 24/7/365. Instant transfer (usually within seconds). Limit per transaction: ₹2,00,000.",
+      TransferType.neft: "National Electronic Fund Transfer. Available 24/7/365. Transactions are processed in batches (hourly/half-hourly). No minimum/maximum limit.",
+      TransferType.rtgs: "Real-Time Gross Settlement. Used for high-value transfers. Minimum transfer is ₹2,00,000. Available 24/7/365.",
+      TransferType.internal: "Instantaneous transfer between accounts within the same bank. No fees and no cooling period.",
+    };
+  }
+
   // --- BENEFICIARY MANAGEMENT METHODS (UPDATED) ---
 
   /// Simulates the initial GET call to fetch existing payees.
@@ -230,18 +266,17 @@ class BankingService {
     required String ifsCode,
     required String bankName,
     required String nickname,
-    AddBeneficiaryPayload? payload, // Kept for API signature consistency
+    AddBeneficiaryPayload? payload,
   }) async {
     await Future.delayed(const Duration(milliseconds: 1000));
-    final newId = 'BENF${Random().nextInt(10000)}';
 
-    // *** IMPORTANT: This is the duplication check (simulating a real bank rejecting a duplicate). ***
+    // Check if the beneficiary already exists (case-insensitive)
     if (_mockBeneficiaries.any((b) => b.accountNumber == accountNumber)) {
       throw Exception('Beneficiary with this account number already exists.');
     }
 
     final newBeneficiary = Beneficiary(
-      beneficiaryId: newId,
+      beneficiaryId: 'BENF${Random().nextInt(10000)}',
       name: name,
       accountNumber: accountNumber,
       ifsCode: ifsCode,
@@ -249,7 +284,6 @@ class BankingService {
       nickname: nickname,
     );
 
-    // *** This is where the new payee is saved in our mock database. ***
     _mockBeneficiaries.add(newBeneficiary);
     _notifyListeners();
     return newBeneficiary;
@@ -267,7 +301,7 @@ class BankingService {
     _notifyListeners();
   }
 
-  /// UPDATED: Updates a beneficiary using a full Beneficiary object.
+  /// Updates a beneficiary using a full Beneficiary object.
   Future<Beneficiary> updateBeneficiary(Beneficiary updatedBeneficiary) async {
     await Future.delayed(const Duration(milliseconds: 500));
     final index = _mockBeneficiaries.indexWhere((b) => b.beneficiaryId == updatedBeneficiary.beneficiaryId);
@@ -276,7 +310,6 @@ class BankingService {
       throw Exception('Beneficiary not found for update.');
     }
 
-    // *** This is where the update happens in our mock database. ***
     _mockBeneficiaries[index] = updatedBeneficiary;
     _notifyListeners();
     return updatedBeneficiary;
@@ -292,21 +325,18 @@ class BankingService {
     await Future.delayed(const Duration(milliseconds: 1000));
 
     // MOCK LOGIC: These are the dummy inputs that guarantee a success response
-    // Scenario 1: Existing (Jane Doe - Fails in Add step due to duplicate check)
     if (recipientAccount == '987654321098' && ifsCode.toUpperCase() == 'HDFC0000053') {
       return {
         'officialName': 'Jane Doe',
         'bankName': 'HDFC Bank',
       };
     }
-    // Scenario 2: Brand New Payee (Success in both Lookup and Add steps)
     if (recipientAccount == '555544443333' && ifsCode.toUpperCase() == 'SBIN0000001') {
       return {
         'officialName': 'New Test Payee',
         'bankName': 'State Bank of India',
       };
     }
-    // Scenario 3: Account Not Found
     if (recipientAccount == '111111111111') {
       throw Exception('Account not found. Please check the account number.');
     }
@@ -316,9 +346,7 @@ class BankingService {
   }
 
 
-  // --- T-PIN SECURITY METHODS (UPDATED) ---
-
-  /// Finds the account by mobile number and sets it as the target for T-PIN reset.
+  // --- T-PIN SECURITY METHODS (Updated for 6 digits) ---
   bool findAccountByMobileNumber(String mobileNumber) {
     final exists = mobileNumber == _registeredMobileNumber;
 
@@ -330,14 +358,12 @@ class BankingService {
     return exists;
   }
 
-  /// Returns the masked mobile number for display during OTP flow.
   String getMaskedMobileNumber() {
     if (_targetMobileForReset.isEmpty) return '******0000';
     final String fullNumber = _targetMobileForReset;
     return '******' + fullNumber.substring(fullNumber.length - 4);
   }
 
-  /// Generates and stores a mock OTP.
   Future<String> requestTpinOtp() async {
     if (_targetMobileForReset.isEmpty) {
       throw 'Mobile number not verified. Cannot send OTP.';
@@ -350,7 +376,6 @@ class BankingService {
     return otp;
   }
 
-  /// Validates the provided OTP against the stored mock OTP.
   Future<void> validateTpinOtp(String otp) async {
     await Future.delayed(const Duration(seconds: 1));
     if (otp == _mockOtp && otp.length == 6) {
@@ -361,28 +386,23 @@ class BankingService {
     }
   }
 
-  /// Sets or updates the 6-digit Transaction PIN. Requires old pin if already set,
-  /// or a successful OTP flow if resetting.
   Future<String> updateTransactionPin({
     required String newPin,
     String? oldPin,
   }) async {
     await Future.delayed(const Duration(milliseconds: 700));
 
-    // Case 1: T-PIN is already set and user provided an oldPin (standard change)
     if (isTpinSet && oldPin != null) {
       if (oldPin != _currentTPIN) {
         throw 'Current T-PIN is incorrect. Authorization failed.';
       }
-      // Case 2: T-PIN is set but no oldPin (means a reset flow via mobile number/OTP)
     } else if (isTpinSet && oldPin == null) {
       if (_targetMobileForReset.isEmpty) {
         throw 'Current T-PIN must be provided to change the PIN unless a reset flow is initiated.';
       }
-      // Case 3: T-PIN is NOT set (initial setup)
     }
 
-    // Global validation - Assuming 4 digits is the UI standard, adjusted logic for 4-digit T-PIN
+    // Validation now uses _tpinLength = 6
     if (newPin.length != _tpinLength || !RegExp(r'^\d+$').hasMatch(newPin)) {
       throw 'Invalid PIN format. New T-PIN must be exactly $_tpinLength numeric digits.';
     }
@@ -396,87 +416,231 @@ class BankingService {
     return 'T-PIN set successfully!';
   }
 
-  /// ADDED: Implements T-PIN validation logic for high-risk transactions.
   Future<bool> validateTpin(String tpin) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    // Check if T-PIN is set and if the provided T-PIN matches the stored PIN.
+    // Validation now uses _tpinLength = 6 implicitly via _currentTPIN length
     return isTpinSet && tpin == _currentTPIN;
   }
 
-  /// Fetches the current user profile data.
+  Future<void> setTransactionPin({required String oldPin, required String newPin}) async {
+    await updateTransactionPin(newPin: newPin, oldPin: oldPin);
+  }
+
   Future<UserProfile> fetchUserProfile() async {
     await Future.delayed(const Duration(milliseconds: 500));
     return _userProfile;
   }
 
-  /// Fetches the primary account summary.
   Future<Account> fetchAccountSummary() async {
     await Future.delayed(const Duration(milliseconds: 500));
-    return _primaryAccount;
+    return _mockUserAccounts.first;
   }
 
-  /// Fetches the top 5 transactions.
   Future<List<Transaction>> fetchMiniStatement() async {
     await Future.delayed(const Duration(milliseconds: 500));
     return _mockTransactions.take(5).toList();
   }
 
-  /// Fetches all available transaction history.
   Future<List<Transaction>> fetchAllTransactions() async {
     await Future.delayed(const Duration(milliseconds: 800));
     return _mockTransactions;
   }
 
-  /// Simulates submitting a fund transfer request.
-  Future<String> submitFundTransfer({
-    required String recipientAccount,
-    required String recipientName,
-    required String ifsCode,
+  // --- FEE CALCULATION AND DETAILS (Unchanged) ---
+  double _calculateFee(TransferType type, double amount) {
+    if (type == TransferType.internal) return 0.0;
+
+    switch (type) {
+      case TransferType.imps:
+        return min(amount * _impsFeeRate, 50.0);
+      case TransferType.neft:
+        return _neftFeeFixed;
+      case TransferType.rtgs:
+        if (amount < 200000.0) {
+          throw Exception('RTGS minimum transfer amount is ₹2,00,000.00.');
+        }
+        return _rtgsFeeMin;
+      case TransferType.internal:
+        return 0.0;
+    }
+  }
+
+  Future<Map<String, double>> calculateTransferDetails({
     required TransferType transferType,
     required double amount,
-    String? narration,
-    required String transactionPin,
+    required String sourceAccountNumber,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 300));
 
-    // 1. PIN Validation
-    if (_currentTPIN == null) {
-      throw 'Transaction failed: T-PIN is not set. Please set your T-PIN first.';
+    final sourceIndex = _mockUserAccounts.indexWhere((acc) => acc.accountNumber == sourceAccountNumber);
+    if (sourceIndex == -1) {
+      throw Exception('Source account not found.');
     }
-    if (transactionPin != _currentTPIN) {
-      throw 'Transaction failed: Invalid Transaction PIN.';
-    }
+    final sourceAccount = _mockUserAccounts[sourceIndex];
 
-    // 2. Fund Validation
-    if (amount <= 0) {
-      throw 'Transaction failed: Amount must be greater than zero.';
-    }
-    if (amount > _primaryAccount.balance) {
-      throw 'Insufficient funds. Current balance: ₹${_primaryAccount.balance.toStringAsFixed(2)}';
+    double fee = 0.0;
+    try {
+      fee = _calculateFee(transferType, amount);
+    } catch (e) {
+      rethrow;
     }
 
-    // 3. Perform Transaction
-    double newBalance = _primaryAccount.balance - amount;
-    _primaryAccount = _primaryAccount.copyWith(newBalance: newBalance);
+    final totalDebit = amount + fee;
+    final availableDailyLimit = _dailyTransferLimit - _todayTransferredAmount;
 
-    // 4. Record Transaction
+    if (amount > availableDailyLimit) {
+      throw Exception('Transaction exceeds daily transfer limit. Available: ₹${availableDailyLimit.toStringAsFixed(2)}');
+    }
+
+    if (totalDebit > sourceAccount.balance) {
+      throw Exception('Insufficient funds. Required: ₹${totalDebit.toStringAsFixed(2)}');
+    }
+
+    return {
+      'fee': fee,
+      'totalDebit': totalDebit,
+      'availableDailyLimit': availableDailyLimit,
+    };
+  }
+
+  // --- FUND TRANSFER IMPLEMENTATION (Unchanged) ---
+  Future<String> _performInternalTransfer({
+    required double amount,
+    required String narration,
+    required Account sourceAccount,
+    required String recipientAccount,
+    required int sourceIndex,
+  }) async {
+    final destinationIndex = _mockUserAccounts.indexWhere((acc) => acc.accountNumber == recipientAccount);
+    final destinationAccount = destinationIndex != -1 ? _mockUserAccounts[destinationIndex] : null;
+
+    if (destinationAccount == null) {
+      throw 'Transaction failed: Destination account not found.';
+    }
+
+    final newSourceBalance = sourceAccount.balance - amount;
+    _mockUserAccounts[sourceIndex] = sourceAccount.copyWith(newBalance: newSourceBalance);
+
+    final newDestinationBalance = destinationAccount.balance + amount;
+    _mockUserAccounts[destinationIndex] = destinationAccount.copyWith(newBalance: newDestinationBalance);
+
     final newTransaction = Transaction(
-      description: narration ?? 'Fund Transfer to $recipientName',
+      description: narration.isNotEmpty ? narration : 'Internal Transfer to ${destinationAccount.nickname}',
       amount: amount,
       date: DateTime.now(),
       type: TransactionType.debit,
     );
     _mockTransactions.insert(0, newTransaction);
 
+    _notifyListeners();
+
+    return 'Success! Own Account Transfer of ₹${amount.toStringAsFixed(2)} completed instantly. Transaction ID: ${Random().nextInt(99999999)}';
+  }
+
+  Future<String> _performExternalTransfer({
+    required TransferType transferType,
+    required double amount,
+    required double fee,
+    required double totalDebitAmount,
+    required String recipientName,
+    required String narration,
+    required Account sourceAccount,
+    required int sourceIndex,
+  }) async {
+    final newBalance = sourceAccount.balance - totalDebitAmount;
+    _mockUserAccounts[sourceIndex] = sourceAccount.copyWith(newBalance: newBalance);
+
+    _todayTransferredAmount += amount;
+
+    final transactionDescription = 'Fund Transfer (${transferType.name.toUpperCase()}) to $recipientName (+ Fee ₹${fee.toStringAsFixed(2)})';
+    final newTransaction = Transaction(
+      description: narration.isNotEmpty ? narration : transactionDescription,
+      amount: totalDebitAmount,
+      date: DateTime.now(),
+      type: TransactionType.debit,
+    );
+    _mockTransactions.insert(0, newTransaction);
 
     _notifyListeners();
 
-    // 5. Return success message
-    return 'Success! ₹${amount.toStringAsFixed(2)} transferred via ${transferType.name.toUpperCase()}. Transaction ID: ${Random().nextInt(99999999)}';
+    return 'Success! ₹${amount.toStringAsFixed(2)} transferred via ${transferType.name.toUpperCase()} (Fee: ₹${fee.toStringAsFixed(2)}). Transaction ID: ${Random().nextInt(99999999)}';
   }
 
-  Future<void> setTransactionPin({required String oldPin, required String newPin}) async {}
+  Future<String> submitFundTransfer({
+    required String recipientAccount,
+    required String recipientName,
+    String? ifsCode,
+    required TransferType transferType,
+    required double amount,
+    String? narration,
+    required String transactionPin,
+    required String sourceAccountNumber,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 1000));
 
+    final sourceIndex = _mockUserAccounts.indexWhere((acc) => acc.accountNumber == sourceAccountNumber);
+    final sourceAccount = sourceIndex != -1 ? _mockUserAccounts[sourceIndex] : null;
 
-// NOTE: setTransactionPin was removed to keep the API clean, as updateTransactionPin handles both set and reset.
+    // --- PRE-VALIDATION ---
+    if (sourceAccount == null) {
+      throw 'Transaction failed: Source account not found.';
+    }
+
+    if (_currentTPIN == null) {
+      throw 'Transaction failed: T-PIN is not set. Please set your T-PIN first.';
+    }
+    // This comparison now expects 6 digits
+    if (transactionPin != _currentTPIN) {
+      throw 'Transaction failed: Invalid Transaction PIN.';
+    }
+
+    if (amount <= 0) {
+      throw 'Transaction failed: Amount must be greater than zero.';
+    }
+
+    double fee = 0.0;
+    double totalDebitAmount = amount;
+
+    try {
+      final details = await calculateTransferDetails(
+        transferType: transferType,
+        amount: amount,
+        sourceAccountNumber: sourceAccountNumber,
+      );
+      fee = details['fee']!;
+      totalDebitAmount = details['totalDebit']!;
+    } catch (e) {
+      final extractedMessage = e.toString().split(': ').last;
+      throw Exception(extractedMessage);
+    }
+
+    // --- EXECUTION ---
+    final finalNarration = narration?.trim() ?? '';
+
+    if (transferType == TransferType.internal) {
+      return _performInternalTransfer(
+        amount: amount,
+        narration: finalNarration,
+        sourceAccount: sourceAccount,
+        recipientAccount: recipientAccount,
+        sourceIndex: sourceIndex,
+      );
+    } else {
+      // For external transfers, we usually have the full payee details from the Beneficiary model
+      if (ifsCode == null || ifsCode.isEmpty) {
+        throw 'Transaction failed: IFS Code is required for external transfers (IMPS/NEFT/RTGS).';
+      }
+
+      return _performExternalTransfer(
+        transferType: transferType,
+        amount: amount,
+        fee: fee,
+        totalDebitAmount: totalDebitAmount,
+        recipientName: recipientName, // Using the passed recipientName
+        narration: finalNarration,
+        sourceAccount: sourceAccount,
+        sourceIndex: sourceIndex,
+      );
+    }
+  }
 }
