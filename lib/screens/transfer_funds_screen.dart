@@ -1,31 +1,26 @@
-// File: transfer_funds_screen.dart
+// File: transfer_funds_screen.dart (MODIFIED)
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 // 💡 ASSUMPTION: Replace the relative path with the correct one for your project.
-// We are importing all necessary models and service definitions from the single API file.
 import 'package:cabankapplication/api/banking_service.dart';
 
-// Namespaced imports for other screens to prevent class name conflicts
-// (especially if those screens also internally define Account/BankingService, which is bad practice)
-// This structure is correct if your screens are in separate files.
+// Import necessary screens for navigation
 import 'package:cabankapplication/screens/saved_beneficiary_transfer_screen.dart' as saved_screen show SavedBeneficiaryTransferScreen;
 import 'package:cabankapplication/screens/own_account_transfer_screen.dart' as own_screen show OwnAccountTransferScreen;
-import 'package:cabankapplication/screens/new_account_transfer_screen.dart' as new_screen show NewAccountTransferScreen;
+import 'package:cabankapplication/screens/beneficiary_management_screen.dart' as manage_screen show BeneficiaryManagementScreen;
 
 
-// --- ENUM FOR TRANSFER CATEGORY ---
-// (Defined globally in banking_service.dart or accessible here)
+// --- ENUM FOR TRANSFER CATEGORY (Unchanged) ---
 enum TransferCategory {
-  ownAccount,       // Maps to 'Own Accounts'
-  savedBeneficiary, // Maps to 'Within Bank' (for simplicity)
-  newAccount,       // Maps to 'Other Bank' (for simplicity)
+  ownAccount,
+  savedBeneficiary, // Used for 'Pay Saved Payee'
+  newAccount,       // Used for 'Manage / Add Payee'
 }
 
 
 class TransferFundsScreen extends StatefulWidget {
-  // Use the actual BankingService type defined in banking_service.dart
   final BankingService bankingService;
 
   const TransferFundsScreen({Key? key, required this.bankingService}) : super(key: key);
@@ -35,7 +30,6 @@ class TransferFundsScreen extends StatefulWidget {
 }
 
 class _TransferFundsScreenState extends State<TransferFundsScreen> {
-  // Use the actual Account type defined in banking_service.dart
   List<Account> _userAccounts = [];
   Account? _selectedSourceAccount;
   bool _isLoading = true;
@@ -50,10 +44,10 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
     _fetchAccountData();
   }
 
-  // --- Data Fetching Logic (Now correctly calling the new API method) ---
+  // --- Data Fetching Logic (Unchanged) ---
   Future<void> _fetchAccountData() async {
+    // ... (logic remains the same) ...
     try {
-      // The BankingService now has fetchUserAccounts(), resolving the previous compile error.
       final accounts = await widget.bankingService.fetchUserAccounts();
       final primaryAccount = accounts.first;
 
@@ -63,7 +57,6 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      // Use kDebugMode from flutter/foundation.dart to ensure this only prints in debug builds
       if (kDebugMode) {
         print('Error fetching accounts: $e');
       }
@@ -73,7 +66,7 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
-    // ... (Snackbar implementation unchanged)
+    // ... (Snackbar implementation unchanged) ...
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -84,7 +77,7 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
     );
   }
 
-  // --- NAVIGATION LOGIC ---
+  // --- NAVIGATION LOGIC (Modified to reflect new flow) ---
   void _navigateToDetailsScreen(TransferCategory category) {
     if (_selectedSourceAccount == null) {
       _showSnackBar('Source account data is still loading. Please wait.', isError: true);
@@ -103,7 +96,7 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
         break;
 
       case TransferCategory.savedBeneficiary:
-      // This is the screen we were testing, correctly called here:
+      // Flow 1: Pay Saved Payee -> Navigates to screen listing all payees
         targetScreen = saved_screen.SavedBeneficiaryTransferScreen(
           bankingService: widget.bankingService,
           sourceAccount: _selectedSourceAccount!,
@@ -111,23 +104,21 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
         break;
 
       case TransferCategory.newAccount:
-        targetScreen = new_screen.NewAccountTransferScreen(
-          bankingService: widget.bankingService,
-          sourceAccount: _selectedSourceAccount!,
-        );
+      // Flow 2: Manage / Add Payee -> Navigates to the central management screen
+        targetScreen = const manage_screen.BeneficiaryManagementScreen();
         break;
     }
 
     Navigator.push(context, MaterialPageRoute(builder: (context) => targetScreen));
   }
 
-  // --- WIDGET BUILDER: Single Tile ---
+  // --- WIDGET BUILDER: Single Tile (Unchanged) ---
   Widget _buildTransferOptionTile({
     required TransferCategory category,
     required String title,
     required IconData icon,
   }) {
-    // ... (Tile building logic unchanged)
+    // ... (Tile building logic unchanged) ...
     return InkWell(
       onTap: _isLoading ? null : () => _navigateToDetailsScreen(category),
       child: Container(
@@ -167,7 +158,7 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (Build method implementation unchanged)
+    // --- UPDATED Menu Options ---
     final List<Map<String, dynamic>> coreTransferOptions = [
       {
         'category': TransferCategory.ownAccount,
@@ -176,13 +167,15 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
       },
       {
         'category': TransferCategory.savedBeneficiary,
-        'title': 'Within Bank',
+        // Renamed for clarity: handles both internal and external saved payees
+        'title': 'Pay Saved Payee',
         'icon': Icons.account_balance,
       },
       {
         'category': TransferCategory.newAccount,
-        'title': 'Other Bank',
-        'icon': Icons.currency_rupee,
+        // Renamed for clarity: leads to the management screen
+        'title': 'Manage / Add Payee',
+        'icon': Icons.person_add_alt_1,
       },
     ];
 

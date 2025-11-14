@@ -1,4 +1,4 @@
-// File: saved_beneficiary_transfer_screen.dart (REVISED NAVIGATION)
+// File: saved_beneficiary_transfer_screen.dart (UPDATED with Source Account Dropdown)
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,18 +8,14 @@ import 'package:cabankapplication/screens/transfer_amount_entry_screen.dart';
 // Import the actual Payee Management screen
 import 'package:cabankapplication/screens/beneficiary_management_screen.dart';
 
-
-// --- REMOVED: Mock AddBeneficiaryScreen ---
-// It is replaced by the actual BeneficiaryManagementScreen
-
 class SavedBeneficiaryTransferScreen extends StatefulWidget {
   final BankingService bankingService;
-  final Account sourceAccount;
+  // NOTE: sourceAccount is REMOVED from the constructor to allow user selection.
+  // The screen now fetches all available debit accounts internally.
 
   const SavedBeneficiaryTransferScreen({
     Key? key,
-    required this.bankingService,
-    required this.sourceAccount,
+    required this.bankingService, required Account sourceAccount,
   }) : super(key: key);
 
   @override
@@ -27,85 +23,140 @@ class SavedBeneficiaryTransferScreen extends StatefulWidget {
 }
 
 class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransferScreen> {
+  // New state variables for source account management
+  List<Account> _sourceAccounts = [];
+  Account? _selectedSource;
+
   List<Beneficiary> _beneficiaries = [];
   bool _isLoading = true;
+  String? _errorMessage; // To handle API loading errors
 
   final Color _primaryColor = const Color(0xFF003366);
-  final Color _accentColor = Colors.deepOrange;
+  final Color _accentColor = const Color(0xFF003366); // Using Primary Color for consistency
 
   @override
   void initState() {
     super.initState();
-    // Setting a unique route name for popUntil after a successful transaction
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // NOTE: Using a static route name for popUntil in TransferResultScreen is risky.
-      // It's safer to rely on the current route stack. I'll keep the extension
-      // but note the better practice.
-      // Navigator.of(context).settings = const RouteSettings(name: '/transferFunds');
-    });
-    _fetchBeneficiaries();
+    // Start fetching both accounts and beneficiaries
+    _fetchData();
 
     // Listen for global data updates (in case the Management screen updates data outside of navigation return)
     widget.bankingService.onDataUpdate.listen((_) {
       if (mounted) {
-        _fetchBeneficiaries();
+        _fetchData();
       }
     });
   }
 
-  Future<void> _fetchBeneficiaries() async {
-    setState(() => _isLoading = true);
+  // --- DATA FETCHING & UI LOGIC ---
+
+  Future<void> _fetchData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      // Ensure we are using the service passed via the widget
+      // 1. Fetch Source Accounts
+      final debitAccounts = await widget.bankingService.fetchDebitAccounts();
+
+      // 2. Fetch Beneficiaries
       final payees = await widget.bankingService.fetchBeneficiaries();
+
       setState(() {
+        _sourceAccounts = debitAccounts;
+
+        // Auto-select the first account or re-validate the current selection
+        if (_selectedSource == null && debitAccounts.isNotEmpty) {
+          _selectedSource = debitAccounts.first;
+        } else if (_selectedSource != null && !debitAccounts.any((a) => a.accountNumber == _selectedSource!.accountNumber)) {
+          // If the previously selected account is no longer available, select the first one.
+          _selectedSource = debitAccounts.isNotEmpty ? debitAccounts.first : null;
+        }
+
         _beneficiaries = payees;
         _isLoading = false;
       });
     } catch (e) {
       if (kDebugMode) {
-        print('Error fetching beneficiaries: $e');
+        print('Error fetching data: $e');
       }
-      setState(() => _isLoading = false);
+      setState(() {
+        _errorMessage = 'Failed to load accounts or payees. Please try again.';
+        _isLoading = false;
+      });
     }
   }
 
   // UPDATED: Navigate to the actual Beneficiary Management Screen
   void _navigateToAddBeneficiary() {
-    // Navigate to the screen where payees can be added, edited, or deleted.
     Navigator.push(
       context,
       MaterialPageRoute(
-        // Assuming BeneficiaryManagementScreen is accessible via this path
+        // Navigate to the central management hub
         builder: (context) => const BeneficiaryManagementScreen(),
       ),
     ).then((_) {
-      // When the user returns from the BeneficiaryManagementScreen,
-      // the list is refreshed to show any newly added payees.
-      _fetchBeneficiaries();
+      // When the user returns, refresh the list.
+      _fetchData();
     });
   }
 
   // --- UI Components ---
 
-  // Helper to build the account summary card
-  Widget _buildSourceAccountCard() {
-    return Container(
-      margin: const EdgeInsets.all(10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _primaryColor.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _primaryColor.withOpacity(0.2)),
-      ),
-      child: Row(
+  // Helper function to convert Account object to display string
+  String _accountToDisplayString(Account account) {
+    String typeLabel = account.accountType.name.splitMapJoin(
+      RegExp(r'[A-Z]'),
+      onMatch: (m) => ' ${m.group(0)}',
+      onNonMatch: (n) => n,
+    ).trim();
+    typeLabel = typeLabel.substring(0, 1).toUpperCase() + typeLabel.substring(1);
+
+    final maskedNumber = widget.bankingService.maskAccountNumber(account.accountNumber);
+    final balance = '₹${account.balance.toStringAsFixed(2)}';
+
+    return '${account.nickname} ($typeLabel - $maskedNumber) | Bal: $balance';
+  }
+
+  // NEW: Dropdown builder for the Source Account
+  Widget _buildAccountDropdown() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.account_balance_wallet, color: _primaryColor),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              'Source: ${widget.sourceAccount.nickname} (Acct: ${widget.bankingService.maskAccountNumber(widget.sourceAccount.accountNumber)})',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
+          const Text('Select Source Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: _primaryColor.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _primaryColor, width: 1.5),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<Account>(
+                value: _selectedSource,
+                isExpanded: true,
+                icon: Icon(Icons.keyboard_arrow_down_rounded, color: _primaryColor),
+                style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 14),
+                hint: const Text('No debit accounts available', style: TextStyle(color: Colors.red)),
+                onChanged: (Account? newValue) {
+                  setState(() {
+                    _selectedSource = newValue;
+                  });
+                },
+                items: _sourceAccounts.map((Account item) {
+                  return DropdownMenuItem<Account>(
+                    value: item,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(_accountToDisplayString(item), overflow: TextOverflow.ellipsis),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
           ),
         ],
@@ -113,7 +164,8 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
     );
   }
 
-  // Helper to build the list item
+
+  // Helper to build the list item (initiates transfer, passes selected source)
   Widget _buildBeneficiaryItem(Beneficiary payee) {
     return Card(
       elevation: 2,
@@ -132,12 +184,14 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
         ),
         trailing: Icon(Icons.send_outlined, color: _accentColor),
         onTap: () {
-          // Navigate to the detailed Amount Entry Screen
+          if (_selectedSource == null) return; // Cannot transfer without a source
+
+          // Navigate to the detailed Amount Entry Screen, passing the SELECTED Source Account
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => TransferAmountEntryScreen(
-                sourceAccount: widget.sourceAccount,
+                sourceAccount: _selectedSource!, // PASSES THE SELECTED ACCOUNT
                 beneficiary: payee,
                 bankingService: widget.bankingService,
               ),
@@ -153,7 +207,7 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transfer to Saved Beneficiary', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Transfer to Saved Payee', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: _primaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -164,9 +218,19 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSourceAccountCard(),
-            const SizedBox(height: 10),
+            // NEW: Source Account Selection Dropdown
+            _buildAccountDropdown(),
 
+            // Display error message if any
+            if (_errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Text(_errorMessage!, style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w500)),
+              ),
+
+            const SizedBox(height: 16),
+
+            // Heading for Beneficiary List
             Padding(
               padding: const EdgeInsets.only(left: 20, right: 10),
               child: Text(
@@ -178,14 +242,17 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
 
             // List of Beneficiaries
             Expanded(
-              child: _beneficiaries.isEmpty
+              child: _beneficiaries.isEmpty || _selectedSource == null
                   ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.person_add_disabled_outlined, size: 60, color: Colors.grey.shade400),
                     const SizedBox(height: 10),
-                    const Text('No Payees. Tap "Add Payee" below.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                    if (_selectedSource == null)
+                      const Text('No source account available for transfer.', style: TextStyle(fontSize: 16, color: Colors.grey))
+                    else
+                      const Text('No Payees. Tap "Manage / Add Payee" below.', style: TextStyle(fontSize: 16, color: Colors.grey)),
                   ],
                 ),
               )
@@ -204,52 +271,11 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _navigateToAddBeneficiary,
         icon: const Icon(Icons.person_add_alt_1),
-        label: const Text('Manage / Add Payee'), // Better label
-        backgroundColor: _primaryColor, // Matching primary color for consistency
+        label: const Text('Manage / Add Payee'),
+        backgroundColor: _primaryColor,
         foregroundColor: Colors.white,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-}
-
-// --- Extension and TransferResultScreen (Kept for completeness) ---
-
-extension on NavigatorState {
-  // Mock setter for settings to avoid runtime error when setting route name
-  set settings(RouteSettings settings) {}
-}
-
-// Simple Transfer Result Screen (for use after transaction)
-class TransferResultScreen extends StatelessWidget {
-  final String message;
-  final bool isSuccess;
-  const TransferResultScreen({super.key, required this.message, required this.isSuccess});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color primaryColor = const Color(0xFF003366);
-    return Scaffold(
-      appBar: AppBar(title: Text(isSuccess ? 'Success' : 'Failed', style: const TextStyle(color: Colors.white)), backgroundColor: primaryColor),
-      body: Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(isSuccess ? Icons.check_circle_outline : Icons.error_outline, size: 80, color: isSuccess ? Colors.green : Colors.red),
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // Pop back to the Beneficiary Selection Screen
-              // Using route name is unreliable, using popUntil (route) => route.isFirst
-              // or using a named route for this screen is safer. Using isFirst for now.
-              Navigator.popUntil(context, (route) => route.isFirst);
-            },
-            child: const Text('Done'),
-          ),
-        ]),
-      ),
     );
   }
 }

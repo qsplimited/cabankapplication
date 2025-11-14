@@ -1,5 +1,3 @@
-// File: banking_service.dart (CONSOLIDATED & UPDATED)
-
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'dart:math';
@@ -8,6 +6,17 @@ import 'dart:math';
 enum TransferType { imps, neft, rtgs, internal }
 enum TransactionType { debit, credit }
 enum AccountType { savings, current, fixedDeposit, recurringDeposit }
+
+/// Custom Exception for banking errors
+class TransferException implements Exception {
+  final String message;
+  final String code;
+
+  TransferException(this.message, {this.code = 'TRANSACTION_FAILED'});
+
+  @override
+  String toString() => 'TransferException: $message (Code: $code)';
+}
 
 /// User details model.
 class UserProfile {
@@ -124,24 +133,32 @@ class BankingService {
     return _instance;
   }
 
-  // Private constructor
-  BankingService._internal();
-
-  // --- MOCK FEES AND LIMITS ---
+  // --- MOCK CONSTANTS ---
+  static const String _mockBankIfscPrefix = 'CABK'; // CA Bank Mock IFSC prefix
   static const double _impsFeeRate = 0.005;
   static const double _neftFeeFixed = 5.0;
   static const double _rtgsFeeMin = 25.0;
   static const double _dailyTransferLimit = 200000.00;
   double _todayTransferredAmount = 15000.00;
+  static const int _tpinLength = 6;
+  static const String _registeredMobileNumber = '9876541234';
 
   // --- STATE MANAGEMENT: T-PIN, OTP, AND ACCOUNT DATA ---
-  // 💥 UPDATED MOCK T-PIN to 6 digits
-  String? _currentTPIN = '456789';
-  // 💥 UPDATED T-PIN length to 6 digits
-  static const int _tpinLength = 6;
+  String? _currentTPIN;
   String? _mockOtp;
-  static const String _registeredMobileNumber = '9876541234';
   String _targetMobileForReset = '';
+
+  // Private constructor
+  BankingService._internal() {
+    // Initialize T-PIN and ensure it meets the required length
+    _currentTPIN = '456789';
+    if (_currentTPIN?.length != _tpinLength) {
+      if (kDebugMode) {
+        print('WARNING: Mock T-PIN does not meet the required length ($_tpinLength). Setting to null.');
+      }
+      _currentTPIN = null;
+    }
+  }
 
   // Mock Data definitions
   final UserProfile _userProfile = UserProfile(
@@ -184,11 +201,11 @@ class BankingService {
     ),
     Beneficiary(
       beneficiaryId: 'BENF3',
-      name: 'Car Loan EMI',
+      name: 'Internal Payee',
       accountNumber: '246813579024',
-      ifsCode: 'PNB0000055',
-      bankName: 'Punjab National Bank',
-      nickname: 'Car Loan',
+      ifsCode: '${_mockBankIfscPrefix}0000055', // IFSC that matches our mock bank prefix
+      bankName: 'CA Bank',
+      nickname: 'Internal Transfer Test',
     ),
   ];
 
@@ -224,13 +241,18 @@ class BankingService {
     return maskedPart + lastFour;
   }
 
+  // --- IFSC HELPER (NEWLY ADDED) ---
+  /// Checks if the given IFSC code belongs to this bank.
+  bool isInternalIfsc(String ifsCode) {
+    return ifsCode.toUpperCase().startsWith(_mockBankIfscPrefix);
+  }
+
   // Method to fetch all accounts (needed by the fund transfer menu)
   Future<List<Account>> fetchUserAccounts() async {
     await Future.delayed(const Duration(milliseconds: 500));
     return List.from(_mockUserAccounts);
   }
 
-  // 💥 NEW: Method to fetch the primary account (REQUIRED BY BENEFICIARY MANAGEMENT SCREEN)
   /// Fetches the user's primary account, typically the first one in the list.
   Future<Account> fetchPrimaryAccount() async {
     await Future.delayed(const Duration(milliseconds: 500));
@@ -240,6 +262,33 @@ class BankingService {
     // Assume the first account is the primary account
     return _mockUserAccounts.first;
   }
+
+  // --- ACCOUNT FILTERING HELPERS FOR UI (NEWLY ADDED) ---
+
+  /// Filters accounts that are eligible to be debited (used for the Source account selection
+  /// for BOTH internal and external transfers). Excludes FD/RD.
+  Future<List<Account>> fetchDebitAccounts() async {
+    // Simulates a quick API call to get the list of debitable accounts
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Logic: Ensure only Savings and Current accounts are available to debit from.
+    return _mockUserAccounts.where((acc) =>
+    acc.accountType != AccountType.fixedDeposit &&
+        acc.accountType != AccountType.recurringDeposit
+    ).toList();
+  }
+
+  /// Filters accounts eligible to be credited, specifically for OWN ACCOUNT TRANSFERS,
+  /// excluding the current source account number.
+  List<Account> filterDestinationAccounts(String sourceAccountNumber) {
+    // Logic: All linked accounts are creditable, but we must exclude the source account.
+    return _mockUserAccounts.where((acc) =>
+    acc.accountNumber != sourceAccountNumber
+    ).toList();
+  }
+
+  // --------------------------------------------------------
+
 
   // --- NEW: Transfer Rules Data (REQUIRED FOR UI) ---
   Map<TransferType, String> getTransferTypeRules() {
@@ -272,7 +321,7 @@ class BankingService {
 
     // Check if the beneficiary already exists (case-insensitive)
     if (_mockBeneficiaries.any((b) => b.accountNumber == accountNumber)) {
-      throw Exception('Beneficiary with this account number already exists.');
+      throw TransferException('Beneficiary with this account number already exists.');
     }
 
     final newBeneficiary = Beneficiary(
@@ -296,7 +345,7 @@ class BankingService {
     _mockBeneficiaries.removeWhere((b) => b.beneficiaryId == beneficiaryId);
 
     if (_mockBeneficiaries.length == initialLength) {
-      throw Exception('Beneficiary not found for deletion.');
+      throw TransferException('Beneficiary not found for deletion.');
     }
     _notifyListeners();
   }
@@ -307,7 +356,7 @@ class BankingService {
     final index = _mockBeneficiaries.indexWhere((b) => b.beneficiaryId == updatedBeneficiary.beneficiaryId);
 
     if (index == -1) {
-      throw Exception('Beneficiary not found for update.');
+      throw TransferException('Beneficiary not found for update.');
     }
 
     _mockBeneficiaries[index] = updatedBeneficiary;
@@ -337,12 +386,20 @@ class BankingService {
         'bankName': 'State Bank of India',
       };
     }
-    if (recipientAccount == '111111111111') {
-      throw Exception('Account not found. Please check the account number.');
+    if (recipientAccount.startsWith('11111111')) {
+      throw TransferException('Account not found. Please check the account number.');
+    }
+
+    // Success case for internal IFSC match
+    if (isInternalIfsc(ifsCode) && recipientAccount.startsWith('24681357')) {
+      return {
+        'officialName': 'Internal Payee',
+        'bankName': 'CA Bank',
+      };
     }
 
     // General failure
-    throw Exception('Verification failed. Check account number and IFS code.');
+    throw TransferException('Verification failed. Check account number and IFS code.');
   }
 
 
@@ -366,13 +423,15 @@ class BankingService {
 
   Future<String> requestTpinOtp() async {
     if (_targetMobileForReset.isEmpty) {
-      throw 'Mobile number not verified. Cannot send OTP.';
+      throw TransferException('Mobile number not verified. Cannot send OTP.');
     }
 
     await Future.delayed(const Duration(seconds: 2));
     final otp = (100000 + Random().nextInt(900000)).toString();
     _mockOtp = otp;
-    debugPrint('MOCK OTP GENERATED: $_mockOtp for $_targetMobileForReset');
+    if (kDebugMode) {
+      print('MOCK OTP GENERATED: $_mockOtp for $_targetMobileForReset');
+    }
     return otp;
   }
 
@@ -382,7 +441,7 @@ class BankingService {
       _mockOtp = null;
       return;
     } else {
-      throw 'Invalid or expired OTP. Please request a new one.';
+      throw TransferException('Invalid or expired OTP. Please request a new one.');
     }
   }
 
@@ -394,22 +453,24 @@ class BankingService {
 
     if (isTpinSet && oldPin != null) {
       if (oldPin != _currentTPIN) {
-        throw 'Current T-PIN is incorrect. Authorization failed.';
+        throw TransferException('Current T-PIN is incorrect. Authorization failed.');
       }
     } else if (isTpinSet && oldPin == null) {
       if (_targetMobileForReset.isEmpty) {
-        throw 'Current T-PIN must be provided to change the PIN unless a reset flow is initiated.';
+        throw TransferException('Current T-PIN must be provided to change the PIN unless a reset flow is initiated.');
       }
     }
 
     // Validation now uses _tpinLength = 6
     if (newPin.length != _tpinLength || !RegExp(r'^\d+$').hasMatch(newPin)) {
-      throw 'Invalid PIN format. New T-PIN must be exactly $_tpinLength numeric digits.';
+      throw TransferException('Invalid PIN format. New T-PIN must be exactly $_tpinLength numeric digits.');
     }
 
     _currentTPIN = newPin;
     _targetMobileForReset = '';
-    debugPrint('T-PIN updated to: $_currentTPIN');
+    if (kDebugMode) {
+      print('T-PIN updated to: $_currentTPIN');
+    }
 
     _notifyListeners();
 
@@ -457,7 +518,7 @@ class BankingService {
         return _neftFeeFixed;
       case TransferType.rtgs:
         if (amount < 200000.0) {
-          throw Exception('RTGS minimum transfer amount is ₹2,00,000.00.');
+          throw TransferException('RTGS minimum transfer amount is ₹2,00,000.00.');
         }
         return _rtgsFeeMin;
       case TransferType.internal:
@@ -474,7 +535,7 @@ class BankingService {
 
     final sourceIndex = _mockUserAccounts.indexWhere((acc) => acc.accountNumber == sourceAccountNumber);
     if (sourceIndex == -1) {
-      throw Exception('Source account not found.');
+      throw TransferException('Source account not found.');
     }
     final sourceAccount = _mockUserAccounts[sourceIndex];
 
@@ -489,11 +550,11 @@ class BankingService {
     final availableDailyLimit = _dailyTransferLimit - _todayTransferredAmount;
 
     if (amount > availableDailyLimit) {
-      throw Exception('Transaction exceeds daily transfer limit. Available: ₹${availableDailyLimit.toStringAsFixed(2)}');
+      throw TransferException('Transaction exceeds daily transfer limit. Available: ₹${availableDailyLimit.toStringAsFixed(2)}');
     }
 
     if (totalDebit > sourceAccount.balance) {
-      throw Exception('Insufficient funds. Required: ₹${totalDebit.toStringAsFixed(2)}');
+      throw TransferException('Insufficient funds. Required: ₹${totalDebit.toStringAsFixed(2)}');
     }
 
     return {
@@ -503,7 +564,7 @@ class BankingService {
     };
   }
 
-  // --- FUND TRANSFER IMPLEMENTATION (Unchanged) ---
+  // --- FUND TRANSFER IMPLEMENTATION (UPDATED FOR OWN ACCOUNT CHECKS) ---
   Future<String> _performInternalTransfer({
     required double amount,
     required String narration,
@@ -511,13 +572,33 @@ class BankingService {
     required String recipientAccount,
     required int sourceIndex,
   }) async {
+    // 1. BANKING RULE: Check for self-transfer
+    if (sourceAccount.accountNumber == recipientAccount) {
+      throw TransferException('Transaction failed: Cannot transfer funds to the same source account.');
+    }
+
+    // 2. BANKING RULE: Prevent debit from deposit accounts (FD/RD)
+    if (sourceAccount.accountType == AccountType.fixedDeposit ||
+        sourceAccount.accountType == AccountType.recurringDeposit) {
+      throw TransferException(
+        'Transaction failed: Cannot directly debit funds from a ${sourceAccount.accountType.name}. Please use the "Close/Break Deposit" option.',
+        code: 'DEPOSIT_DEBIT_BLOCKED',
+      );
+    }
+
     final destinationIndex = _mockUserAccounts.indexWhere((acc) => acc.accountNumber == recipientAccount);
     final destinationAccount = destinationIndex != -1 ? _mockUserAccounts[destinationIndex] : null;
 
     if (destinationAccount == null) {
-      throw 'Transaction failed: Destination account not found.';
+      throw TransferException('Transaction failed: Destination own account not found in system.');
     }
 
+    // 3. FINAL CHECK: Insufficient Funds (Redundant with submitFundTransfer but safer here)
+    if (amount > sourceAccount.balance) {
+      throw TransferException('Transaction failed: Insufficient funds for transfer.');
+    }
+
+    // --- LEDGER UPDATE (Simulated Atomic Commit) ---
     final newSourceBalance = sourceAccount.balance - amount;
     _mockUserAccounts[sourceIndex] = sourceAccount.copyWith(newBalance: newSourceBalance);
 
@@ -583,41 +664,49 @@ class BankingService {
 
     // --- PRE-VALIDATION ---
     if (sourceAccount == null) {
-      throw 'Transaction failed: Source account not found.';
+      throw TransferException('Transaction failed: Source account not found.');
     }
 
     if (_currentTPIN == null) {
-      throw 'Transaction failed: T-PIN is not set. Please set your T-PIN first.';
+      throw TransferException('Transaction failed: T-PIN is not set. Please set your T-PIN first.');
     }
     // This comparison now expects 6 digits
     if (transactionPin != _currentTPIN) {
-      throw 'Transaction failed: Invalid Transaction PIN.';
+      throw TransferException('Transaction failed: Invalid Transaction PIN.');
     }
 
     if (amount <= 0) {
-      throw 'Transaction failed: Amount must be greater than zero.';
+      throw TransferException('Transaction failed: Amount must be greater than zero.');
     }
 
     double fee = 0.0;
     double totalDebitAmount = amount;
 
-    try {
-      final details = await calculateTransferDetails(
-        transferType: transferType,
-        amount: amount,
-        sourceAccountNumber: sourceAccountNumber,
-      );
-      fee = details['fee']!;
-      totalDebitAmount = details['totalDebit']!;
-    } catch (e) {
-      final extractedMessage = e.toString().split(': ').last;
-      throw Exception(extractedMessage);
+    // Only run fee/limit calculations for non-Own Account transfers
+    // For Own Account transfers, we use a dedicated method that bypasses the fee/limit check
+    if (transferType != TransferType.internal || !_mockUserAccounts.any((a) => a.accountNumber == recipientAccount)) {
+      try {
+        final details = await calculateTransferDetails(
+          transferType: transferType,
+          amount: amount,
+          sourceAccountNumber: sourceAccountNumber,
+        );
+        fee = details['fee']!;
+        totalDebitAmount = details['totalDebit']!;
+      } on TransferException {
+        rethrow;
+      } catch (e) {
+        // Catch generic exceptions and re-throw as TransferException
+        throw TransferException(e.toString().replaceAll('Exception: ', ''));
+      }
     }
+
 
     // --- EXECUTION ---
     final finalNarration = narration?.trim() ?? '';
 
-    if (transferType == TransferType.internal) {
+    if (transferType == TransferType.internal || _mockUserAccounts.any((a) => a.accountNumber == recipientAccount)) {
+      // NOTE: Even if the transfer is initiated from the main menu, if the destination is an on-us account, it's an internal transfer (which is why we check for both the enum and the account list)
       return _performInternalTransfer(
         amount: amount,
         narration: finalNarration,
@@ -626,9 +715,9 @@ class BankingService {
         sourceIndex: sourceIndex,
       );
     } else {
-      // For external transfers, we usually have the full payee details from the Beneficiary model
+      // For external transfers
       if (ifsCode == null || ifsCode.isEmpty) {
-        throw 'Transaction failed: IFS Code is required for external transfers (IMPS/NEFT/RTGS).';
+        throw TransferException('Transaction failed: IFS Code is required for external transfers (IMPS/NEFT/RTGS).');
       }
 
       return _performExternalTransfer(

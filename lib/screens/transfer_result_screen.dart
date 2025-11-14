@@ -1,5 +1,3 @@
-// File: transfer_result_screen.dart (FINAL ENHANCED DESIGN - V2)
-
 import 'package:flutter/material.dart';
 
 class TransferResultScreen extends StatelessWidget {
@@ -12,25 +10,24 @@ class TransferResultScreen extends StatelessWidget {
     required this.isSuccess,
   });
 
-  // Helper method for navigation logic
+
   void _handleNavigation(BuildContext context) {
-    // Define the route name for the Fund Transfer Start Page (e.g., Payee Selection)
+
     const String transferStartRoute = '/transferFunds';
-    // Define the route name for the Dashboard/Home Page (e.g., the root screen)
-    const String dashboardRoute = '/dashboard';
 
-    // For success, generally navigate back to the main transfer screen or dashboard.
-    // We'll use popUntil to ensure we clear all intermediary screens (like amount entry, confirmation).
-
-    // Check if the transferStartRoute exists in the history, otherwise go to the root (dashboard).
     Navigator.popUntil(
       context,
-          (route) => route.isFirst || route.settings.name == transferStartRoute || route.settings.name == dashboardRoute,
-    );
+          (route) {
 
-    // If you always want to pop all the way back to the main home/dashboard:
-    // Navigator.popUntil(context, (route) => route.isFirst); 
+        if (route.settings.name == transferStartRoute) {
+          return true;
+        }
+
+        return route.isFirst;
+      },
+    );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -42,17 +39,19 @@ class TransferResultScreen extends StatelessWidget {
     final Color accentColor = isSuccess ? successColor : failureColor;
 
     return Scaffold(
+      // Prevent user from swiping back or tapping the back arrow (since navigation is handled by the button)
       appBar: AppBar(
         title: Text(
           isSuccess ? 'Transaction Successful' : 'Transaction Failed',
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: primaryColor,
-        iconTheme: const IconThemeData(color: Colors.white),
+        automaticallyImplyLeading: false, // Disables the default back button
       ),
 
       body: SingleChildScrollView(
         child: Container(
+          // Ensure the content takes at least the full screen height
           constraints: BoxConstraints(
             minHeight: MediaQuery.of(context).size.height - AppBar().preferredSize.height - MediaQuery.of(context).padding.top,
           ),
@@ -143,7 +142,7 @@ class TransferResultScreen extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
-                          color: isSuccess ? primaryColor : failureColor.shade900,
+                          color: isSuccess ? primaryColor : Colors.red.shade900, // Refined to use standard dark red
                           fontWeight: isSuccess ? FontWeight.normal : FontWeight.w600,
                           height: 1.4,
                         ),
@@ -174,8 +173,4 @@ class TransferResultScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-extension on Color {
-  get shade900 => null;
 }
