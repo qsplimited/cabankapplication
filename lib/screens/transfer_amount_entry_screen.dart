@@ -1,12 +1,125 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// 💡 IMPORTANT: Import all necessary types and the service from the canonical API file.
+// NOTE: Ensure your banking_service.dart file uses the mock implementation you provided.
 import 'package:cabankapplication/api/banking_service.dart';
 import 'package:cabankapplication/screens/transfer_result_screen.dart';
 
+
+// -----------------------------------------------------------------------------
+// --- STYLED OTP INPUT FIELD WIDGET (Included for completeness) ---
+// -----------------------------------------------------------------------------
+
+/// Custom widget to handle the 6-digit OTP input fields with a modern style.
+class StyledOtpInputFields extends StatefulWidget {
+  final ValueChanged<String> onOtpChanged;
+  final int otpLength;
+
+  const StyledOtpInputFields({
+    super.key,
+    required this.onOtpChanged,
+    this.otpLength = 6,
+  });
+
+  @override
+  State<StyledOtpInputFields> createState() => _StyledOtpInputFieldsState();
+}
+
+class _StyledOtpInputFieldsState extends State<StyledOtpInputFields> {
+  late List<TextEditingController> _controllers;
+  late List<FocusNode> _focusNodes;
+  String _currentOtp = '';
+
+  // Theme colors for input
+  final Color _primaryColor = const Color(0xFF003366);
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(widget.otpLength, (index) => TextEditingController());
+    _focusNodes = List.generate(widget.otpLength, (index) => FocusNode());
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    for (var node in _focusNodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Updates the full OTP string and notifies the parent widget.
+  void _updateOtp() {
+    // Collect the text from all controllers, filtering out any empty ones
+    final newOtp = _controllers.map((c) => c.text.isNotEmpty ? c.text : '').join('');
+
+    // Only call onOtpChanged if the OTP string has actually changed
+    if (_currentOtp != newOtp) {
+      _currentOtp = newOtp;
+      widget.onOtpChanged(_currentOtp);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(widget.otpLength, (index) {
+        // Reduced width from 48 to 40 to prevent RenderFlex overflow and minimize box size.
+        return SizedBox(
+          width: 40,
+          child: TextFormField(
+            controller: _controllers[index],
+            focusNode: _focusNodes[index],
+            keyboardType: TextInputType.number,
+            maxLength: 1,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _primaryColor),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+
+            onChanged: (value) {
+              if (value.length == 1 && index < widget.otpLength - 1) {
+                // Move to next field if a digit is entered
+                FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
+              } else if (value.isEmpty && index > 0) {
+                // Move back on delete
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
+                  }
+                });
+              }
+              _updateOtp();
+            },
+
+            decoration: InputDecoration(
+              counterText: "",
+              hintText: '0',
+              hintStyle: TextStyle(fontSize: 24, color: Colors.grey.shade300),
+              contentPadding: const EdgeInsets.symmetric(vertical: 16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade400, width: 2),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: _primaryColor, width: 3),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// --- TRANSFER AMOUNT ENTRY SCREEN ---
+// -----------------------------------------------------------------------------
 
 class TransferAmountEntryScreen extends StatefulWidget {
   final Account sourceAccount;
@@ -25,10 +138,10 @@ class TransferAmountEntryScreen extends StatefulWidget {
 }
 
 class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
-  // --- Constants and Theme (MODERNIZED COLORS) ---
-  final Color _primaryColor = const Color(0xFF003366); // Dark Blue (App Bar, Main Buttons)
-  final Color _accentColor = const Color(0xFFE53935); // Secondary/Error Color (Red)
-  final Color _successColor = const Color(0xFF2E7D32); // Success/Confirm Pay Color (Dark Green)
+  // --- Constants and Theme ---
+  final Color _primaryColor = const Color(0xFF003366);
+  final Color _accentColor = const Color(0xFFE53935);
+  final Color _successColor = const Color(0xFF2E7D32);
   final TextStyle _labelStyle = const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black54);
 
   // --- Transfer State ---
@@ -36,7 +149,6 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
   TransferType _selectedTransferType = TransferType.imps;
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _narrationController = TextEditingController();
-  final TextEditingController _tpinController = TextEditingController();
 
   // --- Calculation State ---
   double _calculatedFee = 0.0;
@@ -44,28 +156,34 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
   bool _isCalculating = false;
   String? _calculationError;
 
-  // --- UI Flow State ---
-  bool _showConfirmation = false;
-  bool _isTransferring = false;
+  // --- OTP State ---
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  static const int _tpinLength = 6;
+
+  bool _otpRequested = false;
+  bool _isOtpSending = false;
+  bool _isTransferring = false;
+  String _transactionReference = '';
+  String _simulatedOtp = ''; // Kept internally for mock validation only
+  String _otpMessage = '';
+  String _enteredOtp = '';
+  static const int _otpLength = 6;
+
+  // Debounce timer for fee calculation
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-    // 💡 CORE LOGIC: Check if the beneficiary is internal to determine UI flow
     _isInternalTransfer = widget.bankingService.isInternalIfsc(widget.beneficiary.ifsCode);
 
     if (_isInternalTransfer) {
-      // If internal, lock the transfer type
       _selectedTransferType = TransferType.internal;
     } else {
-      // If external, default to IMPS (or any preferred external type)
       _selectedTransferType = TransferType.imps;
     }
 
     _amountController.addListener(_recalculateFeesDebounced);
-    _recalculateFees(1.0); // Initial check for limits/rules without an actual amount
+    _recalculateFees(1.0);
   }
 
   @override
@@ -73,13 +191,10 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
     _amountController.removeListener(_recalculateFeesDebounced);
     _amountController.dispose();
     _narrationController.dispose();
-    _tpinController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  // --- Fee Calculation and Debounce ---
-  Timer? _debounce;
   void _recalculateFeesDebounced() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 700), () {
@@ -89,7 +204,7 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
   }
 
   Future<void> _recalculateFees(double amount) async {
-    // Skip calculation if amount is zero, unless it's the initial check (amount=1.0)
+    // Skip calculation if amount is zero, but allow calculation for the initial 1.0 check
     if (amount <= 0 && amount != 1.0) {
       setState(() { _calculatedFee = 0.0; _totalDebitAmount = 0.0; _calculationError = null; });
       return;
@@ -98,6 +213,7 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
     setState(() { _isCalculating = true; _calculationError = null; });
 
     try {
+      // NOTE: Call is safe as parameters are checked in initState/form validation
       final details = await widget.bankingService.calculateTransferDetails(
         transferType: _selectedTransferType,
         amount: amount,
@@ -105,13 +221,12 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _calculatedFee = details['fee']!;
-        _totalDebitAmount = details['totalDebit']!;
+        _calculatedFee = details['fee'] as double; // Explicitly cast to double
+        _totalDebitAmount = details['totalDebit'] as double; // Explicitly cast to double
         _isCalculating = false;
       });
     } catch (e) {
       if (!mounted) return;
-      // Error means limit reached or insufficient funds, clear fee/total
       setState(() {
         _calculationError = e.toString().split(': ').last;
         _calculatedFee = 0.0;
@@ -121,30 +236,91 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
     }
   }
 
-  // --- Flow Handlers ---
-  void _confirmTransfer() {
-    if (_formKey.currentState!.validate()) {
-      final amount = double.tryParse(_amountController.text) ?? 0.0;
-      if (amount <= 0) {
-        _showSnackbar('Please enter a transfer amount.');
-        return;
-      }
+
+  // --- OTP FLOW HANDLERS ---
+
+  Future<void> _requestOtp() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
+    if (amount <= 0) {
+      _showSnackbar('Please enter a transfer amount.', isError: true);
+      return;
+    }
+    // Re-check calculation error before proceeding
+    if (_calculationError != null) {
+      _showSnackbar('Cannot proceed due to validation error: $_calculationError', isError: true);
+      return;
+    }
+
+    // --- Null Safety Check for API Parameters ---
+    if (widget.sourceAccount.accountNumber.isEmpty || widget.beneficiary.accountNumber.isEmpty) {
+      _showSnackbar('Missing source or beneficiary account details.', isError: true);
+      return;
+    }
+    // ------------------------------------------
+
+    setState(() => _isOtpSending = true);
+
+    try {
+      // Re-run the fee calculation one last time to ensure latest details are used
+      await _recalculateFees(amount);
       if (_calculationError != null) {
-        _showSnackbar('Cannot proceed due to validation error: $_calculationError');
+        _showSnackbar('Cannot proceed due to validation error: $_calculationError', isError: true);
         return;
       }
-      // Set to true, which triggers the modal in the build method
+
+      final result = await widget.bankingService.requestFundTransferOtp(
+        recipientAccount: widget.beneficiary.accountNumber,
+        amount: amount,
+        sourceAccountNumber: widget.sourceAccount.accountNumber,
+        transferType: _selectedTransferType,
+      );
+
+      if (!mounted) return;
       setState(() {
-        _showConfirmation = true; _tpinController.clear();
+        // Explicitly cast to String to prevent the null-type error if the mock returns null for a field.
+        _transactionReference = (result['transactionReference'] ?? '') as String;
+        _simulatedOtp = (result['mockOtp'] ?? '') as String; // Get the mock OTP
+        _otpMessage = (result['message'] ?? 'OTP sent to mobile.') as String;
+        _otpRequested = true;
+        _enteredOtp = '';
+        // Note: The modal is shown in the build method's post-frame callback
       });
+
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _simulatedOtp = ''; // Clear OTP if request failed
+      });
+      _showSnackbar('Failed to send OTP: ${e.toString().split(': ').last}', isError: true);
+    } finally {
+      if (mounted) setState(() => _isOtpSending = false);
     }
   }
 
-  Future<void> _submitTransfer() async {
-    if (_tpinController.text.length != _tpinLength) {
-      _showSnackbar('T-PIN must be $_tpinLength digits.');
+
+  Future<void> _submitTransferWithOtp() async {
+    // Check if the button was enabled by mistake (shouldn't happen, but safe)
+    if (_enteredOtp.length != _otpLength) return;
+
+    // --- MOCK OTP VALIDATION (Simulates failure for wrong OTP) ---
+    // NOTE: The mock service handles the official validation, but we can do a quick check here.
+    if (_enteredOtp != _simulatedOtp) {
+      if (!mounted) return;
+      // Close the modal before showing the result screen
+      Navigator.pop(context);
+      // FIX: Use push() instead of pushReplacement() to keep the current screen on the stack
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const TransferResultScreen(
+          message: 'The entered OTP is incorrect or has expired. Please retry the transfer.',
+          isSuccess: false,
+        )),
+      );
       return;
     }
+    // --- END MOCK VALIDATION ---
 
     setState(() => _isTransferring = true);
 
@@ -154,16 +330,19 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
         recipientAccount: widget.beneficiary.accountNumber,
         recipientName: widget.beneficiary.name,
         ifsCode: widget.beneficiary.ifsCode,
-        transferType: _selectedTransferType, // Uses internal or external type
+        transferType: _selectedTransferType,
         amount: amount,
         narration: _narrationController.text,
-        transactionPin: _tpinController.text,
+        transactionReference: _transactionReference,
+        transactionOtp: _enteredOtp,
         sourceAccountNumber: widget.sourceAccount.accountNumber,
       );
 
       if (!mounted) return;
-      // Navigate to success screen
-      Navigator.pushReplacement(
+      // Close the modal before navigating to the result screen
+      Navigator.pop(context);
+      // FIX: Use push() instead of pushReplacement() to keep the current screen on the stack
+      Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => TransferResultScreen(message: result, isSuccess: true)),
       );
@@ -171,26 +350,32 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
     } catch (e) {
       if (!mounted) return;
       final errorMessage = e.toString().split(': ').last;
-      // Navigate to failure screen
-      Navigator.pushReplacement(
+      // Close the modal before navigating to the result screen
+      Navigator.pop(context);
+      // FIX: Use push() instead of pushReplacement() to keep the current screen on the stack
+      Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => TransferResultScreen(message: errorMessage, isSuccess: false)),
       );
     } finally {
-      // Reset the state, though navigation will typically cover this
-      setState(() => _isTransferring = false);
+      // Important: This setState will only update the main screen's state, but the dialog is already closed.
+      if (mounted) setState(() => _isTransferring = false);
     }
   }
 
-  void _showSnackbar(String message) {
+  // --- UI and Helper Methods ---
+
+  void _showSnackbar(String message, {bool isError = false, bool isSuccess = false}) {
+    Color color = _primaryColor;
+    if (isError) color = _accentColor;
+    if (isSuccess) color = _successColor;
+
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: _accentColor),
+      SnackBar(content: Text(message), backgroundColor: color),
     );
   }
 
-  // --- UI Builder Methods ---
   Widget _buildDetailRow(String label, String value, {Color? valueColor, TextStyle? customLabelStyle, TextStyle? customValueStyle}) {
-    // Improved Row for better alignment and text wrapping
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
@@ -198,7 +383,7 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: customLabelStyle ?? _labelStyle.copyWith(color: Colors.white70, fontSize: 15)),
-          const SizedBox(width: 10), // Spacing between label and value
+          const SizedBox(width: 10),
           Flexible(
             child: Text(
               value,
@@ -212,65 +397,32 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
     );
   }
 
-  // Attractive Source and Destination Card
   Widget _buildTransferSummaryCard() {
     return Card(
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.only(bottom: 25),
-      color: _primaryColor, // Use primary color for a premium look
+      color: _primaryColor,
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- FROM Account ---
-            Row(
-              children: [
-                const Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                const Text('FROM ACCOUNT', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70)),
-              ],
-            ),
-            _buildDetailRow(
-              widget.sourceAccount.nickname,
-              'A/c: ${widget.bankingService.maskAccountNumber(widget.sourceAccount.accountNumber)}',
-              valueColor: Colors.yellowAccent,
-              customLabelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
-            ),
+            Row(children: [const Icon(Icons.account_balance_wallet, color: Colors.white, size: 20), const SizedBox(width: 8), const Text('FROM ACCOUNT', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70)),]),
+            _buildDetailRow(widget.sourceAccount.nickname,'A/c: ${widget.bankingService.maskAccountNumber(widget.sourceAccount.accountNumber)}',valueColor: Colors.yellowAccent,customLabelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),),
             _buildDetailRow('Current Balance', '₹${widget.sourceAccount.balance.toStringAsFixed(2)}', valueColor: Colors.white),
-
             const Divider(height: 30, thickness: 1, color: Colors.white24),
-
-            // --- TO Beneficiary ---
-            Row(
-              children: [
-                const Icon(Icons.send_to_mobile, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                const Text('TO BENEFICIARY', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70)),
-              ],
-            ),
-            _buildDetailRow(
-              widget.beneficiary.nickname,
-              widget.bankingService.maskAccountNumber(widget.beneficiary.accountNumber),
-              valueColor: Colors.white,
-              customLabelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
-            ),
-            _buildDetailRow(
-              'Bank/IFSC',
-              '${widget.beneficiary.bankName} (${widget.beneficiary.ifsCode})',
-              valueColor: Colors.white,
-            ),
+            Row(children: [const Icon(Icons.send_to_mobile, color: Colors.white, size: 20), const SizedBox(width: 8), const Text('TO BENEFICIARY', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70)),]),
+            _buildDetailRow(widget.beneficiary.nickname,widget.bankingService.maskAccountNumber(widget.beneficiary.accountNumber),valueColor: Colors.white,customLabelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),),
+            _buildDetailRow('Bank/IFSC','${widget.beneficiary.bankName} (${widget.beneficiary.ifsCode})',valueColor: Colors.white,),
           ],
         ),
       ),
     );
   }
 
-  // Dynamically shows/hides the transfer type options
   Widget _buildTransferTypeSelector() {
     if (_isInternalTransfer) {
-      // Case 1: Internal Transfer (IFSC matched)
       return Padding(
         padding: const EdgeInsets.only(bottom: 20.0),
         child: Column(
@@ -297,7 +449,6 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
         ),
       );
     } else {
-      // Case 2: External Transfer (IMPS/NEFT/RTGS)
       final externalTypes = TransferType.values.where((t) => t != TransferType.internal).toList();
       final rules = widget.bankingService.getTransferTypeRules();
 
@@ -306,7 +457,6 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
         children: [
           Text('Select Transfer Method', style: _labelStyle.copyWith(fontSize: 16, color: _primaryColor)),
           const SizedBox(height: 10),
-
           Wrap(
             spacing: 10, runSpacing: 10,
             children: externalTypes.map((type) {
@@ -336,8 +486,6 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
             }).toList(),
           ),
           const SizedBox(height: 15),
-
-          // Display Rules based on selection
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -345,10 +493,7 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: _primaryColor.withOpacity(0.2)),
             ),
-            child: Text(
-              rules[_selectedTransferType] ?? 'Select a transfer type to view rules.',
-              style: const TextStyle(fontSize: 13, color: Colors.black54),
-            ),
+            child: Text(rules[_selectedTransferType] ?? 'Select a transfer type to view rules.',style: const TextStyle(fontSize: 13, color: Colors.black54),),
           ),
           const SizedBox(height: 20),
         ],
@@ -356,41 +501,30 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
     }
   }
 
-  // Transfer Confirmation/T-PIN Modal (The new pop-up design)
-  Widget _buildConfirmationModal() {
+  /// Builds the content for the OTP verification dialog.
+  Widget _buildConfirmationModalContent(BuildContext context, StateSetter modalSetState) {
     final amount = double.tryParse(_amountController.text) ?? 0.0;
 
-    return SingleChildScrollView( // CRITICAL: Makes the content scrollable for keyboard push
-      child: Container(
-        // CRITICAL: Adjusts padding for the soft keyboard when open
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, top: 30, left: 20, right: 20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-        ),
+    // Use Padding and SingleChildScrollView to ensure content fits neatly in the Dialog
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // HEADING SIZE AND STYLE
-            Text('Confirm Transfer', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _primaryColor)),
-            const Divider(height: 20, indent: 80, endIndent: 80),
+            // MODIFICATION: Changed heading to smaller text size and different label
+            Text('Payment Confirmation', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor)),
+            const Divider(height: 20, indent: 60, endIndent: 60),
 
-            // Confirmation Details Summary
             Container(
               padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade100, // Light grey background for summary (high contrast)
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade300)
-              ),
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10),),
               child: Column(
                 children: [
-                  // Detail Rows with appropriate color/size for clarity
                   _buildDetailRow('Amount', '₹${amount.toStringAsFixed(2)}', valueColor: Colors.black, customLabelStyle: const TextStyle(color: Colors.black54)),
                   if (_calculatedFee > 0)
                     _buildDetailRow('Fee', '+ ₹${_calculatedFee.toStringAsFixed(2)}', valueColor: Colors.red.shade700, customLabelStyle: const TextStyle(color: Colors.black54)),
                   const Divider(),
-                  // HIGHLIGHTED TOTAL DEBIT (BOLD, PRIMARY COLOR, LARGER FONT)
                   _buildDetailRow(
                     'Total Debit',
                     '₹${_totalDebitAmount.toStringAsFixed(2)}',
@@ -398,74 +532,83 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
                     customLabelStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 17),
                     customValueStyle: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor, fontSize: 20),
                   ),
-                  const Divider(height: 15),
-                  _buildDetailRow(
-                      'Transfer Type',
-                      _selectedTransferType.name.toUpperCase(),
-                      valueColor: Colors.black, customLabelStyle: const TextStyle(color: Colors.black54)),
-                  _buildDetailRow('To Payee', widget.beneficiary.nickname, valueColor: Colors.black, customLabelStyle: const TextStyle(color: Colors.black54)),
                 ],
               ),
+            ),
+            const SizedBox(height: 30),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(width: 8),
+                Text('Enter Verification Code', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor)),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // MODIFICATION: OTP message
+            Text(
+                '$_otpMessage.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.black54, fontStyle: FontStyle.italic)
             ),
             const SizedBox(height: 25),
 
-            // T-PIN Entry (6-digit format)
-            TextFormField(
-              controller: _tpinController,
-              decoration: InputDecoration(
-                labelText: 'Enter 6-Digit T-PIN for Security',
-                // Use a larger label text for emphasis
-                labelStyle: TextStyle(color: _primaryColor, fontWeight: FontWeight.bold),
-                prefixIcon: Icon(Icons.lock_person, color: _primaryColor, size: 24), // Clearer icon
-                border: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                  borderSide: BorderSide(width: 2),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: const BorderRadius.all(Radius.circular(10)),
-                  borderSide: BorderSide(color: _primaryColor, width: 2), // Focus color
-                ),
-                counterText: '', // Hide default character counter
-              ),
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: _tpinLength,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              validator: (value) => (value?.length != _tpinLength) ? 'T-PIN must be 6 digits.' : null,
+            StyledOtpInputFields(
+              onOtpChanged: (otp) {
+                // IMPORTANT: 1. Update the main screen's state variable
+                setState(() {
+                  _enteredOtp = otp;
+                });
+                // IMPORTANT: 2. Use modalSetState to force the dialog UI to rebuild instantly.
+                modalSetState(() {
+                  // No need to set state variables here as they are updated by the main setState.
+                });
+              },
             ),
-            const SizedBox(height: 20),
 
-            // Action Buttons
+            // --- DEBUG LINE ADDED FOR USER FEEDBACK (Now updates instantly) ---
             Padding(
-              padding: const EdgeInsets.only(bottom: 10.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isTransferring ? null : () {
-                        // IMPORTANT: Dismiss the modal via Navigator before setting state
-                        Navigator.pop(context);
-                      },
-                      style: OutlinedButton.styleFrom(
-                          foregroundColor: _primaryColor,
-                          side: BorderSide(color: _primaryColor, width: 2), // Thicker border
-                          padding: const EdgeInsets.symmetric(vertical: 18)), // Taller button
-                      child: const Text('CANCEL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _isTransferring ? null : _submitTransfer,
-                      icon: _isTransferring ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.verified_user, color: Colors.white),
-                      label: Text(_isTransferring ? 'Processing...' : 'CONFIRM PAY', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: _successColor,
-                          padding: const EdgeInsets.symmetric(vertical: 18)), // Taller button
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                'Entered OTP Length: ${_enteredOtp.length} / $_otpLength',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _enteredOtp.length == _otpLength ? _successColor : _accentColor),
               ),
+            ),
+            // --- END DEBUG LINE ---
+
+            const SizedBox(height: 15),
+
+            TextButton(
+              onPressed: _isOtpSending ? null : _requestOtp,
+              child: Text(
+                _isOtpSending ? 'Sending new OTP...' : 'Didn\'t receive the code? RESEND OTP',
+                style: TextStyle(color: _accentColor, fontWeight: FontWeight.bold),
+              ),
+            ),
+
+            const SizedBox(height: 25),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isTransferring ? null : () {Navigator.pop(context);},
+                    style: OutlinedButton.styleFrom(foregroundColor: _primaryColor, side: BorderSide(color: _primaryColor, width: 2), padding: const EdgeInsets.symmetric(vertical: 16)),
+                    child: const Text('CANCEL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    // This logic is correct and should now enable the button when length is 6
+                    onPressed: _isTransferring || _enteredOtp.length != _otpLength ? null : _submitTransferWithOtp,
+                    icon: _isTransferring ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.verified_user, color: Colors.white),
+                    label: Text(_isTransferring ? 'Processing...' : 'CONFIRM PAY', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    style: ElevatedButton.styleFrom(backgroundColor: _successColor, disabledBackgroundColor: _successColor.withOpacity(0.5), padding: const EdgeInsets.symmetric(vertical: 16)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -476,38 +619,46 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Show the confirmation modal as a standard bottom sheet on top of the main screen
-    if (_showConfirmation) {
-      // Use showModalBottomSheet for a true modal experience
+    // --- OTP Verification Dialog Display ---
+    if (_otpRequested) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Only show if not already showing (to prevent multiple calls)
-        if (ModalRoute.of(context)?.isCurrent == true) {
-          showModalBottomSheet(
+        if (_transactionReference.isNotEmpty && ModalRoute.of(context)?.isCurrent == true) {
+          showDialog(
             context: context,
-            isScrollControlled: true, // CRITICAL: Allows sheet to take up almost the full screen height (necessary for keyboard responsiveness)
-            isDismissible: false, // Force user to use CANCEL/CONFIRM buttons
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-            builder: (context) => _buildConfirmationModal(),
+            barrierDismissible: false, // Prevents closing by tapping outside
+            builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              // FIX: Use a StatefulBuilder to get the local StateSetter for the dialog
+              child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter modalSetState) {
+                    // Pass the local state setter to the content builder
+                    return _buildConfirmationModalContent(context, modalSetState);
+                  }
+              ),
+            ),
           ).then((_) {
-            // Reset the state when the sheet is closed (e.g., via CANCEL button or success/failure navigation)
+            // Reset OTP state when dialog is dismissed
             if(mounted) {
-              setState(() => _showConfirmation = false);
+              setState(() {
+                _otpRequested = false;
+                _enteredOtp = '';
+                _transactionReference = '';
+                // Do not clear _simulatedOtp here so it stays on the screen for testing
+              });
             }
           });
-          // This line prevents the modal from being repeatedly built
-          _showConfirmation = false;
+          _otpRequested = false; // Prevents re-showing if state rebuilds quickly
         }
       });
     }
+    // --- End OTP Verification Dialog Display ---
 
     return Scaffold(
       appBar: AppBar(
-        // Title size and style are clean and bold
         title: Text('Transfer to ${widget.beneficiary.nickname}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: _primaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      // The body is fully scrollable and contains all input fields and the button
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Form(
@@ -515,21 +666,15 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // 1. Source/Beneficiary Summary
               _buildTransferSummaryCard(),
-
-              // 2. Transfer Type Selector
               _buildTransferTypeSelector(),
 
-              // 3. Amount Entry
               TextFormField(
                 controller: _amountController,
                 decoration: InputDecoration(
                   labelText: 'Transfer Amount (Min: ₹1.00)',
                   prefixIcon: const Icon(Icons.currency_rupee),
-                  suffixIcon: _isCalculating
-                      ? Padding(padding: const EdgeInsets.all(10.0), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _primaryColor)))
-                      : null,
+                  suffixIcon: _isCalculating ? Padding(padding: const EdgeInsets.all(10.0), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _primaryColor))) : null,
                   border: const OutlineInputBorder(),
                   errorText: _calculationError,
                 ),
@@ -542,30 +687,34 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
                 },
               ),
               const SizedBox(height: 20),
-
-              // 4. Narration/Remarks
               TextFormField(
                 controller: _narrationController,
-                decoration: const InputDecoration(
-                  labelText: 'Narration / Remarks (Optional)',
-                  prefixIcon: Icon(Icons.comment),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Narration / Remarks (Optional)', prefixIcon: Icon(Icons.comment), border: const OutlineInputBorder(),),
                 maxLength: 50,
                 textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 20),
 
-              // 5. Fee and Total Display (Styled for high contrast)
+              // --- MOCK DEBUGGING MESSAGE: REMAINS FOR TESTING SUCCESSFUL FLOW ---
+              if (_simulatedOtp.isNotEmpty && !_isTransferring)
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade300)),
+                  child: Center(
+                    child: Text(
+                      'TESTING ONLY: Mock OTP is ${_simulatedOtp}',
+                      style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              // --- END MOCK DEBUGGING MESSAGE ---
+
               if ((double.tryParse(_amountController.text) ?? 0.0) > 0 && _calculationError == null && !_isCalculating)
                 Container(
                   padding: const EdgeInsets.all(15),
-                  margin: const EdgeInsets.only(bottom: 30), // Added bottom margin for spacing before the button
-                  decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300)
-                  ),
+                  margin: const EdgeInsets.only(bottom: 30),
+                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
                   child: Column(
                     children: [
                       _buildDetailRow('Transfer Fee', '₹${_calculatedFee.toStringAsFixed(2)}', valueColor: Colors.black, customLabelStyle: const TextStyle(color: Colors.black54)),
@@ -581,18 +730,15 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
                   ),
                 ),
 
-              // 6. Proceed Button (Aligned to the bottom of the scroll view)
               Padding(
-                // This padding ensures the button is never flush against the bottom of the visible screen area if not scrolling
                 padding: const EdgeInsets.only(bottom: 30.0),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _isCalculating || _calculationError != null ? null : _confirmTransfer,
-                    icon: const Icon(Icons.arrow_forward_ios, size: 20, color: Colors.white),
-                    label: const Text('PROCEED TO CONFIRM', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: _primaryColor, padding: const EdgeInsets.symmetric(vertical: 18)),
+                    onPressed: _isCalculating || _calculationError != null || _isOtpSending || _isTransferring ? null : _requestOtp,
+                    icon: _isOtpSending || _isTransferring ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.arrow_forward_ios, size: 20, color: Colors.white),
+                    label: Text(_isOtpSending ? 'SENDING OTP...' : 'PROCEED TO CONFIRM', style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(backgroundColor: _primaryColor, padding: const EdgeInsets.symmetric(vertical: 18)),
                   ),
                 ),
               ),

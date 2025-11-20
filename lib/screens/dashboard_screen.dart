@@ -4,6 +4,8 @@ import '../main.dart'; // Assumed to contain UserProfile, Account, Transaction m
 
 import 'transfer_funds_screen.dart';
 import 'tpin_management_screen.dart';
+import 'detailed_statement_screen.dart'; // <-- Ensure this import is present
+import 'quick_transfer_screen.dart'; // <-- NEW: Import the Quick Transfer Screen
 
 // CRITICAL FIX: Use prefixes for screens that are incorrectly defining duplicate types.
 import 'transaction_history_screen.dart' as ths;
@@ -187,15 +189,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // 2. Quick Actions Grid
   Widget _buildQuickActions() {
-    // UPDATED: Added Manage Payees action
+    // UPDATED: Added Quick Transfer and renamed the old 'Transfer' to 'Standard Transfer'
     final List<Map<String, dynamic>> actions = [
-      {'label': 'Transfer', 'icon': Icons.send_outlined, 'color': _primaryNavyBlue, 'bgColor': _transferColor, 'screen': TransferFundsScreen(bankingService: _bankingService)},
-      // CRITICAL FIX: Removed the bankingService argument for BeneficiaryManagementScreen
-      // and added const for performance.
-      {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': _payeeIconColor, 'bgColor': _payeeColor, 'screen': const bms.BeneficiaryManagementScreen()},
-      {'label': 'Withdraw', 'icon': Icons.account_balance_wallet_outlined, 'color': _accentRed, 'bgColor': _withdrawColor, 'screen': null}, // Placeholder
-      {'label': 'Bill Pay', 'icon': Icons.receipt_long_outlined, 'color': _primaryNavyBlue, 'bgColor': _billPayColor, 'screen': null}, // Placeholder
-      {'label': 'My Loans', 'icon': Icons.savings_outlined, 'color': _accentGreen, 'bgColor': _loansColor, 'screen': null}, // Placeholder
+      // 1. NEW: Quick Transfer (IMPS, no Beneficiary)
+      {
+        'label': 'Quick Transfer',
+        'icon': Icons.flash_on_outlined,
+        'color': Colors.orange.shade700,
+        'bgColor': const Color(0xFFFFECB3), // Light orange for quick action
+        'screen': const QuickTransferScreen() // Navigate to the new screen
+      },
+      // 2. Renamed: Standard Transfer (Beneficiary-based)
+      {
+        'label': 'Standard Transfer',
+        'icon': Icons.send_outlined,
+        'color': _primaryNavyBlue,
+        'bgColor': _transferColor,
+        'screen': TransferFundsScreen(bankingService: _bankingService)
+      },
+      // 3. Manage Payees
+      {
+        'label': 'Manage Payees',
+        'icon': Icons.people_alt_outlined,
+        'color': _payeeIconColor,
+        'bgColor': _payeeColor,
+        'screen': const bms.BeneficiaryManagementScreen()
+      },
+      // 4. Bill Pay
+      {
+        'label': 'Bill Pay',
+        'icon': Icons.receipt_long_outlined,
+        'color': _primaryNavyBlue,
+        'bgColor': _billPayColor,
+        'screen': null
+      },
+      // 5. My Loans
+      {
+        'label': 'My Loans',
+        'icon': Icons.savings_outlined,
+        'color': _accentGreen,
+        'bgColor': _loansColor,
+        'screen': null
+      },
+      // 6. Withdraw/Card Mgmt
+      {
+        'label': 'Card/Limits',
+        'icon': Icons.credit_card_outlined,
+        'color': _accentRed,
+        'bgColor': _withdrawColor,
+        'screen': null
+      },
     ];
 
     return Padding(
@@ -214,10 +257,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
+              // Increased childAspectRatio slightly for better look with 6 items (3x2)
+              crossAxisCount: 3,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 0.8,
+              childAspectRatio: 1.05, // Adjusted from 0.8 to 1.05
             ),
             itemCount: actions.length,
             itemBuilder: (context, index) {
@@ -331,13 +375,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
+              // *** MODIFICATION START ***
+              mainAxisAlignment: MainAxisAlignment.spaceBetween, // Changed to spaceBetween
               children: [
                 Text(
                   'Recent Transactions',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
+                // NEW: Navigation Button to Detailed Statement
+                TextButton(
+                  onPressed: () {
+                    if (_primaryAccount != null) {
+                      _navigateTo(
+                        DetailedStatementScreen(
+                          bankingService: _bankingService,
+                          account: _primaryAccount!,
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Account data not yet loaded.')),
+                      );
+                    }
+                  },
+                  child: Text(
+                    'View Detailed Statement',
+                    style: TextStyle(color: _primaryNavyBlue, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
               ],
+              // *** MODIFICATION END ***
             ),
           ),
           // Transaction List Card
@@ -488,9 +555,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: const Text('Dashboard'),
               onTap: () => Navigator.pop(context),
             ),
+            // NEW: Quick Transfer
+            ListTile(
+              leading: Icon(Icons.flash_on_outlined, color: Colors.orange.shade700),
+              title: const Text('Quick Transfer (IMPS)'),
+              onTap: () {
+                Navigator.pop(context);
+                _navigateTo(const QuickTransferScreen());
+              },
+            ),
+            // Renamed from 'Transfer Funds'
             ListTile(
               leading: Icon(Icons.payments_outlined, color: _primaryNavyBlue),
-              title: const Text('Transfer Funds'),
+              title: const Text('Standard Transfer (Beneficiary)'),
               onTap: () {
                 Navigator.pop(context);
                 _navigateTo(TransferFundsScreen(bankingService: _bankingService));
@@ -517,6 +594,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
               },
             ),
+            /* ListTile(
+              leading: Icon(Icons.person_outline, color: _primaryNavyBlue),
+              title: const Text('Profile Management'),
+              onTap: () {
+                Navigator.pop(context); // Close the drawer
+                // Placeholder: Navigate to the actual profile screen later
+                _navigateTo(
+                  // CORRECT CLASS NAME and NO extra parameters needed
+                  const ProfileManagementScreen(),
+                );
+                // _navigateTo(const ProfileScreen()); // Uncomment when ProfileScreen is ready
+              },
+            ),*/
             // CRITICAL FIX 2: Navigate to the correct unified TpinManagementScreen.
             ListTile(
               leading: Icon(Icons.lock_reset_outlined, color: _primaryNavyBlue),

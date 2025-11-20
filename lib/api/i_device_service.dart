@@ -2,7 +2,6 @@ import 'dart:async';
 
 abstract class IDeviceService {
 
-
   Future<bool> checkDeviceBinding(String deviceId);
 
   Future<Map<String, dynamic>> verifyIdentity({

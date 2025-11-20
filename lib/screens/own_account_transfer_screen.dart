@@ -18,32 +18,30 @@ const TextStyle kBodyStyleAccent = TextStyle(fontSize: 16, color: kPrimaryColor)
 // --------------------------------------------------------------------------
 
 /// Custom widget to handle the 6-digit T-PIN input fields with only an underline.
-class PinInputFields extends StatefulWidget {
-  final ValueChanged<String> onPinChanged;
-  final int pinLength;
+class OtpInputFields extends StatefulWidget {
+  final ValueChanged<String> onOtpChanged;
+  final int pinLength; // Renamed to pinLength for generic input fields
 
-  const PinInputFields({
+  const OtpInputFields({
     super.key,
-    required this.onPinChanged,
+    required this.onOtpChanged,
     this.pinLength = 6,
   });
 
   @override
-  State<PinInputFields> createState() => _PinInputFieldsState();
+  State<OtpInputFields> createState() => _OtpInputFieldsState();
 }
 
-class _PinInputFieldsState extends State<PinInputFields> {
+class _OtpInputFieldsState extends State<OtpInputFields> {
   late List<TextEditingController> _controllers;
   late List<FocusNode> _focusNodes;
-  String _currentPin = '';
+  String _currentOtp = '';
 
   @override
   void initState() {
     super.initState();
     _controllers = List.generate(widget.pinLength, (index) => TextEditingController());
     _focusNodes = List.generate(widget.pinLength, (index) => FocusNode());
-
-    // NOTE: Removed addListener loop from here. Focus logic is now in onChanged.
   }
 
   @override
@@ -57,14 +55,14 @@ class _PinInputFieldsState extends State<PinInputFields> {
     super.dispose();
   }
 
-  /// Updates the full PIN string and notifies the parent widget.
-  void _updatePin() {
+  /// Updates the full OTP string and notifies the parent widget.
+  void _updateOtp() {
     // Join the text from all controllers
-    final newPin = _controllers.map((c) => c.text.isNotEmpty ? c.text : '').join('');
+    final newOtp = _controllers.map((c) => c.text.isNotEmpty ? c.text : '').join('');
 
-    if (_currentPin != newPin) {
-      _currentPin = newPin;
-      widget.onPinChanged(_currentPin);
+    if (_currentOtp != newOtp) {
+      _currentOtp = newOtp;
+      widget.onOtpChanged(_currentOtp);
     }
   }
 
@@ -79,8 +77,7 @@ class _PinInputFieldsState extends State<PinInputFields> {
             controller: _controllers[index],
             focusNode: _focusNodes[index],
             keyboardType: TextInputType.number,
-            obscureText: true,
-            obscuringCharacter: '•',
+            obscureText: false, // OTP is usually visible or obscured with * or •, but let's keep it numeric for clarity
             maxLength: 1,
             textAlign: TextAlign.center,
             style: kTitleStyle.copyWith(fontSize: 24, color: kPrimaryColor),
@@ -105,7 +102,7 @@ class _PinInputFieldsState extends State<PinInputFields> {
               }
 
               // 3. Update the aggregated PIN value for the parent widget
-              _updatePin();
+              _updateOtp();
             },
 
             // --- DECORATION FOR UNDERLINE ONLY (no box) ---
@@ -134,27 +131,30 @@ class _PinInputFieldsState extends State<PinInputFields> {
 // --------------------------------------------------------------------------
 
 /// Dedicated widget for the POP-UP confirmation dialog (AlertDialog).
-class TransferConfirmationDialog extends StatefulWidget {
+class TransferVerificationDialog extends StatefulWidget {
   final double amount;
   final Account sourceAccount;
   final Account destinationAccount;
-  final Function(double amount, String tpin) onConfirm;
+  final String transactionReference; // NEW: Reference ID from initiate call
+  final String message; // NEW: OTP message
+  final Function(double amount, String otp, String ref) onConfirm;
 
-  const TransferConfirmationDialog({
+  const TransferVerificationDialog({
     super.key,
     required this.amount,
     required this.sourceAccount,
     required this.destinationAccount,
+    required this.transactionReference,
+    required this.message,
     required this.onConfirm,
   });
 
   @override
-  State<TransferConfirmationDialog> createState() => _TransferConfirmationDialogState();
+  State<TransferVerificationDialog> createState() => _TransferVerificationDialogState();
 }
 
-class _TransferConfirmationDialogState extends State<TransferConfirmationDialog> {
-  String _tpin = '';
-  // Removed _bankingService since it's only used for masking which is now removed.
+class _TransferVerificationDialogState extends State<TransferVerificationDialog> {
+  String _otp = ''; // Changed from _tpin to _otp
 
   // Helper widget to display a single confirmation detail line
   Widget _buildDetailRow({required String label, required String value, bool isAmount = false}) {
@@ -189,7 +189,6 @@ class _TransferConfirmationDialogState extends State<TransferConfirmationDialog>
 
   @override
   Widget build(BuildContext context) {
-    // --- NO MASKING - DISPLAY FULL ACCOUNT NUMBER ---
     final sourceFull = widget.sourceAccount.accountNumber;
     final destFull = widget.destinationAccount.accountNumber;
 
@@ -197,7 +196,7 @@ class _TransferConfirmationDialogState extends State<TransferConfirmationDialog>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       title: Text(
-        'Confirm Transfer Details',
+        'Verify Transfer with OTP',
         textAlign: TextAlign.center,
         style: kTitleStyle.copyWith(fontSize: 18),
       ),
@@ -232,18 +231,18 @@ class _TransferConfirmationDialogState extends State<TransferConfirmationDialog>
 
             const SizedBox(height: 24),
 
-            // --- PIN INPUT SECTION ---
+            // --- OTP INPUT SECTION ---
             Text(
-                'Enter 6-Digit Transaction PIN to Authorize',
+                widget.message, // Display the masked mobile number message
                 style: kBodyStyle.copyWith(fontWeight: FontWeight.w600, fontSize: 15)
             ),
             const SizedBox(height: 16),
 
-            // Underline Pin Input (Now with working auto-advance)
-            PinInputFields(
-              onPinChanged: (pin) {
+            // Underline Pin Input (Now for OTP)
+            OtpInputFields(
+              onOtpChanged: (otp) {
                 setState(() {
-                  _tpin = pin;
+                  _otp = otp;
                 });
               },
             ),
@@ -269,8 +268,8 @@ class _TransferConfirmationDialogState extends State<TransferConfirmationDialog>
 
             // Confirm & Pay Button
             ElevatedButton(
-              onPressed: _tpin.length == 6
-                  ? () => widget.onConfirm(widget.amount, _tpin)
+              onPressed: _otp.length == 6
+                  ? () => widget.onConfirm(widget.amount, _otp, widget.transactionReference)
                   : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimaryColor,
@@ -280,7 +279,7 @@ class _TransferConfirmationDialogState extends State<TransferConfirmationDialog>
                 elevation: 3,
               ),
               child: Text(
-                'Confirm & Pay',
+                'Verify & Pay',
                 style: kTitleStyle.copyWith(color: Colors.white, fontSize: 16),
               ),
             ),
@@ -294,8 +293,6 @@ class _TransferConfirmationDialogState extends State<TransferConfirmationDialog>
 // --------------------------------------------------------------------------
 
 class OwnAccountTransferScreen extends StatefulWidget {
-  // NOTE: I've removed the required fields from the constructor because
-  // the state class fetches its own data using the service instance.
   const OwnAccountTransferScreen({
     super.key, required BankingService bankingService, required Account sourceAccount, required List<Account> userAccounts,
   });
@@ -316,7 +313,10 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
 
   bool _isLoading = true;
   String? _errorMessage;
-  bool _isTransferring = false;
+  bool _isTransferring = false; // Flag for overall transfer process
+
+  // State specific to the OTP flow
+  String? _currentReferenceId;
 
   @override
   void initState() {
@@ -360,13 +360,13 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
 
   void _filterDestinationAccounts() {
     if (_selectedSource != null) {
-      // Assuming filterDestinationAccounts only needs the account number string
       final destinations = _bankingService.filterDestinationAccounts(_selectedSource!.accountNumber);
       setState(() {
         _destinationAccounts = destinations;
 
         if (_selectedDestination != null && !_destinationAccounts.any((a) => a.accountNumber == _selectedDestination!.accountNumber)) {
-          _selectedDestination = _destinationAccounts.first;
+          // If the previously selected destination account is now the source, select a new one
+          _selectedDestination = _destinationAccounts.isNotEmpty ? _destinationAccounts.first : null;
         } else if (_selectedDestination == null && _destinationAccounts.isNotEmpty) {
           _selectedDestination = _destinationAccounts.first;
         } else if (_destinationAccounts.isEmpty) {
@@ -382,9 +382,9 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
     }
   }
 
-  // --- TRANSFER EXECUTION ---
+  // --- TRANSFER EXECUTION (Two-Step OTP Flow) ---
 
-  void _showConfirmationDialog() {
+  void _handleInitiateTransfer() {
     if (_isTransferring) return;
 
     if (_selectedSource == null || _selectedDestination == null || _amountController.text.isEmpty) {
@@ -397,8 +397,59 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
       setState(() => _errorMessage = 'Amount must be greater than ₹0.');
       return;
     }
+
+    // Since this is an internal transfer (no fees/limits check is complex), we use a simplified check
     if (amount > (_selectedSource?.balance ?? 0.0)) {
       setState(() => _errorMessage = 'Insufficient funds. Available: ₹${(_selectedSource?.balance ?? 0.0).toStringAsFixed(2)}');
+      return;
+    }
+
+    _initiateTransfer(amount);
+  }
+
+  /// Step 1: Calls API to check balance/limits and get OTP/Reference ID
+  Future<void> _initiateTransfer(double amount) async {
+    setState(() {
+      _isTransferring = true;
+      _errorMessage = null;
+      _currentReferenceId = null;
+    });
+
+    try {
+      // NOTE: Even for internal transfers, the mock API requires a call to requestFundTransferOtp
+      final response = await _bankingService.requestFundTransferOtp(
+        recipientAccount: _selectedDestination!.accountNumber,
+        amount: amount,
+        sourceAccountNumber: _selectedSource!.accountNumber,
+        transferType: TransferType.internal, // This will skip fees/limits in internal logic
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _currentReferenceId = response['transactionReference'] as String;
+        _isTransferring = false; // Allow the user to proceed to the OTP dialog
+      });
+
+      // Show the verification dialog immediately after receiving the reference
+      _showVerificationDialog(amount, response['message'] as String);
+
+    } on TransferException catch (e) {
+      setState(() {
+        _errorMessage = e.message;
+        _isTransferring = false;
+      });
+    } on Exception catch (e) {
+      setState(() {
+        _errorMessage = 'An unexpected error occurred during initiation: ${e.toString()}';
+        _isTransferring = false;
+      });
+    }
+  }
+
+  void _showVerificationDialog(double amount, String otpMessage) {
+    // Ensure we have the necessary data before showing the dialog
+    if (_currentReferenceId == null) {
+      setState(() => _errorMessage = 'Failed to get transaction reference.');
       return;
     }
 
@@ -407,23 +458,27 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
 
     showDialog(
       context: context,
+      barrierDismissible: false, // Force user to use buttons
       builder: (BuildContext context) {
-        return TransferConfirmationDialog(
+        return TransferVerificationDialog(
           amount: amount,
           sourceAccount: sourceAccountDisplay,
           destinationAccount: destAccountDisplay,
-          onConfirm: (amount, tpin) {
-            Navigator.of(context).pop();
-            _performTransfer(amount, tpin);
+          transactionReference: _currentReferenceId!,
+          message: otpMessage,
+          onConfirm: (amount, otp, ref) {
+            Navigator.of(context).pop(); // Close the OTP dialog
+            _verifyAndExecuteTransfer(amount, otp, ref);
           },
         );
       },
     );
   }
 
-  Future<void> _performTransfer(double amount, String tpin) async {
+  /// Step 2: Calls API to verify OTP and execute the transfer
+  Future<void> _verifyAndExecuteTransfer(double amount, String otp, String ref) async {
     setState(() {
-      _isTransferring = true;
+      _isTransferring = true; // Set flag for final processing stage
       _errorMessage = null;
     });
 
@@ -431,10 +486,11 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
       final String resultMessage = await _bankingService.submitFundTransfer(
         recipientAccount: _selectedDestination!.accountNumber,
         recipientName: _selectedDestination!.nickname,
-        transferType: TransferType.internal, // Assuming internal for own account transfer
+        transferType: TransferType.internal,
         amount: amount,
-        narration: _narrationController.text.isEmpty ? 'Internal Transfer' : _narrationController.text,
-        transactionPin: tpin,
+        narration: _narrationController.text.isEmpty ? 'Own Account Transfer' : _narrationController.text,
+        transactionReference: ref, // NEW: Pass Reference ID
+        transactionOtp: otp, // NEW: Pass OTP
         sourceAccountNumber: _selectedSource!.accountNumber,
       );
 
@@ -442,19 +498,13 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Transfer Successful!', style: kTitleStyle.copyWith(fontSize: 18)),
+          title: Text('Transfer Successful! 🎉', style: kTitleStyle.copyWith(fontSize: 18)),
           content: Text(resultMessage, style: kBodyStyle),
           actions: [
             TextButton(
               onPressed: () {
-                // 1. Close the success dialog
-                Navigator.of(context).pop();
-
-                // 2. Reset the form state (clear inputs, refresh balance)
-                _resetForm();
-
-                // 3. Navigate back to the dashboard/previous screen
-                Navigator.of(context).pop();
+                Navigator.of(context).popUntil((route) => route.isFirst); // Navigate back to the main dashboard
+                _resetForm(); // Reset form state
               },
               child: const Text('Done', style: TextStyle(color: kPrimaryColor)),
             ),
@@ -468,7 +518,7 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
       });
     } on Exception catch (e) {
       setState(() {
-        _errorMessage = 'An unexpected error occurred: ${e.toString()}';
+        _errorMessage = 'An unexpected error occurred during verification: ${e.toString()}';
         _isTransferring = false;
       });
     }
@@ -480,6 +530,7 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
     setState(() {
       _isTransferring = false;
       _errorMessage = null;
+      _currentReferenceId = null;
     });
     // Re-fetch accounts to update balances
     _fetchAccounts();
@@ -561,23 +612,32 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
         _amountController.text.isNotEmpty &&
         (double.tryParse(_amountController.text) ?? 0.0) > 0;
 
+    // Determine the loading message
+    String loadingMessage = 'Loading Accounts...';
+    if (_isTransferring) {
+      if (_currentReferenceId == null) {
+        loadingMessage = 'Initiating Transfer & Requesting OTP...';
+      } else {
+        loadingMessage = 'Processing Transfer...';
+      }
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Own Account Transfer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: kPrimaryColor,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: _isLoading || _isTransferring
+      body: _isLoading || (_isTransferring && _currentReferenceId == null)
           ? Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircularProgressIndicator(color: kPrimaryColor),
-            if (_isTransferring)
-              Padding(
-                padding: const EdgeInsets.only(top: 16.0),
-                child: Text('Processing Transfer...', style: kBodyStyleAccent),
-              )
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0),
+              child: Text(loadingMessage, style: kBodyStyleAccent),
+            )
           ],
         ),
       )
@@ -678,7 +738,8 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isFormValid ? _showConfirmationDialog : null, // Changed to showDialog
+                // Calls the initiation step
+                onPressed: isFormValid && !_isTransferring ? _handleInitiateTransfer : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kAccentColor,
                   disabledBackgroundColor: kAccentColor.withOpacity(0.5),
@@ -687,7 +748,7 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
                   elevation: 5,
                 ),
                 child: Text(
-                  'Confirm Transfer (Fee: ₹0.00)',
+                  'Initiate Transfer (Fee: ₹0.00)',
                   style: kTitleStyle.copyWith(color: Colors.white, fontSize: 18),
                 ),
               ),
