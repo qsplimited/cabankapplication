@@ -25,6 +25,20 @@ class TransferException implements Exception {
   String toString() => 'TransferException: $message (Code: $code)';
 }
 
+// --- UPDATED DATA MODEL: Nominee ---
+class Nominee {
+  final String name;
+  final String relationship;
+  final DateTime dateOfBirth;
+
+  Nominee({
+    required this.name,
+    required this.relationship,
+    required this.dateOfBirth,
+  });
+}
+// -------------------------------------
+
 /// User details model.
 class UserProfile {
   final String fullName;
@@ -33,28 +47,45 @@ class UserProfile {
   UserProfile({required this.fullName, required this.userId, required this.lastLogin});
 }
 
-/// Account model for balance and type.
+/// Account model for balance and type (UPDATED with detailed fields).
 class Account {
   final String accountNumber;
   final AccountType accountType;
   final double balance;
   final String nickname;
   final String accountId;
+
+  // --- NEW FIELDS ADDED FOR DETAIL SCREEN ---
+  final double availableBalance;
+  final String ifscCode;
+  final String branchAddress;
+  final Nominee nominee;
+  // ------------------------------------------
+
   Account({
     required this.accountNumber,
     required this.accountType,
     required this.balance,
     required this.nickname,
     required this.accountId,
+    required this.availableBalance, // NEW
+    required this.ifscCode, // NEW
+    required this.branchAddress, // NEW
+    required this.nominee, // NEW
   });
+
   // Helper method for creating a new Account instance with a new balance (Immutability)
   Account copyWith({required double newBalance}) {
     return Account(
       accountNumber: accountNumber,
       accountType: accountType,
       balance: newBalance,
+      availableBalance: newBalance, // Update available balance too
       nickname: nickname,
       accountId: accountId,
+      ifscCode: ifscCode,
+      branchAddress: branchAddress,
+      nominee: nominee,
     );
   }
 }
@@ -191,10 +222,53 @@ class BankingService {
     lastLogin: DateTime.now().subtract(const Duration(hours: 2, minutes: 15)),
   );
 
+  // --- UPDATED MOCK ACCOUNT DATA WITH DETAILED FIELDS ---
   final List<Account> _mockUserAccounts = [
-    Account(accountId: 'ACC001', accountNumber: '123456789012', accountType: AccountType.savings, balance: 55678.50, nickname: 'My Primary Account'),
-    Account(accountId: 'ACC002', accountNumber: '987654321098', accountType: AccountType.current, balance: 152000.00, nickname: 'Business Current'),
-    Account(accountId: 'ACC003', accountNumber: '555544443333', accountType: AccountType.fixedDeposit, balance: 300000.00, nickname: 'Emergency Fund'),
+    Account(
+      accountId: 'ACC001',
+      accountNumber: '123456789012',
+      accountType: AccountType.savings,
+      balance: 55678.50,
+      availableBalance: 54000.00, // Example: Less than balance due to a hold
+      nickname: 'Savings Account',
+      ifscCode: '${_mockBankIfscPrefix}0001001', // Mock IFSC for primary branch
+      branchAddress: 'CA Bank, Main Branch, HSR Layout, Bangalore',
+      nominee: Nominee(
+        name: 'Priya A. Reddy',
+        relationship: 'Spouse',
+        dateOfBirth: DateTime(1985, 10, 20),
+      ),
+    ),
+    Account(
+      accountId: 'ACC002',
+      accountNumber: '987654321098',
+      accountType: AccountType.current,
+      balance: 152000.00,
+      availableBalance: 152000.00,
+      nickname: 'Current Account',
+      ifscCode: '${_mockBankIfscPrefix}0001002',
+      branchAddress: 'CA Bank, Corporate Branch, MG Road, Bangalore',
+      nominee: Nominee(
+        name: 'Gaurav Sharma',
+        relationship: 'Father',
+        dateOfBirth: DateTime(1970, 1, 1),
+      ),
+    ),
+    Account(
+      accountId: 'ACC003',
+      accountNumber: '555544443333',
+      accountType: AccountType.fixedDeposit,
+      balance: 300000.00,
+      availableBalance: 0.00, // FD accounts usually have 0 available balance
+      nickname: 'Emergency Fund',
+      ifscCode: '${_mockBankIfscPrefix}0001001',
+      branchAddress: 'CA Bank, Main Branch, HSR Layout, Bangalore',
+      nominee: Nominee(
+        name: 'No Nominee Set',
+        relationship: 'N/A',
+        dateOfBirth: DateTime(1900, 1, 1),
+      ),
+    ),
   ];
 
   final List<Transaction> _mockTransactions = [
@@ -303,15 +377,24 @@ class BankingService {
     await Future.delayed(const Duration(milliseconds: 500));
     return List.from(_mockUserAccounts);
   }
-  /// Fetches the user's primary account, typically the first one in the list.
-  Future<Account> fetchPrimaryAccount() async {
+
+  // --- UPDATED: COMBINED SUMMARY AND DETAIL FETCH ---
+  /// Fetches the user's primary account with full details (now returns the rich Account object).
+  Future<Account> fetchAccountSummary() async {
     await Future.delayed(const Duration(milliseconds: 500));
     if (_mockUserAccounts.isEmpty) {
       throw Exception('No accounts found for the user.');
     }
-    // Assume the first account is the primary account
+    // Assume the first account is the primary account and return its detailed structure
     return _mockUserAccounts.first;
   }
+
+  /// Fetches the user's primary account, typically the first one in the list.
+  Future<Account> fetchPrimaryAccount() async {
+    // Re-using the detailed summary function, as it returns the rich Account object now
+    return fetchAccountSummary();
+  }
+  // ----------------------------------------------------
 
   /// Filters accounts that are eligible to be debited (used for the Source account selection
   /// for BOTH internal and external transfers). Excludes FD/RD.
@@ -528,11 +611,6 @@ class BankingService {
   Future<UserProfile> fetchUserProfile() async {
     await Future.delayed(const Duration(milliseconds: 500));
     return _userProfile;
-  }
-
-  Future<Account> fetchAccountSummary() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _mockUserAccounts.first;
   }
 
   Future<List<Transaction>> fetchMiniStatement() async {
@@ -796,7 +874,7 @@ class BankingService {
     }
   }
 
-  // --- FUND TRANSFER HELPERS (Unchanged) ---
+  // --- FUND TRANSFER HELPERS (Continuation) ---
   Future<String> _performInternalTransfer({
     required double amount,
     required String narration,
@@ -839,10 +917,24 @@ class BankingService {
 
     _todayTransferredAmount += amount;
 
+    // Generate Transaction ID and log the transaction
+    final transactionId = 'INT${DateTime.now().millisecondsSinceEpoch}';
+    final debitTx = Transaction(
+      transactionId: transactionId,
+      description: 'Internal Transfer to ${destinationAccount.nickname} (${maskAccountNumber(destinationAccount.accountNumber)}) - $narration',
+      amount: amount,
+      date: DateTime.now(),
+      type: TransactionType.debit,
+      runningBalance: newSourceBalance,
+    );
+    _mockTransactions.insert(0, debitTx);
+
+    // Note: A credit transaction would also be logged in a real system. We skip it here
+    // for simplicity on the source account's transaction list.
+
     _notifyListeners();
 
-    // Generate a mock transaction ID for the final return
-    return 'INT${DateTime.now().millisecondsSinceEpoch}';
+    return transactionId;
   }
 
   Future<String> _performExternalTransfer({
@@ -875,9 +967,21 @@ class BankingService {
 
     _todayTransferredAmount += amount; // Only the principal amount counts towards the limit
 
+    // Generate Transaction ID and log the transaction
+    final transactionId = '${transferType.name.toUpperCase()}${DateTime.now().millisecondsSinceEpoch}';
+    final description = 'Transfer to $recipientName ($transferType) - $narration. Fee: ₹${fee.toStringAsFixed(2)}';
+    final debitTx = Transaction(
+      transactionId: transactionId,
+      description: description,
+      amount: totalDebitAmount, // Total debited amount (principal + fee)
+      date: DateTime.now(),
+      type: TransactionType.debit,
+      runningBalance: newSourceBalance,
+    );
+    _mockTransactions.insert(0, debitTx);
+
     _notifyListeners();
 
-    // Generate a mock transaction ID for the final return
-    return '${transferType.name.toUpperCase()}${DateTime.now().millisecondsSinceEpoch}';
+    return transactionId;
   }
 }

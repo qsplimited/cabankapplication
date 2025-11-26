@@ -1,7 +1,6 @@
 
 import 'package:flutter/material.dart';
-
-import 'package:cabankapplication/config/app_themes.dart'; // Light & Dark Themes imported
+// Light & Dark Themes imported
 import 'package:cabankapplication/api/i_device_service.dart';
 import 'package:cabankapplication/api/mock_device_service.dart';
 
@@ -24,11 +23,7 @@ class MyApp extends StatelessWidget {
       title: 'CABANK Mobile',
       debugShowCheckedModeBanner: false,
 
-      theme: lightTheme,
 
-      darkTheme: darkTheme,
-
-      themeMode: ThemeMode.system,
 
       home: const SplashScreen(),
     );
