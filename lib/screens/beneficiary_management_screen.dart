@@ -21,10 +21,10 @@ class BeneficiaryManagementScreen extends StatefulWidget {
 }
 
 class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScreen> {
-  // ... (State variables and helper methods remain the same) ...
+
 
   List<Beneficiary> _beneficiaries = [];
-  Account? _sourceAccount; // Primary account for fund transfer
+  Account? _sourceAccount;
   bool _isLoading = true;
 
   final Color _primaryNavyBlue = const Color(0xFF003366);
@@ -35,7 +35,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
   void initState() {
     super.initState();
     _loadData();
-    // Listen for changes from the mock service (after adding/deleting)
+
     _bankingService.onDataUpdate.listen((_) {
       if (mounted) {
         _loadData();
@@ -50,7 +50,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     });
 
     try {
-      // Fetch both beneficiaries and the primary account concurrently
+
       final results = await Future.wait([
         _bankingService.fetchBeneficiaries(),
         _bankingService.fetchPrimaryAccount(),
@@ -73,7 +73,6 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     }
   }
 
-  // --- Show Add/Edit Modal (Payee Form) (Unchanged) ---
   Future<void> _manageBeneficiary({Beneficiary? existingBeneficiary}) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -86,6 +85,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
           primaryNavyBlue: _primaryNavyBlue,
         ),
       ),
+
     );
 
     if (result == true) {
@@ -97,15 +97,15 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
   void _navigateToFundTransfer(Beneficiary beneficiary) {
     if (_sourceAccount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot initiate transfer: Primary source account not loaded.')),
+        const SnackBar(content: Text('Cannot initiate transfer:source account not loaded.')),
       );
       return;
     }
 
-    // Navigate to the Transfer Amount Entry Screen
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        // Set a route name for easier pop-until functionality if needed later
+
         settings: const RouteSettings(name: '/transferFunds'),
         builder: (context) => TransferAmountEntryScreen(
           sourceAccount: _sourceAccount!,
@@ -116,7 +116,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     );
   }
 
-  // --- Delete Logic (Unchanged) ---
+
   Future<void> _deleteBeneficiary(Beneficiary payee) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -144,7 +144,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Payee "${payee.nickname}" deleted successfully.'), backgroundColor: _accentGreen),
           );
-          _loadData(); // Refresh the list
+          _loadData();
         }
       } catch (e) {
         if (mounted) {
@@ -156,7 +156,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     }
   }
 
-  // --- UI Components: List View (Unchanged) ---
+
   Widget _buildPayeeList() {
     if (_beneficiaries.isEmpty) {
       return Center(
@@ -175,7 +175,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
 
     return ListView.builder(
       itemCount: _beneficiaries.length,
-      padding: const EdgeInsets.only(top: 10, bottom: 80), // Add bottom padding for FAB clearance
+      padding: const EdgeInsets.only(top: 10, bottom: 80),
       itemBuilder: (context, index) {
         final payee = _beneficiaries[index];
         return Card(
@@ -183,7 +183,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
           elevation: 4,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ListTile(
-            // **ACTION:** Tapping the payee initiates a fund transfer
+
             onTap: () => _navigateToFundTransfer(payee),
 
             leading: CircleAvatar(
