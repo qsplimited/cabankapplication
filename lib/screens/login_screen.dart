@@ -1,3 +1,5 @@
+// File: lib/screens/login_screen.dart (Refactored)
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,8 +8,9 @@ import '../main.dart';
 import 'dashboard_screen.dart';
 import 'forgot_mpin_step1_identity.dart';
 
-// --- THEME COLOR DEFINITION ---
-const Color _primaryNavyBlue = Color(0xFF003366);
+// 💡 IMPORTANT: Import centralized design files
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,11 +49,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (_mpinController.text.length != 6) {
+      // Refactored SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter the complete 6-digit M-PIN.'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: const Text('Please enter the complete 6-digit M-PIN.'),
+          backgroundColor: Colors.orange.shade700, // Use a themed warning color if available
         ),
       );
       return;
@@ -77,10 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         _mpinController.clear();
         FocusScope.of(context).requestFocus(_mpinFocusNode);
+        // Refactored SnackBar
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid M-PIN. Please try again.'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: const Text('Invalid M-PIN. Please try again.'),
+            backgroundColor: colorScheme.error,
           ),
         );
       }
@@ -101,22 +108,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Secure Device Login'),
-        backgroundColor: _primaryNavyBlue,
-        foregroundColor: Colors.white,
+        // Refactored hardcoded colors with theme
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
         automaticallyImplyLeading: false,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+        // Refactored hardcoded 24.0 and 40.0 with constants
+        padding: const EdgeInsets.symmetric(horizontal: kPaddingLarge, vertical: kPaddingXXL),
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
             child: Form(
               key: _formKey,
-              child: _buildLoginCard(context),
+              child: _buildLoginCard(context, colorScheme, textTheme),
             ),
           ),
         ),
@@ -124,43 +137,57 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLoginCard(BuildContext context) {
+  Widget _buildLoginCard(BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
     final bool isPinComplete = _mpinController.text.length == 6;
 
     return Card(
-      elevation: 10,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      // Refactored hardcoded 10 to kCardElevation (which is 4.0, a standard elevation)
+      elevation: kCardElevation * 2.5, // Using a slightly higher elevation for prominence
+      // Refactored hardcoded 20 to kRadiusLarge
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+      // Card color defaults to theme surface color
       child: Padding(
-        padding: const EdgeInsets.all(30.0),
+        // Refactored hardcoded 30.0 to kPaddingExtraLarge
+        padding: const EdgeInsets.all(kPaddingExtraLarge),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Icon(
               Icons.lock_rounded,
-              size: 70,
-              color: _primaryNavyBlue,
+              // Refactored hardcoded 70 to a theme-appropriate size
+              size: 70.0,
+              // Refactored hardcoded _primaryNavyBlue to colorScheme.primary
+              color: colorScheme.primary,
             ),
-            const SizedBox(height: 20),
-            const Text(
+            // Refactored hardcoded 20 to kIconSizeSmall
+            const SizedBox(height: kIconSizeSmall),
+            Text(
               'Welcome Back!',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              // Refactored hardcoded style with theme
+              style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 10),
-            const Text(
+            // Refactored hardcoded 10 to kPaddingTen
+            const SizedBox(height: kPaddingTen),
+            Text(
               'Please enter your 6-digit M-PIN to continue.',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              // Refactored hardcoded style with theme and opacity for grey effect
+              style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.6)),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 40),
+            // Refactored hardcoded 40 to kPaddingXXL
+            const SizedBox(height: kPaddingXXL),
             GestureDetector(
               onTap: () => FocusScope.of(context).requestFocus(_mpinFocusNode),
               child: _PinCodeDisplay(
                 pinLength: 6,
                 currentPin: _mpinController.text,
+                colorScheme: colorScheme, // Pass theme for custom widget
               ),
             ),
-            const SizedBox(height: 20),
+            // Refactored hardcoded 20 to kIconSizeSmall
+            const SizedBox(height: kIconSizeSmall),
+            // Hidden TextFormField for input control
             Opacity(
               opacity: 0.0,
               child: SizedBox(
@@ -190,36 +217,48 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 40),
+            // Refactored hardcoded 40 to kPaddingXXL
+            const SizedBox(height: kPaddingXXL),
             _isLoading
-                ? const Center(
-              child: CircularProgressIndicator(color: _primaryNavyBlue),
+                ? Center(
+              child: CircularProgressIndicator(color: colorScheme.primary),
             )
                 : ElevatedButton(
               onPressed: (isPinComplete && !_isLoading)
                   ? _handleLogin
                   : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryNavyBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                // Refactored hardcoded colors and style
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                // Refactored hardcoded 16 to kPaddingMedium
+                padding: const EdgeInsets.symmetric(vertical: kPaddingMedium),
+                // Refactored hardcoded 12 to kRadiusMedium
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(kRadiusMedium),
                 ),
-                disabledBackgroundColor: _primaryNavyBlue.withOpacity(0.5),
+                disabledBackgroundColor: colorScheme.primary.withOpacity(0.5),
               ),
-              child: const Text(
+              child: Text(
                 'LOG IN',
-                style:
-                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                // Refactored hardcoded style with theme
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onPrimary,
+                ),
               ),
             ),
-            const SizedBox(height: 20),
+            // Refactored hardcoded 20 to kIconSizeSmall
+            const SizedBox(height: kIconSizeSmall),
             TextButton(
               onPressed: _navigateToForgotPassword,
-              child: const Text(
+              child: Text(
                 'Forgot M-PIN?',
-                style: TextStyle(color: _primaryNavyBlue, fontSize: 14),
+                // Refactored hardcoded style with theme
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -229,21 +268,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// --- Custom Pin Code Display Widget ---
+// --- Custom Pin Code Display Widget (Refactored) ---
 class _PinCodeDisplay extends StatelessWidget {
   final int pinLength;
   final String currentPin;
+  final ColorScheme colorScheme; // Pass ColorScheme to avoid reliance on context.
 
   const _PinCodeDisplay({
     required this.pinLength,
     required this.currentPin,
+    required this.colorScheme,
   });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final double boxSize = (constraints.maxWidth - (10 * (pinLength - 1))) / pinLength;
+        // Calculate box size dynamically, maintaining separation constants
+        // Assuming 10 is kPaddingTen
+        final double spacing = kPaddingTen;
+        final double boxSize = (constraints.maxWidth - (spacing * (pinLength - 1))) / pinLength;
         const double boxHeight = 55;
 
         List<Widget> pinBoxes = List.generate(pinLength, (index) {
@@ -255,16 +299,20 @@ class _PinCodeDisplay extends StatelessWidget {
             height: boxHeight,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              // Refactored Colors.white to colorScheme.surface
+              color: colorScheme.surface,
+              // Refactored hardcoded 10 to kRadiusTen
+              borderRadius: BorderRadius.circular(kPaddingTen),
               border: Border.all(
-                color: isFocused ? _primaryNavyBlue : Colors.grey.shade300,
+                // Refactored hardcoded colors
+                color: isFocused ? colorScheme.primary : colorScheme.outline.withOpacity(0.5),
                 width: isFocused ? 3 : 2,
               ),
               boxShadow: isFocused
                   ? [
                 BoxShadow(
-                  color: _primaryNavyBlue.withOpacity(0.3),
+                  // Refactored hardcoded color
+                  color: colorScheme.primary.withOpacity(0.3),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 )
@@ -272,12 +320,14 @@ class _PinCodeDisplay extends StatelessWidget {
                   : null,
             ),
             child: isFilled
-                ? const Padding(
-              padding: EdgeInsets.only(bottom: 2.0),
+                ? Padding(
+              // Refactored hardcoded 2.0
+              padding: const EdgeInsets.only(bottom: kPaddingExtraSmall / 2),
               child: Icon(
                 Icons.circle,
                 size: 14,
-                color: Colors.black87,
+                // Refactored hardcoded Colors.black87 to colorScheme.onSurface
+                color: colorScheme.onSurface,
               ),
             )
                 : Container(),

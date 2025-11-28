@@ -1,10 +1,13 @@
+// File: dashboard_screen.dart (Refactored)
+
 import 'package:flutter/material.dart';
 import '../api/banking_service.dart';
 
+// Import Theme Files
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 import 'profile_management_screen.dart';
-
-// We need to import the screen files that are being navigated to.
 import 'transfer_funds_screen.dart';
 import 'tpin_management_screen.dart';
 import 'detailed_statement_screen.dart';
@@ -13,7 +16,7 @@ import 'detailed_account_view_screen.dart';
 // CRITICAL FIX: Use prefixes for screens that are incorrectly defining duplicate types.
 import 'transaction_history_screen.dart' as ths;
 import 'beneficiary_management_screen.dart' as bms;
-// NOTE: Assuming BankingService is correctly defined in '../api/banking_service.dart'
+
 final BankingService _bankingService = BankingService();
 
 class DashboardScreen extends StatefulWidget {
@@ -37,13 +40,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _currentAccountIndex = 0;
   // CRITICAL FIX: Initialize PageController
   late final PageController _pageController;
-  // --- REVISED COLOR PALETTE (Vibrant & Professional) ---
-  final Color _primaryCorporateBlue = const Color(0xFF0A2B59); // Deep Navy Blue (Primary Background)
-  final Color _secondaryAccentBlue = const Color(0xFF1B4E8B); // Medium Blue
-  final Color _lightBackground = const Color(0xFFF7F9FB); // Off-White screen background
-  final Color _cardBackground = Colors.white; // Pure white for cards
-  final Color _accentRed = const Color(0xFFD32F2F);
-  final Color _accentGreen = const Color(0xFF4CAF50);
+
+  // 💡 All hardcoded color/style constants removed 💡
 
   @override
   void initState() {
@@ -63,7 +61,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  // --- Data Fetching Logic (Unchanged) ---
   Future<void> _fetchDashboardData() async {
     if (!_isLoading) {
       setState(() {
@@ -108,7 +105,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       MaterialPageRoute(builder: (context) => screen),
     );
   }
-  // 1. Account Carousel (Unchanged)
+
+  // 1. Account Carousel
   Widget _buildAccountCarousel(BuildContext context) {
     if (_allAccounts.isEmpty) {
       return const SizedBox(height: 180, child: Center(child: Text('No accounts found.')));
@@ -118,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return SizedBox(
       height: cardHeight,
       child: PageView.builder(
-        controller: _pageController, // Use the initialized controller
+        controller: _pageController,
         itemCount: _allAccounts.length,
         onPageChanged: (index) {
           setState(() {
@@ -127,37 +125,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         itemBuilder: (context, index) {
           final account = _allAccounts[index];
+          // Use kPaddingSmall for horizontal spacing
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            padding: const EdgeInsets.symmetric(horizontal: kPaddingSmall),
             child: _buildSingleAccountCard(context, account),
           );
         },
       ),
     );
   }
-  // **CRITICAL FIXES APPLIED HERE**
-  Widget _buildSingleAccountCard(BuildContext context, Account account) {
-    final theme = Theme.of(context);
 
-    // Balance display logic (remains the same: masked by default)
+  // **Card Implementation Refactored to Theme Constants**
+  Widget _buildSingleAccountCard(BuildContext context, Account account) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     final balanceText = _isBalanceVisible
         ? '₹${account.balance.toStringAsFixed(2)}'
         : '•••••••';
 
+    // Use specific colors from app_colors.dart for distinction
     Color stripeColor;
     if (account.accountType == AccountType.fixedDeposit || account.accountType == AccountType.recurringDeposit) {
-      stripeColor = Colors.orange.shade600;
+      stripeColor = kFixedDepositCardColor;
     } else if (account.accountType == AccountType.current) {
-      stripeColor = Colors.teal.shade500;
+      stripeColor = kCurrentCardColor;
     } else {
-      stripeColor = _secondaryAccentBlue;
+      stripeColor = colorScheme.secondary;
     }
-    // Account Number display logic: Masked by default, shown if _isAccountNoVisible is true.
-    final String fullAccountNo = account.accountNumber;
-    // Masking format: '5555 **** 4333' (as seen in the screenshot)
-    final String maskedAccountNo = '${fullAccountNo.substring(0, 4)} **** ${fullAccountNo.substring(fullAccountNo.length - 4)}';
 
-    // DECISION: Which string to display
+    final String fullAccountNo = account.accountNumber;
+    final String maskedAccountNo = '${fullAccountNo.substring(0, 4)} **** ${fullAccountNo.substring(fullAccountNo.length - 4)}';
     final String displayAccountNo = _isAccountNoVisible ? fullAccountNo : maskedAccountNo;
 
 
@@ -166,14 +164,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _navigateTo(DetailedAccountViewScreen(account: account));
       },
       child: Card(
-        color: _cardBackground,
-        elevation: 6,
+        // Refactored Color & Elevation/Shape
+        color: colorScheme.surface,
+        elevation: kCardElevation,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)), // Use kRadiusLarge (16) to fit original 15
         child: Container(
           decoration: BoxDecoration(
-            color: _cardBackground,
-            borderRadius: BorderRadius.circular(15),
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(kRadiusLarge),
           ),
           child: Row(
             children: [
@@ -183,30 +182,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 decoration: BoxDecoration(
                   color: stripeColor,
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(15),
-                    bottomLeft: Radius.circular(15),
+                    topLeft: Radius.circular(kRadiusLarge),
+                    bottomLeft: Radius.circular(kRadiusLarge),
                   ),
                 ),
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(20.0),
+                  padding: const EdgeInsets.all(kPaddingMedium),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Account Type & Balance Visibility Toggle (FIX APPLIED HERE)
+                      // Account Type & Balance Visibility Toggle
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // ➡️ FIX: Wrap the long text in Flexible to prevent overflow
                           Flexible(
                             child: Text(
                               '${account.accountType.name.toUpperCase()} ACCOUNT',
-                              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey.shade600, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                              // Refactored Text Style (using onSurface for secondary text)
+                              style: textTheme.labelSmall?.copyWith(
+                                  color: colorScheme.onSurface.withOpacity(0.7),
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.8
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          // Balance Visibility Toggle Icon (fixed size)
+                          // Balance Visibility Toggle Icon
                           InkWell(
                             onTap: () {
                               setState(() {
@@ -215,34 +218,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             },
                             borderRadius: BorderRadius.circular(20),
                             child: Padding(
-                              padding: const EdgeInsets.all(4.0),
+                              padding: const EdgeInsets.all(kPaddingExtraSmall),
                               child: Icon(
-                                // Logic: If visible, show CLOSE eye. If masked, show OPEN eye.
                                 _isBalanceVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                color: _primaryCorporateBlue,
-                                size: 24,
+                                color: colorScheme.primary, // Use primary color for icon
+                                size: kIconSize,
                               ),
                             ),
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 10),
+                      const SizedBox(height: kPaddingSmall),
 
                       // Balance Display
                       Text(
                         'Available Balance',
-                        style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500, letterSpacing: 0.5),
+                        // Refactored Text Style
+                        style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurface.withOpacity(0.5),
+                            letterSpacing: 0.5
+                        ),
                       ),
                       const SizedBox(height: 2),
-                      // FIX: Ensure font size is constrained to prevent overflow
                       Flexible(
                         child: Text(
                           balanceText,
-                          style: theme.textTheme.headlineMedium?.copyWith(
+                          // Refactored Text Style
+                          style: textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.w900,
-                            color: _primaryCorporateBlue,
-                            fontSize: 30, // Kept at 30 for stability
+                            color: colorScheme.primary,
+                            fontSize: 30,
                             letterSpacing: -0.5,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -256,17 +262,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          // Account Nickname & Number (Wrapped in Flexible for safety)
+                          // Account Nickname & Number
                           Flexible(
                             child: Text(
                               '${account.nickname} | $displayAccountNo',
-                              style: theme.textTheme.bodyMedium?.copyWith(color: Colors.black, fontWeight: FontWeight.bold),
+                              // Refactored Text Style
+                              style: textTheme.bodyMedium?.copyWith(
+                                  color: colorScheme.onSurface,
+                                  fontWeight: FontWeight.bold
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: kPaddingSmall),
 
-                          // CORRECTED ICON LOGIC for Account Number (fixed size)
+                          // Account Number Toggle
                           InkWell(
                             onTap: () {
                               setState(() {
@@ -275,12 +285,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             },
                             borderRadius: BorderRadius.circular(20),
                             child: Padding(
-                              padding: const EdgeInsets.all(4.0),
+                              padding: const EdgeInsets.all(kPaddingExtraSmall),
                               child: Icon(
-                                // Logic: If visible, show CLOSE eye. If masked, show OPEN eye (to invite view).
                                 _isAccountNoVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                color: _primaryCorporateBlue.withOpacity(0.7),
-                                size: 24,
+                                color: colorScheme.primary.withOpacity(0.7),
+                                size: kIconSize,
                               ),
                             ),
                           ),
@@ -296,28 +305,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-  // 2. Quick Actions Grid - MODIFIED
+
+  // 2. Quick Actions Grid - Refactored
   Widget _buildQuickActions() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     final List<Map<String, dynamic>> actions = [
-      {'label': 'Quick Transfer', 'icon': Icons.flash_on_outlined, 'color': Colors.orange.shade700, 'screen': const QuickTransferScreen()},
-      {'label': 'Standard Transfer', 'icon': Icons.send_outlined, 'color': _primaryCorporateBlue, 'screen': TransferFundsScreen(bankingService: _bankingService)},
-      {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': Colors.purple.shade700, 'screen': const bms.BeneficiaryManagementScreen()},
-      // MODIFICATION: Renamed to Scan & Pay (UPI)
-      {'label': 'Scan & Pay (UPI)', 'icon': Icons.qr_code_scanner, 'color': Colors.green.shade700, 'screen': null},
-      {'label': 'Transaction History', 'icon': Icons.history, 'color': Colors.brown.shade700, 'screen': ths.TransactionHistoryScreen(bankingService: _bankingService)},
-      {'label': 'T-PIN Management', 'icon': Icons.lock_reset_outlined, 'color': _primaryCorporateBlue, 'screen': const TpinManagementScreen()},
+      {'label': 'Quick Transfer', 'icon': Icons.flash_on_outlined, 'color': kAccentOrange, 'screen': const QuickTransferScreen()},
+      {'label': 'Standard Transfer', 'icon': Icons.send_outlined, 'color': colorScheme.primary, 'screen': TransferFundsScreen(bankingService: _bankingService)},
+      {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': kCurrentCardColor, 'screen': const bms.BeneficiaryManagementScreen()},
+      {'label': 'Scan & Pay (UPI)', 'icon': Icons.qr_code_scanner, 'color': kSuccessGreen, 'screen': null},
+      {'label': 'Transaction History', 'icon': Icons.history, 'color': kSavingsCardColor, 'screen': ths.TransactionHistoryScreen(bankingService: _bankingService)},
+      {'label': 'T-PIN Management', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
+      padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: 0.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: 10.0, top: 20.0),
+            padding: const EdgeInsets.only(left: 4.0, bottom: kPaddingSmall, top: kPaddingMedium),
             child: Text(
               'Quick Services',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.black87),
+              // Refactored Text Style
+              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onBackground),
             ),
           ),
           GridView.builder(
@@ -325,8 +338,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: kPaddingSmall,
+              mainAxisSpacing: kPaddingSmall,
               childAspectRatio: 1.0,
             ),
             itemCount: actions.length,
@@ -342,24 +355,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     );
                   }
                 },
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(kRadiusMedium),
                 child: Card(
-                  color: _cardBackground,
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  // Refactored Card Style
+                  color: colorScheme.surface,
+                  elevation: kCardElevation,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(kPaddingSmall),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(action['icon'], size: 36, color: action['color']),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: kPaddingSmall),
                         Text(
                           action['label'],
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black87,
+                          // Refactored Text Style
+                          style: textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurface,
                               fontWeight: FontWeight.w600
                           ),
                           maxLines: 2,
@@ -375,24 +389,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-  // 3. T-PIN Status Alert (Unchanged)
+
+  // 3. T-PIN Status Alert - Refactored
   Widget _buildTpinAlertCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     if (_bankingService.isTpinSet) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingSmall),
       child: Card(
-        color: Colors.red.shade50,
-        elevation: 4,
+        // Refactored Alert Color (using error)
+        color: colorScheme.error.withOpacity(0.1),
+        elevation: kCardElevation,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.red.shade300, width: 1.5)
+            borderRadius: BorderRadius.circular(kRadiusMedium),
+            side: BorderSide(color: colorScheme.error, width: 1.5)
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(kPaddingMedium),
           child: Row(
             children: [
-              Icon(Icons.security_update_warning, color: Colors.red.shade800, size: 30),
+              Icon(Icons.security_update_warning, color: colorScheme.error, size: 30),
               const SizedBox(width: 15),
               Expanded(
                 child: Column(
@@ -400,21 +419,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Text(
                       'ACTION REQUIRED: T-PIN Not Set',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900),
+                      // Refactored Text Style
+                      style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.error),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Set your T-PIN now to enable secure transactions.',
-                      style: TextStyle(fontSize: 13, color: Colors.red.shade800),
+                      style: textTheme.bodySmall?.copyWith(color: colorScheme.error.withOpacity(0.8)),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: kPaddingSmall),
                     GestureDetector(
                       onTap: () => _navigateTo(const TpinManagementScreen()),
                       child: Text(
                         'SET T-PIN NOW >',
-                        style: TextStyle(
+                        style: textTheme.labelLarge?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: _primaryCorporateBlue,
+                          color: colorScheme.primary, // Primary color for the action link
                           decoration: TextDecoration.underline,
                         ),
                       ),
@@ -428,18 +448,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-  // 4. Mini Statement List (Unchanged)
-  // FULL CODE WITH OVERFLOW FIX — NO OTHER CHANGES
 
-// (Your entire code stays identical until this section)
-
+  // 4. Mini Statement List - Refactored
   Widget _buildMiniStatement(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     if (_miniStatement == null || _miniStatement!.isEmpty || _allAccounts.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(kPaddingMedium),
         child: Text(
           'No recent transactions found for ${_allAccounts.isNotEmpty ? _allAccounts[_currentAccountIndex].nickname : 'the selected account'}.',
-          style: TextStyle(color: Colors.grey.shade600),
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.6)),
         ),
       );
     }
@@ -447,23 +467,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final currentAccount = _allAccounts[_currentAccountIndex];
 
     return Padding(
-      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 10.0),
+      padding: const EdgeInsets.only(left: kPaddingMedium, right: kPaddingMedium, top: kPaddingSmall),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: kPaddingSmall),
             child: Row(
               children: [
-
-                // 🔥 FIX APPLIED HERE — prevents overflow
                 Expanded(
                   child: Text(
                     'Recent Transactions (${currentAccount.nickname})',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold, color: Colors.black87),
+                    style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onBackground
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -479,10 +497,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   },
                   child: Text(
                     'VIEW ALL',
-                    style: TextStyle(
-                      color: _primaryCorporateBlue,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.primary,
                       fontWeight: FontWeight.bold,
-                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -490,25 +507,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // (The rest of your code remains unchanged)
           Card(
-            elevation: 3,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            color: _cardBackground,
+            // Refactored Card Style
+            elevation: kCardElevation,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+            color: colorScheme.surface,
             child: ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _miniStatement!.length > 5 ? 5 : _miniStatement!.length,
               separatorBuilder: (context, index) =>
-                  Divider(height: 1, color: Colors.grey.shade200, indent: 16, endIndent: 16),
+              // Use theme divider color
+              Divider(height: 1, color: colorScheme.onSurface.withOpacity(0.1), indent: kPaddingMedium, endIndent: kPaddingMedium),
               itemBuilder: (context, index) {
                 final tx = _miniStatement![index];
                 final isDebit = tx.type == TransactionType.debit;
-                final amountColor = isDebit ? _accentRed : _accentGreen;
-                final iconColor = isDebit ? _accentRed : _accentGreen;
+
+                // Use adaptive success/error colors
+                final amountColor = isDebit ? colorScheme.error : kSuccessGreen;
+                final iconColor = isDebit ? colorScheme.error : kSuccessGreen;
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                  padding: const EdgeInsets.symmetric(vertical: kPaddingSmall, horizontal: kPaddingMedium),
                   child: Row(
                     children: [
                       Container(
@@ -521,7 +541,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: Icon(
                           isDebit ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
                           color: iconColor,
-                          size: 20,
+                          size: kIconSize,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -532,15 +552,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Text(
                               tx.description,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600, color: Colors.black87, fontSize: 14),
+                              // Refactored Text Style
+                              style: textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.onSurface
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 3),
                             Text(
                               '${tx.date.day}/${tx.date.month} | ${tx.date.hour}:${tx.date.minute.toString().padLeft(2, '0')}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              style: textTheme.labelSmall?.copyWith(
+                                  color: colorScheme.onSurface.withOpacity(0.6)
+                              ),
                             ),
                           ],
                         ),
@@ -550,10 +575,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: Text(
                           '${isDebit ? '-' : '+'} ₹${tx.amount.toStringAsFixed(2)}',
                           textAlign: TextAlign.end,
-                          style: TextStyle(
+                          style: textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: amountColor,
-                            fontSize: 15,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -571,16 +595,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 💡 THEME REFERENCES 💡
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: _lightBackground,
+        backgroundColor: colorScheme.background,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: _primaryCorporateBlue),
-              const SizedBox(height: 16),
-              const Text('Loading dashboard data...')
+              CircularProgressIndicator(color: colorScheme.primary),
+              const SizedBox(height: kPaddingMedium),
+              Text(
+                  'Loading dashboard data...',
+                  style: textTheme.bodyMedium?.copyWith(color: colorScheme.onBackground)
+              )
             ],
           ),
         ),
@@ -592,7 +623,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         body: Center(
           child: Text(
             'Error: $_errorMessage',
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            style: textTheme.bodyMedium?.copyWith(color: colorScheme.error),
             textAlign: TextAlign.center,
           ),
         ),
@@ -601,52 +632,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final String userFullName = _userProfile!.fullName;
     final String userFirstName = userFullName.split(' ').first;
     final String userInitial = userFullName.split(' ').first.substring(0, 1).toUpperCase();
+
     return Scaffold(
-      backgroundColor: _lightBackground,
+      backgroundColor: colorScheme.background,
       // --- DRAWER (Menu Bar) ---
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: <Widget>[
             DrawerHeader(
-              decoration: BoxDecoration(color: _primaryCorporateBlue),
+              // Refactored Drawer Header Color
+              decoration: BoxDecoration(color: colorScheme.primary),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
-                CircleAvatar(backgroundColor: Colors.white, radius: 30, child: Text(userInitial, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: _primaryCorporateBlue))),
-                const SizedBox(height: 8),
-                Text(userFullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
-                const Text('Account Holder', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                CircleAvatar(
+                  // Refactored Avatar Colors
+                    backgroundColor: colorScheme.onPrimary,
+                    radius: 30,
+                    child: Text(
+                        userInitial,
+                        style: textTheme.headlineMedium?.copyWith(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary // Text color is primary
+                        )
+                    )
+                ),
+                const SizedBox(height: kPaddingSmall),
+                // Refactored Text Styles
+                Text(userFullName, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
+                Text('Account Holder', style: textTheme.labelSmall?.copyWith(color: colorScheme.onPrimary.withOpacity(0.7))),
               ]),
             ),
-            ListTile(leading: Icon(Icons.dashboard_outlined, color: _primaryCorporateBlue),
-                title: const Text('Dashboard'), onTap: () => Navigator.pop(context)),
 
-            ListTile(leading: Icon(Icons.person_2_outlined, color: Colors.orange.shade700),
-                title: const Text('Profile'),
+            // Refactored ListTiles (using primary color for active icons)
+            ListTile(leading: Icon(Icons.dashboard_outlined, color: colorScheme.primary),
+                title: Text('Dashboard', style: textTheme.bodyMedium), onTap: () => Navigator.pop(context)),
+
+            ListTile(leading: Icon(Icons.person_2_outlined, color: kAccentOrange),
+                title: Text('Profile', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(const ProfileManagementScreen()); }),
 
-            ListTile(leading: Icon(Icons.flash_on_outlined, color: Colors.orange.shade700),
-                title: const Text('Quick Transfer (IMPS)'),
+            ListTile(leading: Icon(Icons.flash_on_outlined, color: kAccentOrange),
+                title: Text('Quick Transfer (IMPS)', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(const QuickTransferScreen()); }),
-            ListTile(leading: Icon(Icons.payments_outlined, color: _primaryCorporateBlue),
-                title: const Text('Standard Transfer (Beneficiary)'),
+            ListTile(leading: Icon(Icons.payments_outlined, color: colorScheme.primary),
+                title: Text('Standard Transfer (Beneficiary)', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(TransferFundsScreen(bankingService: _bankingService)); }),
-            ListTile(leading: Icon(Icons.people_alt_outlined, color: Colors.purple.shade700),
-                title: const Text('Beneficiary Management'),
+            ListTile(leading: Icon(Icons.people_alt_outlined, color: kCurrentCardColor),
+                title: Text('Beneficiary Management', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(const bms.BeneficiaryManagementScreen()); }),
-            // MODIFIED MENU ITEM
-            ListTile(leading: Icon(Icons.qr_code_scanner, color: Colors.green.shade700),
-                title: const Text('Scan & Pay (UPI)'), onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scan & Pay (UPI) feature coming soon!')));
-            }),
-            ListTile(leading: Icon(Icons.history_toggle_off_outlined, color: Colors.brown.shade700),
-                title: const Text('Transaction History'),
+
+            ListTile(leading: Icon(Icons.qr_code_scanner, color: kSuccessGreen),
+                title: Text('Scan & Pay (UPI)', style: textTheme.bodyMedium), onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scan & Pay (UPI) feature coming soon!')));
+                }),
+            ListTile(leading: Icon(Icons.history_toggle_off_outlined, color: kSavingsCardColor),
+                title: Text('Transaction History', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(ths.TransactionHistoryScreen(bankingService: _bankingService)); }),
-            ListTile(leading: Icon(Icons.lock_reset_outlined, color: _primaryCorporateBlue),
-                title: const Text('T-PIN Management'),
+            ListTile(leading: Icon(Icons.lock_reset_outlined, color: colorScheme.primary),
+                title: Text('T-PIN Management', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(const TpinManagementScreen()); }),
+
             const Divider(),
-            ListTile(leading: const Icon(Icons.logout, color: Colors.red), title: const Text('Logout'), onTap: () {
+
+            ListTile(leading: const Icon(Icons.logout, color: kErrorRed), title: Text('Logout', style: textTheme.bodyMedium), onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Logging out user...')));
               Navigator.pop(context);
             }),
@@ -655,25 +705,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       // --- APP BAR (Unique Integrated Design) ---
       appBar: AppBar(
-        backgroundColor: _primaryCorporateBlue, // Solid Navy Blue Header
+        // Refactored Header Color
+        backgroundColor: colorScheme.primary,
         elevation: 0,
-        toolbarHeight: 0, // Set toolbar height to 0 to make it visually disappear
+        toolbarHeight: 0,
       ),
       // --- BODY (Stabilized CustomScrollView) ---
       body: RefreshIndicator(
         onRefresh: _fetchDashboardData,
-        color: _primaryCorporateBlue,
+        color: colorScheme.primary,
         child: CustomScrollView(
           slivers: <Widget>[
 
             // 1. UNIQUE HEADER & WELCOME MESSAGE
             SliverToBoxAdapter(
               child: Container(
-                height: 100, // Fixed height for the header background
-                padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: 16, right: 16),
+                height: 100,
+                padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: kPaddingMedium, right: kPaddingMedium),
                 decoration: BoxDecoration(
-                  color: _primaryCorporateBlue,
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+                  color: colorScheme.primary,
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(kPaddingExtraLarge)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -681,7 +732,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Builder(
                       builder: (context) => IconButton(
-                        icon: const Icon(Icons.menu, color: Colors.white, size: 28),
+                        icon: Icon(Icons.menu, color: colorScheme.onPrimary, size: 28),
                         onPressed: () => Scaffold.of(context).openDrawer(),
                       ),
                     ),
@@ -693,11 +744,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Text(
                               'Welcome Back,',
-                              style: TextStyle(color: Colors.white70, fontSize: 14),
+                              style: textTheme.bodyMedium?.copyWith(color: colorScheme.onPrimary.withOpacity(0.7)),
                             ),
                             Text(
                               userFirstName,
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 22),
+                              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onPrimary),
                             ),
                           ],
                         ),
@@ -706,17 +757,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.notifications_none, color: Colors.white, size: 28),
+                          icon: Icon(Icons.notifications_none, color: colorScheme.onPrimary, size: 28),
                           onPressed: () { /* Notifications */ },
                         ),
                         Padding(
                           padding: const EdgeInsets.only(left: 4.0, top: 12),
                           child: CircleAvatar(
-                            backgroundColor: Colors.white,
+                            // Refactored Avatar Colors
+                            backgroundColor: colorScheme.onPrimary,
                             radius: 15,
                             child: Text(
                               userInitial,
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _primaryCorporateBlue),
+                              style: textTheme.labelLarge?.copyWith(fontSize: 12, fontWeight: FontWeight.bold, color: colorScheme.primary),
                             ),
                           ),
                         ),
@@ -729,19 +781,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // 2. Account Summary Carousel (Pulled up into the header curve)
             SliverToBoxAdapter(
               child: Transform.translate(
-                offset: const Offset(0, -50), // Less aggressive pull-up
+                offset: const Offset(0, -50),
                 child: _buildAccountCarousel(context),
               ),
             ),
 
             SliverToBoxAdapter(
               child: Transform.translate(
-                offset: const Offset(0, -40), // Slightly reduced offset for safety
+                offset: const Offset(0, -40),
                 child: Column(
                   children: [
                     // Page Indicator Dots
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 10.0),
+                      padding: const EdgeInsets.only(bottom: kPaddingSmall),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(_allAccounts.length, (index) {
@@ -751,9 +803,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             margin: const EdgeInsets.symmetric(horizontal: 4.0),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
+                              // Refactored Color
                               color: _currentAccountIndex == index
-                                  ? _secondaryAccentBlue
-                                  : Colors.grey.shade400,
+                                  ? colorScheme.secondary
+                                  : colorScheme.onBackground.withOpacity(0.3),
                             ),
                           );
                         }),

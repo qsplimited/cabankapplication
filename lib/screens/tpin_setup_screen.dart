@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/banking_service.dart';
+import '../theme/app_colors.dart'; // Import for specific color constants (kSuccessGreen, kErrorRed)
+import '../theme/app_dimensions.dart'; // Import for size constants (kPadding..., kRadius..., kIconSize...)
 
 // Defines the steps for the T-PIN setup/reset process
 enum TpinSetupStep {
@@ -45,11 +47,8 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
   // --- Form Keys ---
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  // --- Constants & Styling ---
-  final Color _primaryNavyBlue = const Color(0xFF003366);
-  final Color _accentGreen = const Color(0xFF4CAF50);
-  final Color _accentRed = const Color(0xFFD32F2F);
-  final Color _lightBackground = const Color(0xFFF0F2F5);
+  // --- Hardcoded Colors Removed ---
+  // Replaced with theme references in methods below.
 
   @override
   void initState() {
@@ -64,13 +63,25 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _tpinInputController.dispose();
+    _confirmTpinController.dispose();
+    _otpController.dispose();
+    _mobileController.dispose();
+    super.dispose();
+  }
+
   // --- Utility UI Methods ---
 
   void _showSnackbar(String message, {required bool isSuccess}) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isSuccess ? _accentGreen : _accentRed,
+        // Use kSuccessGreen and kErrorRed constants from app_colors.dart
+        backgroundColor: isSuccess ? kSuccessGreen : kErrorRed,
         duration: const Duration(seconds: 4),
       ),
     );
@@ -79,24 +90,27 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
   void _nextStep(TpinSetupStep next) {
     setState(() {
       _currentStep = next;
+      // Clear relevant controllers on step transition
       _tpinInputController.clear();
       _confirmTpinController.clear();
       _otpController.clear();
+      // Only clear mobile if going back to initial verification step
+      if (next == TpinSetupStep.mobileVerification) {
+        _mobileController.clear();
+        _otpSent = false;
+      }
     });
   }
 
-  // --- Core Logic Methods ---
+  // --- Core Logic Methods (Unchanged) ---
 
-  // STEP 1 (RESET FLOW): Verify mobile number
   Future<void> _verifyMobileNumber() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     try {
       final mobile = _mobileController.text;
-      // CRITICAL: Call the service to find/verify the number
       if (widget.bankingService.findAccountByMobileNumber(mobile)) {
-        // Since number is verified, send the OTP immediately and move to OTP screen
         await _sendOtp();
         _nextStep(TpinSetupStep.otpVerification);
       } else {
@@ -109,7 +123,6 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     }
   }
 
-  // STEP 1 (CHANGE FLOW): Verify Old TPIN
   Future<void> _verifyOldTpin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -118,13 +131,11 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
       final oldPin = _tpinInputController.text;
 
       // Use the unified update method to check the old PIN validity
-      // We pass a dummy new PIN, as the service checks the old PIN first.
       await widget.bankingService.updateTransactionPin(
-        newPin: '000000',
+        newPin: '000000', // Dummy new PIN for verification check
         oldPin: oldPin,
       );
 
-      // If no exception, the old PIN is correct. Store it for the final step.
       _verifiedOldPin = oldPin;
       _showSnackbar('Current TPIN Verified. Proceed to set new PIN.', isSuccess: true);
       _nextStep(TpinSetupStep.setNewPin);
@@ -138,7 +149,6 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     }
   }
 
-  // STEP 2 (RESET FLOW): Send/Resend OTP
   Future<void> _sendOtp() async {
     setState(() => _isLoading = true);
     try {
@@ -152,7 +162,6 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     }
   }
 
-  // STEP 3 (RESET FLOW): Verify OTP
   Future<void> _verifyOtp() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -169,7 +178,6 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     }
   }
 
-  // FINAL STEP (BOTH FLOWS): Set New TPIN
   Future<void> _setNewTpin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -184,9 +192,6 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     }
 
     try {
-      // Determine the pin needed for authorization:
-      // - If isResetFlow is true, authorization was via OTP, so oldPin is null.
-      // - If isResetFlow is false (Change TPIN), we pass the pin verified in the previous step.
       final String? oldPinForAuth = widget.isResetFlow ? null : _verifiedOldPin;
 
       final message = await widget.bankingService.updateTransactionPin(
@@ -204,19 +209,31 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     }
   }
 
-  // --- Step Builder Widgets ---
+  // --- Step Builder Widgets (Refactored) ---
 
   // STEP 1: Mobile Number Input (Only for Reset/Setup)
   Widget _buildMobileVerificationStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.phone_android, size: 50, color: Color(0xFF003366)),
-        const SizedBox(height: 20),
-        Text('Verify Registered Mobile Number', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: _primaryNavyBlue)),
-        const SizedBox(height: 10),
-        Text('To securely ${widget.isFirstTimeSetup ? 'set' : 'reset'} your TPIN, please confirm your registered mobile number.', style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-        const SizedBox(height: 30),
+        // Replaced hardcoded size/color with theme constants
+        Icon(Icons.phone_android, size: kIconSizeXXL, color: colorScheme.primary),
+        const SizedBox(height: kPaddingMedium),
+        Text(
+          'Verify Registered Mobile Number',
+          // Used headlineSmall and theme primary color
+          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+        ),
+        const SizedBox(height: kPaddingTen),
+        Text(
+          'To securely ${widget.isFirstTimeSetup ? 'set' : 'reset'} your TPIN, please confirm your registered mobile number.',
+          // Used textTheme.bodyMedium and theme secondary text color (onSurface with opacity)
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
+        ),
+        const SizedBox(height: kPaddingExtraLarge),
         TextFormField(
           controller: _mobileController,
           keyboardType: TextInputType.phone,
@@ -226,18 +243,23 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
             labelText: '10-Digit Mobile Number',
             prefixText: '+91 ',
             counterText: '',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            // Replaced hardcoded radius
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(kRadiusSmall),
+              borderSide: BorderSide(color: colorScheme.primary, width: 2),
+            ),
           ),
           validator: (value) {
             if (value == null || value.length != 10) return 'Please enter a valid 10-digit number';
             return null;
           },
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: kPaddingExtraLarge),
         _buildActionButton(
           label: _isLoading ? 'Verifying...' : 'Verify & Send OTP',
           onPressed: _isLoading ? null : _verifyMobileNumber,
-          color: _primaryNavyBlue,
+          color: colorScheme.primary,
         ),
       ],
     );
@@ -245,15 +267,27 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
 
   // STEP 1: Old TPIN Input (Only for Change)
   Widget _buildOldTpinVerificationStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.lock_open_rounded, size: 50, color: Colors.orange),
-        const SizedBox(height: 20),
-        Text('Verify Current TPIN', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: _primaryNavyBlue)),
-        const SizedBox(height: 10),
-        Text('Enter your current 6-digit TPIN to authorize the change.', style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-        const SizedBox(height: 30),
+        // Replaced hardcoded size/color with theme constants
+        Icon(Icons.lock_open_rounded, size: kIconSizeXXL, color: kAccentOrange),
+        const SizedBox(height: kPaddingMedium),
+        Text(
+          'Verify Current TPIN',
+          // Used headlineSmall and theme primary color
+          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+        ),
+        const SizedBox(height: kPaddingTen),
+        Text(
+          'Enter your current 6-digit TPIN to authorize the change.',
+          // Used bodyMedium and theme secondary text color
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
+        ),
+        const SizedBox(height: kPaddingExtraLarge),
         _buildPinInputField(
             controller: _tpinInputController,
             label: 'Current TPIN (6 Digits)',
@@ -262,11 +296,11 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
               return null;
             }
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: kPaddingExtraLarge),
         _buildActionButton(
           label: _isLoading ? 'Verifying...' : 'Verify TPIN',
           onPressed: _isLoading ? null : _verifyOldTpin,
-          color: _primaryNavyBlue,
+          color: colorScheme.primary,
         ),
       ],
     );
@@ -274,15 +308,27 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
 
   // STEP 2 (RESET FLOW): OTP Input
   Widget _buildOtpVerificationStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.sms_outlined, size: 50, color: Colors.blue),
-        const SizedBox(height: 20),
-        Text('Verify OTP', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: _primaryNavyBlue)),
-        const SizedBox(height: 10),
-        Text('Enter the 6-digit code sent to ${widget.bankingService.getMaskedMobileNumber()}.', style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-        const SizedBox(height: 30),
+        // Replaced hardcoded size/color with theme constants
+        Icon(Icons.sms_outlined, size: kIconSizeXXL, color: colorScheme.secondary),
+        const SizedBox(height: kPaddingMedium),
+        Text(
+          'Verify OTP',
+          // Used headlineSmall and theme primary color
+          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+        ),
+        const SizedBox(height: kPaddingTen),
+        Text(
+          'Enter the 6-digit code sent to ${widget.bankingService.getMaskedMobileNumber()}.',
+          // Used bodyMedium and theme secondary text color
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
+        ),
+        const SizedBox(height: kPaddingExtraLarge),
         _buildPinInputField(
             controller: _otpController,
             label: 'Enter OTP (6 Digits)',
@@ -292,15 +338,17 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
               return null;
             }
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: kPaddingExtraLarge),
         _buildActionButton(
           label: _isLoading ? 'Verifying...' : 'Verify OTP & Proceed',
           onPressed: _isLoading ? null : _verifyOtp,
-          color: _accentGreen,
+          // Used kSuccessGreen constant from app_colors.dart
+          color: kSuccessGreen,
         ),
         TextButton(
           onPressed: _isLoading ? null : _sendOtp,
-          child: Text('Resend OTP', style: TextStyle(color: _primaryNavyBlue)),
+          // Used TextButton theme (which uses primary color)
+          child: Text('Resend OTP', style: textTheme.bodyMedium?.copyWith(color: colorScheme.primary)),
         )
       ],
     );
@@ -308,15 +356,27 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
 
   // STEP 3 (BOTH FLOWS): Set New TPIN
   Widget _buildSetNewTpinStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.lock_reset, size: 50, color: Colors.purple),
-        const SizedBox(height: 20),
-        Text('Set New TPIN', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: _primaryNavyBlue)),
-        const SizedBox(height: 10),
-        Text('Choose a new, secure 6-digit TPIN for future transactions.', style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-        const SizedBox(height: 30),
+        // Replaced hardcoded size/color with theme constants
+        Icon(Icons.lock_reset, size: kIconSizeXXL, color: colorScheme.secondary),
+        const SizedBox(height: kPaddingMedium),
+        Text(
+          'Set New TPIN',
+          // Used headlineSmall and theme primary color
+          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+        ),
+        const SizedBox(height: kPaddingTen),
+        Text(
+          'Choose a new, secure 6-digit TPIN for future transactions.',
+          // Used bodyMedium and theme secondary text color
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
+        ),
+        const SizedBox(height: kPaddingExtraLarge),
         _buildPinInputField(
             controller: _tpinInputController,
             label: 'New TPIN (6 Digits)',
@@ -325,7 +385,7 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
               return null;
             }
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: kPaddingMedium + kPaddingExtraSmall),
         _buildPinInputField(
             controller: _confirmTpinController,
             label: 'Confirm New TPIN (6 Digits)',
@@ -335,11 +395,11 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
               return null;
             }
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: kPaddingExtraLarge),
         _buildActionButton(
           label: _isLoading ? 'Processing...' : 'Set TPIN',
           onPressed: _isLoading ? null : _setNewTpin,
-          color: _primaryNavyBlue,
+          color: colorScheme.primary,
         ),
       ],
     );
@@ -347,41 +407,50 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
 
   // FINAL STEP (BOTH FLOWS): Completion
   Widget _buildCompletionStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_circle_outline, size: 80, color: _accentGreen),
-          const SizedBox(height: 20),
+          // Replaced hardcoded size/color with theme constants
+          Icon(Icons.check_circle_outline, size: kIconSizeXXL * 1.3, color: kSuccessGreen),
+          const SizedBox(height: kPaddingMedium),
           Text(
             'TPIN Successfully ${widget.isFirstTimeSetup ? 'Set' : 'Updated'}!',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: _primaryNavyBlue),
+            // Used theme titleLarge and primary color
+            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: kPaddingTen),
           Text(
             'Your new TPIN is now active and ready for use in all transactions.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+            // Used theme bodyLarge and theme secondary text color
+            style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface.withOpacity(0.8)),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: kPaddingXXL),
           _buildActionButton(
             label: 'Back to Management Screen',
-            onPressed: () => Navigator.of(context).pop(),
-            color: _primaryNavyBlue,
+            onPressed: () => Navigator.of(context).pop(true), // Pop with result true
+            color: colorScheme.primary,
           ),
         ],
       ),
     );
   }
 
-  // Reusable TPIN/OTP input field
+  // Reusable TPIN/OTP input field (Highly styled, theme applied)
   Widget _buildPinInputField({
     required TextEditingController controller,
     required String label,
     bool obscure = true,
     String? Function(String?)? validator,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return TextFormField(
       controller: controller,
       obscureText: obscure,
@@ -391,42 +460,59 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
         LengthLimitingTextInputFormatter(6),
       ],
       textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 28, letterSpacing: 10, fontWeight: FontWeight.bold),
+      // Styled for large, prominent input
+      style: textTheme.headlineMedium?.copyWith(letterSpacing: kPaddingSmall, fontWeight: FontWeight.bold),
       decoration: InputDecoration(
         labelText: label,
         hintText: '•' * 6,
         counterText: '',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _primaryNavyBlue)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _primaryNavyBlue, width: 2)),
+        // Replaced hardcoded border radius/color
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusMedium), borderSide: BorderSide(color: colorScheme.primary.withOpacity(0.5))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusMedium), borderSide: BorderSide(color: colorScheme.primary, width: 2)),
         filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(vertical: 15),
+        fillColor: colorScheme.surface,
+        contentPadding: const EdgeInsets.symmetric(vertical: kPaddingMedium),
       ),
       validator: validator,
     );
   }
 
+  // Reusable Action Button (Highly styled, theme applied)
   Widget _buildActionButton({required String label, required VoidCallback? onPressed, required Color color}) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 5,
+          foregroundColor: colorScheme.onPrimary, // Text color on primary button (should be white/light)
+          padding: const EdgeInsets.symmetric(vertical: kPaddingMedium),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+          elevation: kCardElevation,
         ),
         child: _isLoading
-            ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-            : Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ? SizedBox(
+            height: kIconSize,
+            width: kIconSize,
+            // Use theme color for loading indicator
+            child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 3))
+            : Text(
+            label,
+            // Used theme labelLarge style
+            style: textTheme.labelLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onPrimary)
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     String screenTitle = 'Setup Transaction PIN';
     if (!widget.isResetFlow) {
       screenTitle = 'Change TPIN';
@@ -443,11 +529,8 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
       totalSteps = 3; // Mobile/OTP -> New PIN -> Complete
       switch (_currentStep) {
         case TpinSetupStep.mobileVerification:
-          currentWidget = _buildMobileVerificationStep();
-          currentStepIndex = 1;
-          break;
         case TpinSetupStep.otpVerification:
-          currentWidget = _buildOtpVerificationStep();
+          currentWidget = widget.isFirstTimeSetup ? _buildMobileVerificationStep() : _buildOtpVerificationStep();
           currentStepIndex = 1;
           break;
         case TpinSetupStep.setNewPin:
@@ -458,7 +541,7 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
           currentWidget = _buildCompletionStep();
           currentStepIndex = 3;
           break;
-        default: // Should not happen
+        default:
           currentWidget = const Center(child: Text('Error: Invalid Step'));
           currentStepIndex = 1;
       }
@@ -477,7 +560,7 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
           currentWidget = _buildCompletionStep();
           currentStepIndex = 3;
           break;
-        default: // Should not happen
+        default:
           currentWidget = const Center(child: Text('Error: Invalid Step'));
           currentStepIndex = 1;
       }
@@ -486,51 +569,70 @@ class _TpinSetupScreenState extends State<TpinSetupScreen> {
     // Hide progress bar on the completion screen
     bool showProgressBar = _currentStep != TpinSetupStep.complete;
 
-    return Scaffold(
-      backgroundColor: _lightBackground,
-      appBar: AppBar(
-        title: Text(screenTitle, style: const TextStyle(color: Colors.white)),
-        backgroundColor: _primaryNavyBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 500),
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.black12.withOpacity(0.1), blurRadius: 15)],
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  if (showProgressBar) ...[
-                    // Progress Indicator
-                    LinearProgressIndicator(
-                      value: currentStepIndex / totalSteps,
-                      backgroundColor: Colors.grey.shade300,
-                      valueColor: AlwaysStoppedAnimation<Color>(_accentGreen),
-                      minHeight: 8,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Step $currentStepIndex of $totalSteps',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: _primaryNavyBlue,
+    return PopScope(
+      canPop: _currentStep == TpinSetupStep.complete,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        // Custom back navigation for the multi-step flow
+        if (_currentStep == TpinSetupStep.setNewPin && widget.isResetFlow) {
+          _nextStep(TpinSetupStep.otpVerification);
+        } else if (_currentStep == TpinSetupStep.otpVerification) {
+          _nextStep(TpinSetupStep.mobileVerification);
+        } else if (_currentStep == TpinSetupStep.setNewPin && !widget.isResetFlow) {
+          _nextStep(TpinSetupStep.oldTpinVerification);
+        }
+      },
+      child: Scaffold(
+        // Used theme background color
+        backgroundColor: colorScheme.background,
+        appBar: AppBar(
+          title: Text(screenTitle, style: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary)),
+          // Used theme primary color
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
+          elevation: 0,
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            // Used theme padding constant
+            padding: const EdgeInsets.all(kPaddingMedium),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 500),
+              // Used theme padding constant
+              padding: const EdgeInsets.all(kPaddingLarge),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                // Used theme radius constant
+                borderRadius: BorderRadius.circular(kRadiusLarge),
+                boxShadow: [BoxShadow(color: Colors.black12.withOpacity(0.1), blurRadius: 15)],
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    if (showProgressBar) ...[
+                      // Progress Indicator
+                      LinearProgressIndicator(
+                        value: currentStepIndex / totalSteps,
+                        backgroundColor: colorScheme.surfaceVariant, // Light/dark grey background
+                        // Used kSuccessGreen constant
+                        valueColor: const AlwaysStoppedAnimation<Color>(kSuccessGreen),
+                        minHeight: kPaddingSmall, // Used theme padding constant
                       ),
-                    ),
-                    const SizedBox(height: 30),
+                      const SizedBox(height: kPaddingTen),
+                      Text(
+                        'Step $currentStepIndex of $totalSteps',
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: kPaddingExtraLarge),
+                    ],
+                    // The actual content for the step
+                    currentWidget,
                   ],
-                  // The actual content for the step
-                  currentWidget,
-                ],
+                ),
               ),
             ),
           ),

@@ -1,7 +1,13 @@
+// File: lib/screens/forgot_mpin_step2_new_mpin.dart (Refactored)
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart'; // For globalDeviceService access
 import 'login_screen.dart'; // Navigation destination after successful MPIN reset
+
+// 💡 IMPORTANT: Import centralized design files
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 class ForgotMpinStep2NewMpin extends StatefulWidget {
   // This screen does not require any parameters as the identity verification
@@ -78,16 +84,25 @@ class _ForgotMpinStep2NewMpinState extends State<ForgotMpinStep2NewMpin> {
   }
 
   void _showSuccessDialog(String message) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          title: const Text('Success!', style: TextStyle(color: Colors.green)),
+          // Refactored hardcoded 15 to kRadiusLarge (16.0)
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
+          title: Text(
+            'Success!',
+            // Refactored hardcoded Colors.green to kSuccessGreen from app_colors.dart
+            style: textTheme.titleLarge?.copyWith(color: kSuccessGreen),
+          ),
           content: Text(message),
           actions: <Widget>[
             TextButton(
+              // TextButton color automatically uses colorScheme.primary
               child: const Text('Go to Login'),
               onPressed: () {
                 // Pop the dialog, then push Login Screen, replacing all routes
@@ -107,14 +122,17 @@ class _ForgotMpinStep2NewMpinState extends State<ForgotMpinStep2NewMpin> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Forgot MPIN - Step 2'),
+        // AppBar uses theme colors automatically
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        // Refactored hardcoded 24.0 to kPaddingLarge
+        padding: const EdgeInsets.all(kPaddingLarge),
         child: Form(
           key: _formKey,
           child: Column(
@@ -122,9 +140,10 @@ class _ForgotMpinStep2NewMpinState extends State<ForgotMpinStep2NewMpin> {
             children: <Widget>[
               Text(
                 'Create a new 6-digit MPIN for secure mobile banking access.',
-                style: theme.textTheme.titleMedium,
+                style: textTheme.titleMedium,
               ),
-              const SizedBox(height: 30),
+              // Refactored hardcoded 30 to kPaddingExtraLarge (32.0 is close)
+              const SizedBox(height: kPaddingExtraLarge),
 
               // 1. New MPIN Field
               TextFormField(
@@ -146,7 +165,8 @@ class _ForgotMpinStep2NewMpinState extends State<ForgotMpinStep2NewMpin> {
                   return null;
                 },
               ),
-              const SizedBox(height: 20),
+              // Refactored hardcoded 20 to kIconSizeSmall
+              const SizedBox(height: kIconSizeSmall),
 
               // 2. Confirm MPIN Field
               TextFormField(
@@ -166,21 +186,23 @@ class _ForgotMpinStep2NewMpinState extends State<ForgotMpinStep2NewMpin> {
                     return 'MPIN must be exactly 6 digits.';
                   }
                   if (value != _newMpinController.text) {
-                    // This is redundant with the pre-submission check but good practice
                     return 'MPINs do not match.';
                   }
                   return null;
                 },
               ),
-              const SizedBox(height: 30),
+              // Refactored hardcoded 30 to kPaddingExtraLarge (32.0 is close)
+              const SizedBox(height: kPaddingExtraLarge),
 
               // Error Message Display
               if (_errorMessage.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 20.0),
+                  // Refactored hardcoded 20.0 to kIconSizeSmall
+                  padding: const EdgeInsets.only(bottom: kIconSizeSmall),
                   child: Text(
                     _errorMessage,
-                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+                    // Error color correctly uses theme.
+                    style: textTheme.bodyMedium?.copyWith(color: colorScheme.error),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -189,19 +211,30 @@ class _ForgotMpinStep2NewMpinState extends State<ForgotMpinStep2NewMpin> {
               ElevatedButton(
                 onPressed: _isLoading ? null : _resetMpin,
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  // Refactored hardcoded 16 to kPaddingMedium
+                  padding: const EdgeInsets.symmetric(vertical: kPaddingMedium),
+                  // Refactored hardcoded 12 to kRadiusMedium
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
-                  width: 20,
-                  height: 20,
+                    ? SizedBox(
+                  // Refactored hardcoded 20 to kIconSizeSmall
+                  width: kIconSizeSmall,
+                  height: kIconSizeSmall,
                   child: CircularProgressIndicator(
-                    color: Colors.white,
+                    // Refactored hardcoded Colors.white to colorScheme.onPrimary
+                    color: colorScheme.onPrimary,
                     strokeWidth: 2,
                   ),
                 )
-                    : const Text('RESET MPIN', style: TextStyle(fontSize: 16)),
+                    : Text(
+                  'RESET MPIN',
+                  // Refactored hardcoded style with theme and colorScheme.onPrimary
+                  style: textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),

@@ -1,40 +1,14 @@
-// File: lib/screens/detailed_account_view_screen.dart (Final Stable Banking Design)
+// File: lib/screens/detailed_account_view_screen.dart (Final Working Version)
 
 import 'package:flutter/material.dart';
 import '../api/banking_service.dart';
 
+// 💡 IMPORTANT: Import centralized design files
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
+
 // NOTE: Placeholder for model types from your banking_service.dart
-// You must ensure these models are correctly defined or imported from there.
-// class Account {
-//   final String nickname;
-//   final String accountNumber;
-//   final String ifscCode;
-//   final AccountType accountType;
-//   final String branchAddress;
-//   final double balance;
-//   final Nominee nominee;
-//   Account(...);
-// }
-// enum AccountType { savings, current, fixedDeposit, recurringDeposit }
-// class Nominee {
-//   final String name;
-//   final String relationship;
-//   final DateTime dateOfBirth;
-//   Nominee(...);
-// }
-// class BankingService {
-//   String maskAccountNumber(String accountNo) => '******${accountNo.substring(accountNo.length - 4)}';
-// }
-
-
-// --- UNIQUE BANKING DESIGN PALETTE ---
-const Color _primaryNavyBlue = Color(0xFF003366); // Main Brand Color
-const Color _secondaryLightBlue = Color(0xFF1E88E5); // Accent Color
-const Color _cardBackground = Color(0xFFFFFFFF); // Pure white background for better contrast/cleanliness
-const Color _detailLabelColor = Color(0xFF757575); // Lighter gray for descriptive labels
-const Color _detailValueColor = Colors.black87; // Near-black for important data
-const Color _bodyBackground = Color(0xFFF0F2F5); // Light gray background for body
-// ------------------------------------
+// Ensure Account, AccountType, Nominee, and BankingService are accessible.
 
 class DetailedAccountViewScreen extends StatefulWidget {
   final Account account;
@@ -46,7 +20,6 @@ class DetailedAccountViewScreen extends StatefulWidget {
 }
 
 class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
-  // NOTE: You must ensure this is a valid instance.
   final BankingService _bankingService = BankingService();
 
   bool _isAcNoVisible = false;
@@ -54,20 +27,25 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: _bodyBackground,
+      // Replaced hardcoded _bodyBackground with theme color
+      backgroundColor: colorScheme.background,
       body: CustomScrollView(
         slivers: [
           // 1. Custom Sliver AppBar focusing only on Current Balance
           _buildCustomSliverAppBar(context),
 
           SliverPadding(
-            padding: const EdgeInsets.all(16.0),
+            // Replaced hardcoded 16.0 with kPaddingMedium
+            padding: const EdgeInsets.all(kPaddingMedium),
             sliver: SliverList(
               delegate: SliverChildListDelegate(
                 [
                   // 2. UNIFIED Account & Nominee Details Card (Stable Design)
                   _buildUnifiedDetailsCard(context),
+                  // Keeping 30 for space at the bottom
                   const SizedBox(height: 30),
                 ],
               ),
@@ -81,50 +59,58 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
   // --- WIDGET BUILDERS ---
 
   SliverAppBar _buildCustomSliverAppBar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return SliverAppBar(
       expandedHeight: 180.0,
       floating: true,
       pinned: true,
-      backgroundColor: _primaryNavyBlue,
-      iconTheme: const IconThemeData(color: Colors.white),
+      // Replaced hardcoded _primaryNavyBlue with colorScheme.primary
+      backgroundColor: colorScheme.primary,
+      // Replaced hardcoded Colors.white with colorScheme.onPrimary
+      iconTheme: IconThemeData(color: colorScheme.onPrimary),
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: false,
-        titlePadding: const EdgeInsets.only(left: 16, bottom: 12),
-        // Title appears when collapsed (Reduced size)
+        // Replaced hardcoded (left: 16, bottom: 12) with constants
+        titlePadding: const EdgeInsets.only(left: kPaddingMedium, bottom: kPaddingSmall),
         title: Text(
           widget.account.nickname,
-          style: const TextStyle(
-            color: Colors.white,
+          // Replaced hardcoded style with theme and colorScheme.onPrimary
+          style: textTheme.titleMedium?.copyWith(
+            color: colorScheme.onPrimary,
             fontWeight: FontWeight.w600,
-            fontSize: 16,
           ),
         ),
         background: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [_primaryNavyBlue, Color(0xFF004488)],
+              // Replaced hardcoded gradient colors with theme/constants
+              colors: [colorScheme.primary, kDarkNavy],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
+              // Replaced hardcoded (top: 40, left: 20, right: 20) with constants
+              padding: const EdgeInsets.only(top: kPaddingXXL, left: kPaddingLarge, right: kPaddingLarge),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Current Balance',
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    // Replaced hardcoded style with theme and onPrimary.withOpacity(0.7)
+                    style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary.withOpacity(0.7)),
                   ),
-                  const SizedBox(height: 8),
-                  // Balance amount size reduced from 36 to 30
+                  const SizedBox(height: kPaddingExtraSmall),
                   Text(
                     '₹${widget.account.balance.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    style: textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      fontSize: 30,
+                      color: colorScheme.onPrimary,
+                      // Replaced hardcoded 30 with kCustomBalanceFontSize
+                      fontSize: kCustomBalanceFontSize,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -138,19 +124,25 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
   }
 
   Widget _buildUnifiedDetailsCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
-      elevation: 4,
+      // Replaced hardcoded 4 with kCardElevation
+      elevation: kCardElevation,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        // Replaced hardcoded 12 with kRadiusMedium
+        borderRadius: BorderRadius.circular(kRadiusMedium),
       ),
-      color: _cardBackground,
+      // Replaced hardcoded _cardBackground with colorScheme.surface
+      color: colorScheme.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 2.1 Account Details Section
           _buildCardSectionHeader(context, 'Account Details', Icons.account_balance_wallet_outlined),
-          const Divider(height: 0, thickness: 1, color: Color(0xFFE0E5EA), indent: 16, endIndent: 16),
+          // Replaced hardcoded color, indent, endIndent with constants
+          const Divider(height: 0, thickness: 1, color: kDividerColor, indent: kPaddingMedium, endIndent: kPaddingMedium),
 
           _buildDetailRow('Account Nickname', widget.account.nickname, icon: Icons.person_outline),
 
@@ -175,34 +167,39 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
           _buildDetailRow('Branch Address', widget.account.branchAddress, maxLines: 2, icon: Icons.location_on_outlined),
 
           // 2.2 Nominee Details Section
-          const SizedBox(height: 10),
+          const SizedBox(height: kPaddingSmall), // Replaced hardcoded 10 with kPaddingSmall
           _buildCardSectionHeader(context, 'Nominee Details', Icons.person_pin_outlined),
-          const Divider(height: 0, thickness: 1, color: Color(0xFFE0E5EA), indent: 16, endIndent: 16),
+          // Replaced hardcoded color, indent, endIndent with constants
+          const Divider(height: 0, thickness: 1, color: kDividerColor, indent: kPaddingMedium, endIndent: kPaddingMedium),
 
           _buildDetailRow('Nominee Name', widget.account.nominee.name, icon: Icons.badge_outlined, isValueSemiBold: true),
           _buildDetailRow('Relationship', widget.account.nominee.relationship, icon: Icons.groups_outlined, isValueSemiBold: true),
           _buildDetailRow('Nominee D.O.B.', _formatDate(widget.account.nominee.dateOfBirth), icon: Icons.calendar_today_outlined, isValueSemiBold: true),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: kPaddingSmall), // Replaced hardcoded 10 with kPaddingSmall
         ],
       ),
     );
   }
 
   Widget _buildCardSectionHeader(BuildContext context, String title, IconData icon) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0, left: 16.0, right: 16.0),
+      // Replaced hardcoded padding with constants
+      padding: const EdgeInsets.only(top: kPaddingMedium, bottom: kPaddingExtraSmall, left: kPaddingMedium, right: kPaddingMedium),
       child: Row(
         children: [
-          Icon(icon, color: _secondaryLightBlue, size: 20),
-          const SizedBox(width: 8),
-          // Section header size reduced from 17 to 16
+          // Replaced hardcoded _secondaryLightBlue and 20 with constants
+          Icon(icon, color: colorScheme.secondary, size: kIconSizeSmall),
+          const SizedBox(width: kPaddingExtraSmall),
           Text(
             title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            // Replaced hardcoded style with theme and colorScheme.primary
+            style: textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: _primaryNavyBlue,
-              fontSize: 16,
+              color: colorScheme.primary,
             ),
           ),
         ],
@@ -210,36 +207,43 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
     );
   }
 
-  // ALIGNMENT FIX: Uses fixed width for label section and Expanded for value.
   Widget _buildDetailRow(
       String label,
       String value,
       {
         int maxLines = 1,
         required IconData icon,
-        bool isValueSemiBold = false, // New parameter for non-critical value styling
+        bool isValueSemiBold = false,
       }
       ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    // Derived color for detail labels from hardcoded _detailLabelColor (0xFF757575)
+    final labelColor = colorScheme.onSurface.withOpacity(0.7);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+      // Replaced hardcoded padding with constants
+      padding: const EdgeInsets.symmetric(vertical: kPaddingSmall, horizontal: kPaddingMedium),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left Side: Icon + Label (Fixed width for clean vertical alignment)
+          // Left Side: Icon + Label
           SizedBox(
-            width: 150,
+            // Replaced hardcoded 150 with kLabelColumnWidth
+            width: kLabelColumnWidth,
             child: Row(
               children: [
-                Icon(icon, color: _detailLabelColor.withOpacity(0.8), size: 20),
-                const SizedBox(width: 12),
+                // Replaced hardcoded color and 20 with constants
+                Icon(icon, color: labelColor, size: kIconSizeSmall),
+                const SizedBox(width: kPaddingSmall),
                 Expanded(
                   child: Text(
                     label,
-                    style: const TextStyle(
+                    // Replaced hardcoded style with theme
+                    style: textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: _detailLabelColor,
-                      fontSize: 15,
+                      color: labelColor,
                     ),
                   ),
                 ),
@@ -247,20 +251,19 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
             ),
           ),
 
-          const SizedBox(width: 16), // Separator space
+          const SizedBox(width: kPaddingMedium), // Separator space
 
-          // Right Side: Value (Takes remaining space)
+          // Right Side: Value
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                // Use semi-bold for general details, bold for numbers/critical items
+              // Replaced hardcoded style with theme and colorScheme.onSurface
+              style: textTheme.bodyLarge?.copyWith(
                 fontWeight: isValueSemiBold ? FontWeight.w600 : FontWeight.bold,
-                color: _detailValueColor,
-                fontSize: 16,
+                color: colorScheme.onSurface,
               ),
             ),
           ),
@@ -269,7 +272,6 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
     );
   }
 
-  // ALIGNMENT FIX: Uses fixed width for label section and Expanded for value/toggle.
   Widget _buildToggleableDetailRow(
       String label,
       String fullValue,
@@ -280,29 +282,37 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
         required IconData icon,
       }
       ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    // Derived color for detail labels from hardcoded _detailLabelColor (0xFF757575)
+    final labelColor = colorScheme.onSurface.withOpacity(0.7);
+
     final maskedValue = isAccountNumber
         ? _bankingService.maskAccountNumber(fullValue)
         : 'XXXX ${fullValue.substring(fullValue.length - 4)}';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14.0, horizontal: 16.0),
+      // Replaced hardcoded padding with constants
+      padding: const EdgeInsets.symmetric(vertical: kPaddingSmall, horizontal: kPaddingMedium),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          // Left Side: Icon + Label (Fixed width for alignment)
+          // Left Side: Icon + Label
           SizedBox(
-            width: 150,
+            // Replaced hardcoded 150 with kLabelColumnWidth
+            width: kLabelColumnWidth,
             child: Row(
               children: [
-                Icon(icon, color: _detailLabelColor.withOpacity(0.8), size: 20),
-                const SizedBox(width: 12),
+                // Replaced hardcoded color and 20 with constants
+                Icon(icon, color: labelColor, size: kIconSizeSmall),
+                const SizedBox(width: kPaddingSmall),
                 Expanded(
                   child: Text(
                     label,
-                    style: const TextStyle(
+                    // Replaced hardcoded style with theme
+                    style: textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w500,
-                      color: _detailLabelColor,
-                      fontSize: 15,
+                      color: labelColor,
                     ),
                   ),
                 ),
@@ -310,40 +320,44 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
             ),
           ),
 
-          const SizedBox(width: 16), // Separator space
+          const SizedBox(width: kPaddingMedium), // Separator space
 
-          // Right side: Value + Toggle button (Takes remaining space)
+          // Right side: Value + Toggle button
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Flexible( // Use Flexible to protect the toggle button space
+                Flexible(
                   child: Text(
                     isVisible ? fullValue : maskedValue,
                     textAlign: TextAlign.right,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold, // Keep sensitive numbers bold
-                      color: _detailValueColor,
-                      fontSize: 16,
+                    // Replaced hardcoded style with theme and colorScheme.onSurface
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                       letterSpacing: 0.5,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: kPaddingExtraSmall), // Replaced hardcoded 8 with constant
                 // Security toggle button
                 GestureDetector(
                   onTap: () => onToggle(!isVisible),
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    // Replaced hardcoded 4 with kPaddingExtraSmall/2
+                    padding: const EdgeInsets.all(kPaddingExtraSmall / 2),
                     decoration: BoxDecoration(
-                      color: _primaryNavyBlue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(5),
+                      // Replaced hardcoded _primaryNavyBlue with colorScheme.primary
+                      color: colorScheme.primary.withOpacity(0.1),
+                      // Replaced hardcoded 5 with kRadiusExtraSmall
+                      borderRadius: BorderRadius.circular(kRadiusExtraSmall),
                     ),
                     child: Icon(
                       isVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                      color: _primaryNavyBlue,
-                      size: 20,
+                      // Replaced hardcoded _primaryNavyBlue and 20 with constants
+                      color: colorScheme.primary,
+                      size: kIconSizeSmall,
                     ),
                   ),
                 ),
@@ -355,7 +369,7 @@ class _DetailedAccountViewScreenState extends State<DetailedAccountViewScreen> {
     );
   }
 
-  // Helper to format DateTime object
+  // Helper to format DateTime object (Unchanged)
   String _formatDate(DateTime dt) {
     return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
   }

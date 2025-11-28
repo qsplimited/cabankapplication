@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'registration_step4_finalize.dart'; // To navigate to the final step
+// Import the necessary dimension and color constants
+import '../theme/app_dimensions.dart';
+import '../theme/app_colors.dart';
 
 class RegistrationStep3Mpin extends StatefulWidget {
   final String mobileNumber;
@@ -34,8 +37,8 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
     });
 
     final mpin = _mpinController.text;
-
-    // In a real app, we would hash this MPIN locally before sending it to the server in the final step.
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     // Simulating successful MPIN setup locally
     Future.delayed(const Duration(seconds: 1), () {
@@ -45,9 +48,15 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('MPIN set successfully! Proceeding to Device Binding.'),
-            backgroundColor: Colors.blue,
+          SnackBar(
+            backgroundColor: kAccentCyan,
+            // FIX: Removed contentTextStyle and applied style directly to the Text widget.
+            content: Text(
+              'MPIN set successfully! Proceeding to Device Binding.',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.surface, // Use a light color for text on the accent color
+              ),
+            ),
           ),
         );
 
@@ -67,13 +76,25 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
 
     return Scaffold(
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
-        title: const Text('3/4: Set MPIN'),
+        // The title style is derived from the theme, using onSurface/onPrimary
+        title: Text(
+          '3/4: Set MPIN',
+          style: textTheme.titleLarge?.copyWith(
+            color: colorScheme.onPrimary, // Assuming AppBar uses primary color
+          ),
+        ),
+        backgroundColor: colorScheme.primary,
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        // Replace hardcoded 24.0 with kPaddingLarge
+        padding: const EdgeInsets.all(kPaddingLarge),
         child: Form(
           key: _formKey,
           child: Column(
@@ -81,9 +102,13 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
             children: <Widget>[
               Text(
                 'Set your secure 6-digit Mobile PIN (MPIN). This will be used for all future logins.',
-                style: theme.textTheme.titleMedium,
+                // Use titleMedium for instructional text
+                style: textTheme.titleMedium?.copyWith(
+                  color: colorScheme.onBackground.withOpacity(0.9),
+                ),
               ),
-              const SizedBox(height: 30),
+              // Replace hardcoded 30 with kPaddingExtraLarge
+              const SizedBox(height: kPaddingExtraLarge),
 
               // 1. Set MPIN Field
               TextFormField(
@@ -92,8 +117,15 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
                 maxLength: 6,
                 obscureText: !_isMpinVisible,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.headlineMedium!.copyWith(letterSpacing: 8),
+                // Use a large headline style and set letter spacing for MPIN input
+                style: textTheme.headlineMedium?.copyWith(
+                  // Use a spacing constant for letter spacing (24.0)
+                  letterSpacing: kPaddingLarge,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                // InputDecoration inherits most styling from InputDecorationTheme
                 decoration: InputDecoration(
                   labelText: 'New MPIN',
                   hintText: '• • • • • •',
@@ -101,6 +133,8 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
                   suffixIcon: IconButton(
                     icon: Icon(
                       _isMpinVisible ? Icons.visibility : Icons.visibility_off,
+                      // Use colorScheme.primary for the visibility icon
+                      color: colorScheme.primary,
                     ),
                     onPressed: () {
                       setState(() {
@@ -116,7 +150,8 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
                   return null;
                 },
               ),
-              const SizedBox(height: 25),
+              // Replace hardcoded 25 with a relevant dimension (e.g., kPaddingLarge)
+              const SizedBox(height: kPaddingLarge),
 
               // 2. Confirm MPIN Field
               TextFormField(
@@ -125,8 +160,15 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
                 maxLength: 6,
                 obscureText: !_isConfirmMpinVisible,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.headlineMedium!.copyWith(letterSpacing: 8),
+                // Use a large headline style and set letter spacing for MPIN input
+                style: textTheme.headlineMedium?.copyWith(
+                  // Use a spacing constant for letter spacing (24.0)
+                  letterSpacing: kPaddingLarge,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                // InputDecoration inherits most styling from InputDecorationTheme
                 decoration: InputDecoration(
                   labelText: 'Confirm MPIN',
                   hintText: '• • • • • •',
@@ -134,6 +176,8 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
                   suffixIcon: IconButton(
                     icon: Icon(
                       _isConfirmMpinVisible ? Icons.visibility : Icons.visibility_off,
+                      // Use colorScheme.primary for the visibility icon
+                      color: colorScheme.primary,
                     ),
                     onPressed: () {
                       setState(() {
@@ -149,21 +193,32 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
                   return null;
                 },
               ),
-              const SizedBox(height: 50),
+              // Replace hardcoded 50 with kPaddingXXL
+              const SizedBox(height: kPaddingXXL),
 
               // Set MPIN Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleMpinSetup,
-                child: _isLoading
-                    ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
+              SizedBox(
+                height: kButtonHeight, // Use button height constant
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleMpinSetup,
+                  // Rely on centralized ElevatedButtonThemeData (app_theme.dart)
+                  child: _isLoading
+                      ? SizedBox(
+                    // Replace hardcoded 20 with kIconSizeSmall
+                    width: kIconSizeSmall,
+                    height: kIconSizeSmall,
+                    child: CircularProgressIndicator(
+                      // Progress indicator color should be colorScheme.onPrimary for visibility
+                      color: colorScheme.onPrimary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : Text(
+                    'SET MPIN & CONTINUE',
+                    // Text style is handled by the theme (labelLarge), override size if needed
+                    style: textTheme.labelLarge?.copyWith(fontSize: 16),
                   ),
-                )
-                    : const Text('SET MPIN & CONTINUE'),
+                ),
               ),
             ],
           ),

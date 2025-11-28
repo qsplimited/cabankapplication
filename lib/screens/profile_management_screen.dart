@@ -1,8 +1,64 @@
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-// Import the service file and access the models defined within it
-import '../api/profile_mock_data.dart';
+
+// Import Theme constants
+import 'package:cabankapplication/theme/app_dimensions.dart';
+import 'package:cabankapplication/theme/app_colors.dart';
+// Assuming AppTheme is defined externally but including it here for the main() function
+import 'package:cabankapplication/theme/app_theme.dart';
+
+
+// --- MOCK DATA STRUCTURES AND SERVICE (For runnability) ---
+// These classes usually reside in 'api/profile_mock_data.dart'
+class KycDetails {
+  final String aadhaarNumber;
+  final String panNumber;
+
+  KycDetails({required this.aadhaarNumber, required this.panNumber});
+}
+
+class ProfileData {
+  final String fullName;
+  final String cifId;
+  final String mobileNumber;
+  final String dateOfBirth;
+  DateTime lastLoginTimestamp;
+  String emailId;
+  String communicationAddress;
+  final KycDetails kycDetails;
+
+  ProfileData({
+    required this.fullName,
+    required this.cifId,
+    required this.mobileNumber,
+    required this.dateOfBirth,
+    required this.lastLoginTimestamp,
+    required this.emailId,
+    required this.communicationAddress,
+    required this.kycDetails,
+  });
+}
+
+class ProfileService {
+  Future<ProfileData> fetchProfileData() async {
+    // Simulate network delay and fetch data
+    await Future.delayed(const Duration(milliseconds: 800));
+    return ProfileData(
+      fullName: 'Alex J. Chen',
+      cifId: '10987654',
+      mobileNumber: '+91 98765 43210',
+      dateOfBirth: '15 Jan 1990',
+      lastLoginTimestamp: DateTime.now().subtract(const Duration(minutes: 5)),
+      emailId: 'alex.chen@example.com',
+      communicationAddress: 'Apartment 120, Tech Park Residences, Silicon Valley Road, Bangalore - 560001',
+      kycDetails: KycDetails(
+        aadhaarNumber: 'XXXX XXXX 1234',
+        panNumber: 'ABCDE1234F',
+      ),
+    );
+  }
+}
+// --- END MOCK DATA ---
 
 class ProfileManagementScreen extends StatefulWidget {
   const ProfileManagementScreen({super.key});
@@ -49,6 +105,8 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
   void _updateProfileField(String field, String value) {
     if (_currentProfile == null) return;
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     setState(() {
       // Logic relies on ProfileData being mutable for these fields
       if (field == 'emailId') {
@@ -58,32 +116,43 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$field updated successfully in local state!'), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text('$field updated successfully in local state!'),
+          backgroundColor: kSuccessGreen,
+        ),
       );
     });
   }
 
   Future<void> _showEditDialog(String title, String fieldKey, String initialValue) async {
     TextEditingController controller = TextEditingController(text: initialValue);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Edit $title'),
+          title: Text('Edit $title', style: textTheme.titleMedium),
           content: TextField(
             controller: controller,
             keyboardType: fieldKey == 'emailId' ? TextInputType.emailAddress : TextInputType.multiline,
             maxLines: fieldKey == 'communicationAddress' ? 3 : 1,
-            decoration: InputDecoration(hintText: 'Enter new $title'),
+            decoration: const InputDecoration(hintText: 'Enter new value'),
           ),
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancel'),
+              child: Text('Cancel', style: textTheme.labelLarge?.copyWith(color: colorScheme.onSurface)),
               onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
-              child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+              child: Text(
+                  'Save',
+                  style: textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary, // Use primary color for main action
+                  )
+              ),
               onPressed: () {
                 if (controller.text.isNotEmpty) {
                   _updateProfileField(fieldKey, controller.text);
@@ -102,8 +171,12 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
     required String value,
     Widget? actionButton,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
+      // Spacing from constants
+      padding: const EdgeInsets.symmetric(vertical: kPaddingSmall + kPaddingExtraSmall), // 12.0
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -113,12 +186,18 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
               children: [
                 Text(
                   label,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  // Using bodySmall for label with secondary text color
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onBackground.withOpacity(0.6),
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: kPaddingExtraSmall), // 4.0
                 Text(
                   value,
-                  style: const TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w500),
+                  // Using titleMedium for value for prominence
+                  style: textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onBackground,
+                  ),
                 ),
               ],
             ),
@@ -132,13 +211,22 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
   // --- TAB VIEWS ---
 
   Widget _buildPersonalDetailsTab(ProfileData profile) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     final editButton = (String title, String fieldKey, String value) => TextButton(
       onPressed: () => _showEditDialog(title, fieldKey, value),
-      child: const Text('EDIT', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+      child: Text(
+          'EDIT',
+          style: textTheme.labelLarge?.copyWith(
+              color: colorScheme.secondary, // Use secondary for action/link text
+              fontWeight: FontWeight.bold
+          )
+      ),
     );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
+      padding: const EdgeInsets.all(kPaddingMedium), // 16.0
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -147,19 +235,19 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
             value: profile.emailId,
             actionButton: editButton('Email ID', 'emailId', profile.emailId),
           ),
-          Divider(color: Colors.grey[200]),
+          Divider(color: colorScheme.onBackground.withOpacity(0.1)), // Subtle divider
 
           _buildDetailTile(
             label: 'Registered Mobile Number',
             value: profile.mobileNumber,
           ),
-          Divider(color: Colors.grey[200]),
+          Divider(color: colorScheme.onBackground.withOpacity(0.1)),
 
           _buildDetailTile(
             label: 'Date of Birth',
             value: profile.dateOfBirth,
           ),
-          Divider(color: Colors.grey[200]),
+          Divider(color: colorScheme.onBackground.withOpacity(0.1)),
 
           _buildDetailTile(
             label: 'Communication Address',
@@ -172,8 +260,11 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
   }
 
   Widget _buildKycTab(ProfileData profile) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.all(20.0),
+      padding: const EdgeInsets.all(kPaddingMedium), // 16.0
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -181,23 +272,30 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
             label: 'Aadhaar Number',
             value: profile.kycDetails.aadhaarNumber,
           ),
-          Divider(color: Colors.grey[200]),
+          Divider(color: colorScheme.onBackground.withOpacity(0.1)),
 
           _buildDetailTile(
             label: 'PAN Number',
             value: profile.kycDetails.panNumber,
           ),
-          Divider(color: Colors.grey[200]),
+          Divider(color: colorScheme.onBackground.withOpacity(0.1)),
 
-          const SizedBox(height: 20),
-          const Text(
+          const SizedBox(height: kPaddingMedium), // 16.0
+          Text(
             'KYC Status: Verified',
-            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16),
+            // Use success color and bodyLarge for prominence
+            style: textTheme.bodyLarge?.copyWith(
+                color: kSuccessGreen,
+                fontWeight: FontWeight.bold
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: kPaddingSmall), // 8.0
           Text(
             'These details are sourced from official government records and cannot be edited directly.',
-            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            // Use bodySmall for small legal/disclaimer text
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onBackground.withOpacity(0.5),
+            ),
           ),
         ],
       ),
@@ -208,27 +306,45 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A2B59),
+        // Use primary color for AppBar
+        backgroundColor: colorScheme.primary,
         elevation: 1,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          // Use onPrimary color for icon on primary AppBar
+          icon: Icon(Icons.arrow_back, color: colorScheme.onPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Profile Management', style: TextStyle(color: Colors.white)),
+        title: Text(
+            'Profile Management',
+            // Use titleLarge style and onPrimary color for text
+            style: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary)
+        ),
       ),
       body: FutureBuilder<ProfileData>(
         future: _profileFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done || _currentProfile == null) {
-            return const Center(
-              child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.blue)),
+            return Center(
+              child: CircularProgressIndicator(
+                // Use secondary color for loader
+                valueColor: AlwaysStoppedAnimation<Color>(colorScheme.secondary),
+              ),
             );
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error loading profile: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+            return Center(
+                child: Text(
+                    'Error loading profile: ${snapshot.error}',
+                    // Use error color for error message
+                    style: textTheme.bodyMedium?.copyWith(color: colorScheme.error)
+                )
+            );
           }
 
           final profile = _currentProfile!;
@@ -240,51 +356,58 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
               // Header Section
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
-                color: Colors.white,
+                // Padding from constants
+                padding: const EdgeInsets.symmetric(vertical: kPaddingExtraLarge, horizontal: kPaddingMedium),
+                // Use surface color for the header background
+                color: colorScheme.surface,
                 child: Column(
                   children: [
                     Container(
                       height: 80,
                       width: 80,
                       decoration: BoxDecoration(
-                        color: Colors.blue,
+                        // Avatar color uses secondary color
+                        color: colorScheme.secondary,
                         shape: BoxShape.circle,
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))
+                        boxShadow: [
+                          // Shadow color uses onBackground with low opacity
+                          BoxShadow(color: colorScheme.onBackground.withOpacity(0.1), blurRadius: kCardElevation, offset: const Offset(0, 2))
                         ],
                       ),
                       child: Center(
                         child: Text(
                           firstLetter,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 40,
+                          // Use headlineMedium and onPrimary (text on the secondary color surface)
+                          style: textTheme.headlineMedium?.copyWith(
+                            color: colorScheme.onPrimary,
+                            fontSize: 40, // Keeping 40 for visual impact
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: kPaddingSmall + kPaddingExtraSmall), // 12.0
                     Text(
                       profile.fullName,
-                      style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                      // Use headlineSmall for name
+                      style: textTheme.headlineSmall?.copyWith(
+                        color: colorScheme.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: kPaddingSmall), // 8.0
                     Text(
                       'CIF ID: ${profile.cifId}',
-                      style: TextStyle(color: Colors.grey[600]),
+                      // Use bodyMedium for secondary info
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: kPaddingExtraSmall), // 4.0
                     Text(
                       'Last Login: $formattedLastLogin',
-                      style: TextStyle(
-                        color: Colors.blue[600],
-                        fontSize: 14,
+                      // Use secondary color for accent information
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.secondary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -294,21 +417,23 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
 
 
               Container(
-                color: Colors.white,
+                color: colorScheme.surface,
                 child: TabBar(
                   controller: _tabController,
-                  indicatorColor: Colors.blue,
-                  labelColor: Colors.blue,
-                  unselectedLabelColor: Colors.grey,
+                  // Use secondary color for tab interaction
+                  indicatorColor: colorScheme.secondary,
+                  labelColor: colorScheme.secondary,
+                  // Use a slightly opaque onSurface color for unselected tabs
+                  unselectedLabelColor: colorScheme.onSurface.withOpacity(0.6),
                   indicatorWeight: 3.0,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  labelStyle: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                   tabs: const [
                     Tab(text: 'Personal'),
                     Tab(text: 'KYC'),
                   ],
                 ),
               ),
-              Divider(height: 1, color: Colors.grey[200]),
+              Divider(height: 1, color: colorScheme.onBackground.withOpacity(0.1)), // Subtle divider
 
               // Tab View Content
               Expanded(
@@ -328,6 +453,7 @@ class _ProfileManagementScreenState extends State<ProfileManagementScreen> with 
   }
 }
 
+// Ensure the main entry point uses the central theme
 void main() {
   runApp(const MyApp());
 }
@@ -340,12 +466,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Bank Profile',
-      theme: ThemeData(
-        brightness: Brightness.light,
-        primarySwatch: Colors.blue,
-        fontFamily: 'Inter',
-        scaffoldBackgroundColor: Colors.grey[50],
-      ),
+      // Using AppTheme for consistent theme setup
+      theme: AppTheme.lightTheme,
       home: const ProfileManagementScreen(),
     );
   }

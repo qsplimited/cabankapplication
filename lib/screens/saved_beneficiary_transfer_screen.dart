@@ -7,6 +7,11 @@ import 'package:cabankapplication/api/banking_service.dart';
 import 'package:cabankapplication/screens/transfer_amount_entry_screen.dart';
 // Import the actual Payee Management screen
 import 'package:cabankapplication/screens/beneficiary_management_screen.dart';
+// 1. Import Dimensions for Padding/Spacing
+import 'package:cabankapplication/theme/app_dimensions.dart';
+// 2. Import Colors for specialized use (like error)
+import 'package:cabankapplication/theme/app_colors.dart';
+
 
 class SavedBeneficiaryTransferScreen extends StatefulWidget {
   final BankingService bankingService;
@@ -30,9 +35,6 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
   List<Beneficiary> _beneficiaries = [];
   bool _isLoading = true;
   String? _errorMessage; // To handle API loading errors
-
-  final Color _primaryColor = const Color(0xFF003366);
-  final Color _accentColor = const Color(0xFF003366); // Using Primary Color for consistency
 
   @override
   void initState() {
@@ -120,28 +122,40 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
   }
 
   // NEW: Dropdown builder for the Source Account
-  Widget _buildAccountDropdown() {
+  Widget _buildAccountDropdown(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: kPaddingTen, vertical: kPaddingSmall),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Select Source Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87)),
-          const SizedBox(height: 8),
+          Text(
+            'Select Source Account',
+            style: textTheme.titleMedium,
+          ),
+          const SizedBox(height: kSpacingSmall),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: 0),
             decoration: BoxDecoration(
-              color: _primaryColor.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _primaryColor, width: 1.5),
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(kRadiusMedium),
+              border: Border.all(color: colorScheme.primary.withOpacity(0.5), width: 1.0),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<Account>(
                 value: _selectedSource,
                 isExpanded: true,
-                icon: Icon(Icons.keyboard_arrow_down_rounded, color: _primaryColor),
-                style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 14),
-                hint: const Text('No debit accounts available', style: TextStyle(color: Colors.red)),
+                icon: Icon(Icons.keyboard_arrow_down_rounded, color: colorScheme.primary),
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+                hint: Text(
+                  'No debit accounts available',
+                  style: textTheme.bodyMedium?.copyWith(color: colorScheme.error),
+                ),
                 onChanged: (Account? newValue) {
                   setState(() {
                     _selectedSource = newValue;
@@ -151,7 +165,7 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
                   return DropdownMenuItem<Account>(
                     value: item,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      padding: const EdgeInsets.symmetric(vertical: kPaddingSmall),
                       child: Text(_accountToDisplayString(item), overflow: TextOverflow.ellipsis),
                     ),
                   );
@@ -165,39 +179,63 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
   }
 
 
-  // Helper to build the list item (initiates transfer, passes selected source)
-  Widget _buildBeneficiaryItem(Beneficiary payee) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: _primaryColor,
-          child: Text(payee.nickname[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
-        title: Text(payee.nickname, style: TextStyle(fontWeight: FontWeight.bold, color: _primaryColor)),
-        subtitle: Text(
-          'A/c: ${widget.bankingService.maskAccountNumber(payee.accountNumber)} | IFSC: ${payee.ifsCode}',
-          style: const TextStyle(fontSize: 13),
-        ),
-        trailing: Icon(Icons.send_outlined, color: _accentColor),
-        onTap: () {
-          if (_selectedSource == null) return; // Cannot transfer without a source
+  // UPDATED: Replaced Card with a styled Container/ListTile
+  Widget _buildBeneficiaryItem(BuildContext context, Beneficiary payee) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-          // Navigate to the detailed Amount Entry Screen, passing the SELECTED Source Account
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TransferAmountEntryScreen(
-                sourceAccount: _selectedSource!, // PASSES THE SELECTED ACCOUNT
-                beneficiary: payee,
-                bankingService: widget.bankingService,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: kPaddingExtraSmall, horizontal: kPaddingTen),
+      child: Container(
+        // Custom styling to mimic Card, using theme constants
+        decoration: BoxDecoration(
+          color: colorScheme.surface, // Background color
+          borderRadius: BorderRadius.circular(kRadiusSmall), // Border radius
+          boxShadow: [ // Shadow to mimic elevation
+            BoxShadow(
+              color: colorScheme.onBackground.withOpacity(0.08), // Subtle shadow color
+              spreadRadius: 1,
+              blurRadius: kCardElevation, // Using elevation constant for blur
+              offset: const Offset(0, 1), // Light lift
+            ),
+          ],
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingExtraSmall),
+          leading: CircleAvatar(
+            backgroundColor: colorScheme.primary, // Themed color
+            child: Text(
+              payee.nickname[0].toUpperCase(),
+              style: textTheme.labelLarge?.copyWith(
+                color: colorScheme.onPrimary, // Text color on primary
               ),
             ),
-          );
-        },
+          ),
+          title: Text(
+            payee.nickname,
+            style: textTheme.titleSmall?.copyWith(color: colorScheme.onSurface), // Themed style
+          ),
+          subtitle: Text(
+            'A/c: ${widget.bankingService.maskAccountNumber(payee.accountNumber)} | IFSC: ${payee.ifsCode}',
+            style: textTheme.bodyMedium, // Themed style
+          ),
+          trailing: Icon(Icons.send_outlined, color: colorScheme.secondary), // Use secondary/accent color
+          onTap: () {
+            if (_selectedSource == null) return; // Cannot transfer without a source
+
+            // Navigate to the detailed Amount Entry Screen, passing the SELECTED Source Account
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TransferAmountEntryScreen(
+                  sourceAccount: _selectedSource!, // PASSES THE SELECTED ACCOUNT
+                  beneficiary: payee,
+                  bankingService: widget.bankingService,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -205,40 +243,45 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
   // --- Main Build Method ---
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transfer to Saved Payee', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryColor,
-        iconTheme: const IconThemeData(color: Colors.white),
+        // Letting AppBarTheme handle color and title style
+        title: const Text('Transfer to Saved Payee'),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: _primaryColor))
+          ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
           : Padding(
-        padding: const EdgeInsets.only(top: 10, bottom: 0),
+        padding: const EdgeInsets.only(top: kPaddingSmall, left: kPaddingSmall, right: kPaddingSmall),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // NEW: Source Account Selection Dropdown
-            _buildAccountDropdown(),
+            _buildAccountDropdown(context),
 
             // Display error message if any
             if (_errorMessage != null)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Text(_errorMessage!, style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.w500)),
+                padding: const EdgeInsets.symmetric(horizontal: kPaddingTen, vertical: kPaddingSmall),
+                child: Text(
+                  _errorMessage!,
+                  style: textTheme.bodyMedium?.copyWith(color: colorScheme.error, fontWeight: FontWeight.w500),
+                ),
               ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: kSpacingMedium),
 
             // Heading for Beneficiary List
             Padding(
-              padding: const EdgeInsets.only(left: 20, right: 10),
+              padding: const EdgeInsets.only(left: kPaddingTen, right: kPaddingTen),
               child: Text(
                 'Select a Payee (${_beneficiaries.length} found)',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _primaryColor),
+                style: textTheme.titleLarge?.copyWith(color: colorScheme.primary),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: kSpacingSmall),
 
             // List of Beneficiaries
             Expanded(
@@ -247,21 +290,22 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.person_add_disabled_outlined, size: 60, color: Colors.grey.shade400),
-                    const SizedBox(height: 10),
+                    Icon(Icons.person_add_disabled_outlined, size: kIconSizeExtraLarge, color: colorScheme.onBackground.withOpacity(0.4)),
+                    const SizedBox(height: kSpacingSmall),
                     if (_selectedSource == null)
-                      const Text('No source account available for transfer.', style: TextStyle(fontSize: 16, color: Colors.grey))
+                      Text('No source account available for transfer.', style: textTheme.bodyMedium)
                     else
-                      const Text('No Payees. Tap "Manage / Add Payee" below.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                      Text('No Payees. Tap "Manage / Add Payee" below.', style: textTheme.bodyMedium),
                   ],
                 ),
               )
                   : ListView.builder(
                 itemCount: _beneficiaries.length,
                 itemBuilder: (context, index) {
-                  return _buildBeneficiaryItem(_beneficiaries[index]);
+                  // Using the new Container builder
+                  return _buildBeneficiaryItem(context, _beneficiaries[index]);
                 },
-                padding: const EdgeInsets.only(bottom: 80), // Space for FAB
+                padding: const EdgeInsets.only(bottom: kButtonHeight + kPaddingLarge),
               ),
             ),
           ],
@@ -272,8 +316,6 @@ class _SavedBeneficiaryTransferScreenState extends State<SavedBeneficiaryTransfe
         onPressed: _navigateToAddBeneficiary,
         icon: const Icon(Icons.person_add_alt_1),
         label: const Text('Manage / Add Payee'),
-        backgroundColor: _primaryColor,
-        foregroundColor: Colors.white,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );

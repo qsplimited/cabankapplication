@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-
 import 'app_router.dart';
-
+import '../theme/app_dimensions.dart'; // Import dimensions
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
-
 
   static const splashDuration = 3;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
-
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
@@ -23,7 +20,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-
 
     _controller = AnimationController(
       vsync: this,
@@ -40,6 +36,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // Wait for the total splash duration (3 seconds) before navigating
     Timer(const Duration(seconds: SplashScreen.splashDuration), () {
 
+      // Using pushReplacement to prevent navigating back to the splash screen
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const AppRouter(), // <--- NEW DESTINATION
@@ -54,32 +51,41 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    return const Scaffold(
-      backgroundColor: Colors.white,
+    return Scaffold(
+      // Use colorScheme.background for the main screen color
+      backgroundColor: colorScheme.background,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
-            _AnimatedLogo(),
-            SizedBox(height: 20),
+            // The animated logo relies on the state for its animation
+            _AnimatedLogo(
+              animation: _animation,
+            ),
+            // Use dimension constants for spacing
+            const SizedBox(height: kPaddingMedium),
             Text(
               'CABANK Mobile',
-              style: TextStyle(
-                fontSize: 28,
+              // Use theme text style (e.g., headlineMedium or large title)
+              // and colorScheme.primary for the branded color
+              style: textTheme.headlineMedium?.copyWith(
+                // The original design used a large bold font. headlineMedium is appropriate.
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF004D40), // Branded color
+                color: colorScheme.primary,
               ),
             ),
-            SizedBox(height: 50),
+            // Use dimension constants for spacing
+            const SizedBox(height: kPaddingXXL),
 
+            // Progress indicator uses colorScheme.primary
             CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF004D40)),
-              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+              strokeWidth: 3, // Maintain original stroke width
             ),
           ],
         ),
@@ -90,19 +96,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
 
 class _AnimatedLogo extends StatelessWidget {
-  const _AnimatedLogo();
+  // Accept the animation as a parameter instead of relying on findAncestorStateOfType
+  // which is generally discouraged in production code.
+  final Animation<double> animation;
+
+  const _AnimatedLogo({required this.animation});
 
   @override
   Widget build(BuildContext context) {
-    final _SplashScreenState? state = context.findAncestorStateOfType<_SplashScreenState>();
-    if (state == null) return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
 
     return FadeTransition(
-      opacity: state._animation,
-      child: const Icon(
+      opacity: animation,
+      child: Icon(
         Icons.account_balance,
-        size: 100,
-        color: Color(0xFF004D40),
+        // Use dimension constant for size
+        size: kIconSizeXXL, // Reusing XXL size for prominent icon
+        // Use colorScheme.primary for the branded color
+        color: colorScheme.primary,
       ),
     );
   }

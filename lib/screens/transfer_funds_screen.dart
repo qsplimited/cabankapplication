@@ -1,10 +1,12 @@
-// File: transfer_funds_screen.dart (MODIFIED)
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 // 💡 ASSUMPTION: Replace the relative path with the correct one for your project.
 import 'package:cabankapplication/api/banking_service.dart';
+
+// Import Theme constants
+import 'package:cabankapplication/theme/app_dimensions.dart';
+import 'package:cabankapplication/theme/app_colors.dart'; // Used for kErrorRed
 
 // Import necessary screens for navigation
 import 'package:cabankapplication/screens/saved_beneficiary_transfer_screen.dart' as saved_screen show SavedBeneficiaryTransferScreen;
@@ -34,9 +36,11 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
   Account? _selectedSourceAccount;
   bool _isLoading = true;
 
-  final Color _primaryColor = const Color(0xFF003366);
-  final Color _tileColor = Colors.white;
-  final Color _borderColor = Colors.grey.shade300;
+  // REMOVED hardcoded colors and replaced them with:
+  // final Color _primaryColor = const Color(0xFF003366);
+  // final Color _tileColor = Colors.white;
+  // final Color _borderColor = Colors.grey.shade300;
+
 
   @override
   void initState() {
@@ -46,7 +50,6 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
 
   // --- Data Fetching Logic (Unchanged) ---
   Future<void> _fetchAccountData() async {
-    // ... (logic remains the same) ...
     try {
       final accounts = await widget.bankingService.fetchUserAccounts();
       final primaryAccount = accounts.first;
@@ -66,18 +69,26 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
-    // ... (Snackbar implementation unchanged) ...
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    // Use the theme's colors for the SnackBar
+    final colorScheme = Theme.of(context).colorScheme;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        content: Text(
+          message,
+          // Text color on SnackBar surface (using surface for background here)
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
+        // Use kErrorRed or primary color for status indication
+        backgroundColor: isError ? kErrorRed : colorScheme.primary,
         duration: const Duration(seconds: 3),
       ),
     );
   }
 
-  // --- NAVIGATION LOGIC (Modified to reflect new flow) ---
+  // --- NAVIGATION LOGIC (Unchanged) ---
   void _navigateToDetailsScreen(TransferCategory category) {
     if (_selectedSourceAccount == null) {
       _showSnackBar('Source account data is still loading. Please wait.', isError: true);
@@ -112,26 +123,35 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
     Navigator.push(context, MaterialPageRoute(builder: (context) => targetScreen));
   }
 
-  // --- WIDGET BUILDER: Single Tile (Unchanged) ---
+  // --- WIDGET BUILDER: Single Tile (Refactored) ---
   Widget _buildTransferOptionTile({
     required TransferCategory category,
     required String title,
     required IconData icon,
   }) {
-    // ... (Tile building logic unchanged) ...
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return InkWell(
       onTap: _isLoading ? null : () => _navigateToDetailsScreen(category),
       child: Container(
-        padding: const EdgeInsets.all(8),
+        // Using kPaddingSmall for padding inside the tile
+        padding: const EdgeInsets.all(kPaddingSmall),
         decoration: BoxDecoration(
-          color: _tileColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _borderColor, width: 1.0),
+          // Tile color now uses theme's surface color
+          color: colorScheme.surface,
+          // Tile radius uses kRadiusSmall
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(
+            // Border color uses a lower opacity of the background text color for a subtle look
+            color: colorScheme.onBackground.withOpacity(0.1),
+            width: 1.0,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: colorScheme.onBackground.withOpacity(0.08),
               spreadRadius: 1,
-              blurRadius: 3,
+              blurRadius: kCardElevation, // Reusing elevation constant for depth
               offset: const Offset(0, 1),
             ),
           ],
@@ -139,15 +159,21 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 38, color: _primaryColor.withOpacity(0.8)),
-            const SizedBox(height: 10),
+            Icon(
+              icon,
+              // Icon size from constants and color from primary
+              size: kIconSizeExtraLarge,
+              color: colorScheme.primary,
+            ),
+            // Spacing from constants
+            const SizedBox(height: kPaddingSmall),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: _primaryColor.withOpacity(0.9),
+              // Using theme's titleSmall for tile text
+              style: textTheme.titleSmall?.copyWith(
+                // Ensure text color is easily readable on the surface
+                color: colorScheme.onSurface,
               ),
             ),
           ],
@@ -158,7 +184,10 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- UPDATED Menu Options ---
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    // --- Menu Options (Unchanged) ---
     final List<Map<String, dynamic>> coreTransferOptions = [
       {
         'category': TransferCategory.ownAccount,
@@ -167,29 +196,44 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
       },
       {
         'category': TransferCategory.savedBeneficiary,
-        // Renamed for clarity: handles both internal and external saved payees
         'title': 'Pay Saved Payee',
         'icon': Icons.account_balance,
       },
       {
         'category': TransferCategory.newAccount,
-        // Renamed for clarity: leads to the management screen
         'title': 'Manage / Add Payee',
         'icon': Icons.person_add_alt_1,
       },
     ];
 
     return Scaffold(
+      // Background color uses theme's background color
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
-        title: const Text('Fund Transfer', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: _primaryColor,
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          'Fund Transfer',
+          // AppBar title uses theme's titleLarge style
+          style: textTheme.titleLarge?.copyWith(
+            // Explicitly setting color to onPrimary (text color on primary/appbar)
+            color: colorScheme.onPrimary,
+          ),
+        ),
+        // AppBar color uses theme's primary color
+        backgroundColor: colorScheme.primary,
+        // Icon color uses theme's onPrimary color
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
         elevation: 0,
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: _primaryColor))
+          ? Center(
+        child: CircularProgressIndicator(
+          // Progress indicator color uses theme's primary color
+          color: colorScheme.primary,
+        ),
+      )
           : SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
+        // Padding from constants
+        padding: const EdgeInsets.all(kPaddingMedium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
@@ -199,8 +243,9 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
-                crossAxisSpacing: 12.0,
-                mainAxisSpacing: 12.0,
+                // Spacing from constants
+                crossAxisSpacing: kPaddingMedium,
+                mainAxisSpacing: kPaddingMedium,
                 childAspectRatio: 0.85,
               ),
               itemCount: coreTransferOptions.length,
@@ -215,11 +260,20 @@ class _TransferFundsScreenState extends State<TransferFundsScreen> {
             ),
 
             // Optional: Placeholder for the rest of the menu items shown in the image
-            const SizedBox(height: 20),
-            const Divider(thickness: 1, color: Colors.grey),
-            const Center(child: Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text('Other Banking Options (Not Implemented)', style: TextStyle(color: Colors.grey)),
+            // Spacing from constants
+            const SizedBox(height: kPaddingLarge),
+            // Divider color uses a subtle color
+            Divider(thickness: 1, color: colorScheme.onBackground.withOpacity(0.1)),
+            Center(child: Padding(
+              // Padding from constants
+              padding: const EdgeInsets.all(kPaddingSmall),
+              child: Text(
+                'Other Banking Options (Not Implemented)',
+                // Using theme's bodyMedium with secondary text color
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onBackground.withOpacity(0.6),
+                ),
+              ),
             )),
           ],
         ),

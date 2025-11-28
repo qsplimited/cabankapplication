@@ -8,6 +8,12 @@ import 'package:cabankapplication/models/data_models.dart';
 // 2. CRITICAL FIX: Use an alias 'as service' for the service import.
 import '../api/banking_service.dart' as service;
 
+// THEME IMPORTS
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
+// Note: AppSizes and AppDimensions are often used interchangeably in different files.
+// Using k-prefixed constants from app_dimensions.dart for spacing.
+
 // --- Enums and Models ---
 
 enum TransactionViewMode {
@@ -43,12 +49,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   // New State for UI Mode
   TransactionViewMode _viewMode = TransactionViewMode.Detailed;
 
-  // --- Color Palette for consistency ---
-  final Color _primaryNavyBlue = const Color(0xFF003366);
-  final Color _accentRed = const Color(0xFFD32F2F);
-  final Color _accentGreen = const Color(0xFF4CAF50);
-  final Color _lightBackground = const Color(0xFFF0F0F0);
-  final Color _tabSelectedColor = const Color(0xFFE8EAF6); // Light Indigo/Blue for selected tab
+  // --- Theme variables (Removed hardcoded colors) ---
 
   // Filter Date Range (Default: Last 30 days)
   late DateTime _startDate;
@@ -177,6 +178,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   // --- UI Interactivity ---
 
   Future<void> _selectDate(BuildContext context, bool isStart) async {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: isStart ? _startDate : _endDate,
@@ -186,13 +189,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: ColorScheme.light(
-              primary: _primaryNavyBlue,
+              primary: colorScheme.primary, // Used colorScheme.primary
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: _primaryNavyBlue,
+                foregroundColor: colorScheme.primary, // Used colorScheme.primary
               ),
             ),
           ),
@@ -249,14 +252,14 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Statement downloaded successfully!'),
-          backgroundColor: Colors.green,
+          backgroundColor: kSuccessGreen, // Used kSuccessGreen
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('PDF generation failed. On a physical device, please ensure storage permissions are granted and **native project files are configured** (Android/iOS).'),
-          backgroundColor: _accentRed,
+          backgroundColor: kErrorRed, // Used kErrorRed
           duration: const Duration(seconds: 6),
         ),
       );
@@ -268,8 +271,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   Widget _buildAccountHeader() {
     if (_primaryAccount == null) return const SizedBox.shrink();
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(kPaddingMedium), // Used kPaddingMedium (16.0)
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -279,12 +285,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              const Text(
+              Text(
                 'Account History',
-                style: TextStyle(
-                  fontSize: 24,
+                style: theme.textTheme.headlineSmall?.copyWith( // Approx 24pt
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: colorScheme.onBackground, // Used onBackground
                 ),
               ),
               if (_viewMode == TransactionViewMode.Detailed)
@@ -292,16 +297,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   onPressed: _handlePdfDownload,
                   child: Text(
                     'Download',
-                    style: TextStyle(
-                      color: _primaryNavyBlue,
+                    style: theme.textTheme.bodyLarge?.copyWith( // Approx 16pt
+                      color: colorScheme.primary, // Used primary color
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
                     ),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: kPaddingTen), // Used kPaddingTen (10.0)
 
           // Account Info
           Row(
@@ -314,19 +318,24 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   children: [
                     Text(
                       'Account Number: XXXX XXXX ${_primaryAccount!.accountNumber.substring(_primaryAccount!.accountNumber.length - 4)}',
-                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onBackground.withOpacity(0.6), // Used onBackground with opacity
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
+                    const SizedBox(height: kPaddingExtraSmall), // Used kPaddingExtraSmall (4.0)
+                    Text(
                       'Current Balance',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black),
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600), // Used titleMedium (16pt)
                     ),
                   ],
                 ),
               ),
               Text(
                 '₹${_primaryAccount!.balance.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _primaryNavyBlue),
+                style: theme.textTheme.titleLarge?.copyWith( // Used titleLarge (20pt, approx 22pt)
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.primary, // Used primary color
+                ),
               ),
             ],
           ),
@@ -337,11 +346,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   Widget _buildTabView() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingSmall), // Used kPaddingMedium (16.0), kPaddingSmall (8.0)
       child: Row(
         children: [
           _buildTabPill(TransactionViewMode.Recent, 'Recent Transactions'),
-          const SizedBox(width: 8),
+          const SizedBox(width: kPaddingSmall), // Used kPaddingSmall (8.0)
           _buildTabPill(TransactionViewMode.Detailed, 'Detailed Statement'),
         ],
       ),
@@ -349,7 +358,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   }
 
   Widget _buildTabPill(TransactionViewMode mode, String label) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final isSelected = _viewMode == mode;
+    final selectedColor = colorScheme.primary.withOpacity(0.1); // Dynamic selected color
+
     return Expanded(
       child: InkWell(
         onTap: () {
@@ -361,19 +374,19 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           }
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: kPaddingTen, horizontal: kPaddingSmall), // Used kPaddingTen (10.0), kPaddingSmall (8.0)
           decoration: BoxDecoration(
-            color: isSelected ? _tabSelectedColor : Colors.white,
-            border: Border.all(color: isSelected ? _primaryNavyBlue : Colors.grey.shade300),
+            color: isSelected ? selectedColor : colorScheme.surface, // Used dynamic selected/surface color
+            border: Border.all(color: isSelected ? colorScheme.primary : theme.dividerColor), // Used primary/divider color
             borderRadius: BorderRadius.circular(20),
           ),
           child: Center(
             child: Text(
               label,
-              style: TextStyle(
-                color: isSelected ? _primaryNavyBlue : Colors.black87,
+              style: theme.textTheme.titleSmall?.copyWith( // Used titleSmall (14pt, approx 13pt)
+                color: isSelected ? colorScheme.primary : colorScheme.onSurface, // Used primary/onSurface color
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 13,
+                fontSize: 13, // Keeping 13 for precise look
               ),
               textAlign: TextAlign.center,
             ),
@@ -385,12 +398,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   // --- Detailed Statement Specific UI (Controls) ---
   Widget _buildDetailedStatementControls() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Date Pickers
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+          padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingTen), // Used kPaddingMedium (16.0), kPaddingTen (10.0)
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -399,20 +415,26 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Start Date', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87)),
-                    const SizedBox(height: 4),
+                    Text(
+                      'Start Date',
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: colorScheme.onSurface), // Used bodyMedium (14pt)
+                    ),
+                    const SizedBox(height: kPaddingExtraSmall), // Used kPaddingExtraSmall (4.0)
                     _datePickerButton(date: _startDate, onTap: () => _selectDate(context, true)),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: kPaddingMedium - kPaddingExtraSmall), // Used kPaddingMedium (12.0)
               // End Date
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('End Date', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87)),
-                    const SizedBox(height: 4),
+                    Text(
+                      'End Date',
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: colorScheme.onSurface), // Used bodyMedium (14pt)
+                    ),
+                    const SizedBox(height: kPaddingExtraSmall), // Used kPaddingExtraSmall (4.0)
                     _datePickerButton(date: _endDate, onTap: () => _selectDate(context, false)),
                   ],
                 ),
@@ -422,36 +444,39 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         ),
 
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingSmall), // Used kPaddingMedium (16.0), kPaddingSmall (8.0)
           child: Text(
             'Showing Transactions (${_displayData.length})',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold), // Used titleMedium (16pt)
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: kPaddingTen), // Used kPaddingTen (10.0)
       ],
     );
   }
 
   Widget _datePickerButton({required DateTime date, required VoidCallback onTap}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(kRadiusSmall), // Used kRadiusSmall (8.0)
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: kPaddingSmall + kPaddingExtraSmall, vertical: kPaddingTen), // Used 12, 10
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-          color: Colors.white,
+          border: Border.all(color: theme.dividerColor), // Used theme dividerColor
+          borderRadius: BorderRadius.circular(kRadiusSmall), // Used kRadiusSmall (8.0)
+          color: colorScheme.surface, // Used surface color
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               DateFormat('dd-MM-yyyy').format(date),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold), // Used bodyMedium (14pt)
             ),
-            Icon(Icons.calendar_today, size: 18, color: _primaryNavyBlue),
+            Icon(Icons.calendar_today, size: 18, color: colorScheme.primary), // Used 18, primary color
           ],
         ),
       ),
@@ -461,15 +486,20 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   // --- Transaction List Rendering (Now uses list item for both views) ---
 
   Widget _buildTransactionList({required List<TransactionRowData> data, bool isDetailedView = false}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (data.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(kPaddingExtraLarge), // Used kPaddingExtraLarge (32.0)
           child: Text(
             isDetailedView
                 ? 'No transactions found in this date range.'
                 : 'No recent transactions found.',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onBackground.withOpacity(0.6), // Used onBackground with opacity
+            ),
             textAlign: TextAlign.center,
           ),
         ),
@@ -488,7 +518,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         final rowData = listToDisplay[index];
         final tx = rowData.transaction;
         final isDebit = tx.type == TransactionType.debit;
-        final amountColor = isDebit ? _accentRed : _accentGreen;
+        final amountColor = isDebit ? kErrorRed : kSuccessGreen; // Used kErrorRed/kSuccessGreen
         final sign = isDebit ? '-' : '+';
         final amountText = '$sign ₹${tx.amount.toStringAsFixed(2)}';
 
@@ -511,12 +541,14 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     required Color amountColor,
     required bool isDetailedView,
   }) {
+    final theme = Theme.of(context);
+
     // --- Design Change: Use solid icon background for a bolder look ---
-    final iconBgColor = isDebit ? _accentRed : _accentGreen;
-    final iconColor = Colors.white;
+    final iconBgColor = isDebit ? kErrorRed : kSuccessGreen; // Used kErrorRed/kSuccessGreen
+    const iconColor = Colors.white;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingSmall), // Used kPaddingMedium (16.0), kPaddingSmall (8.0)
       child: Column(
         children: [
           Row(
@@ -524,8 +556,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             children: [
               // 1. Icon (Transaction Type Indicator)
               Container(
-                margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(right: kPaddingSmall + kPaddingExtraSmall), // Used 12.0
+                padding: const EdgeInsets.all(kPaddingSmall), // Used kPaddingSmall (8.0)
                 decoration: BoxDecoration(
                   color: iconBgColor, // Solid color for bolder look
                   shape: BoxShape.circle,
@@ -533,7 +565,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 child: Icon(
                   isDebit ? Icons.arrow_upward : Icons.arrow_downward,
                   color: iconColor, // White icon
-                  size: 20,
+                  size: kIconSizeSmall, // Used kIconSizeSmall (20.0)
                 ),
               ),
               // 2. Description and Date
@@ -543,14 +575,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   children: [
                     Text(
                       tx.description,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600), // Used titleSmall (14pt)
                     ),
                     Text(
                       // Only show Date/ID for Recent View
                       isDetailedView
                           ? DateFormat('dd MMM yyyy').format(tx.date) // Date only for Detailed
                           : 'Oct 30 | ID: t1250', // Mock data for recent view style
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onBackground.withOpacity(0.6), // Used onBackground with opacity
+                      ),
                     ),
                   ],
                 ),
@@ -562,26 +596,23 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   // Amount (Credit/Debit)
                   Text(
                     amountText,
-                    style: TextStyle(
+                    style: theme.textTheme.titleSmall?.copyWith( // Used titleSmall (14pt)
                       fontWeight: FontWeight.bold,
-                      fontSize: 14,
                       color: amountColor,
                     ),
                   ),
                   // Type (Debit/Credit Label)
                   Text(
                     isDebit ? 'Debit' : 'Credit',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDebit ? _accentRed : _accentGreen,
+                    style: theme.textTheme.bodySmall?.copyWith( // Used bodySmall (12pt)
+                      color: amountColor,
                     ),
                   ),
-                  // *** RUNNING BALANCE REMOVED HERE AS REQUESTED ***
                 ],
               ),
             ],
           ),
-          Divider(height: 16, color: Colors.grey.shade200)
+          Divider(height: kPaddingMedium, color: theme.dividerColor) // Used kPaddingMedium (16.0), theme.dividerColor
         ],
       ),
     );
@@ -591,6 +622,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     // Filter the raw data for the "Recent" view (Last 10, latest first)
     final List<TransactionRowData> recentTransactions;
@@ -608,22 +641,25 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.background, // Used background color
       appBar: AppBar(
-        title: const Text('Transaction History', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryNavyBlue,
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          'Transaction History',
+          style: theme.textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold), // Used onPrimary text color
+        ),
+        backgroundColor: colorScheme.primary, // Used primary color
+        iconTheme: IconThemeData(color: colorScheme.onPrimary), // Used onPrimary icon color
         elevation: 0,
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: _primaryNavyBlue))
+          ? Center(child: CircularProgressIndicator(color: colorScheme.primary)) // Used primary color
           : _errorMessage != null
           ? Center(
         child: Padding(
-          padding: const EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(kPaddingExtraLarge), // Used kPaddingExtraLarge (32.0)
           child: Text(
             _errorMessage!,
-            style: TextStyle(color: _accentRed, fontSize: 16),
+            style: theme.textTheme.bodyLarge?.copyWith(color: kErrorRed), // Used kErrorRed
             textAlign: TextAlign.center,
           ),
         ),
@@ -637,7 +673,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           // 2. Recent/Detailed Tabs
           _buildTabView(),
 
-          const Divider(height: 1, color: Colors.grey),
+          const Divider(height: 1, color: kDividerColor), // Used kDividerColor
 
           Expanded(
             child: SingleChildScrollView(
@@ -647,22 +683,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   if (_viewMode == TransactionViewMode.Recent) ...[
                     // Recent Transactions View
                     Padding(
-                      padding: const EdgeInsets.only(left: 16.0, top: 10.0, bottom: 5.0),
+                      padding: const EdgeInsets.only(left: kPaddingMedium, top: kPaddingTen, bottom: kPaddingExtraSmall + 1.0), // Used 16.0, 10.0, 5.0
                       child: Text(
                         'Last ${recentTransactions.length} Transactions',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold), // Used titleMedium (16pt)
                       ),
                     ),
                     _buildTransactionList(data: recentTransactions, isDetailedView: false),
                   ] else ...[
                     // Detailed Statement View
-                    // 3. Date Filters (Start Date and End Date added with labels)
+                    // 3. Date Filters
                     _buildDetailedStatementControls(),
 
                     // 4. Transactions List/Card View
                     _buildTransactionList(data: _displayData, isDetailedView: true),
                   ],
-                  const SizedBox(height: 20),
+                  const SizedBox(height: kPaddingLarge), // Used kPaddingLarge (24.0)
                 ],
               ),
             ),

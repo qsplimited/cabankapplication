@@ -1,17 +1,18 @@
-// File: beneficiary_management_screen.dart (UNCHANGED - Already Robust)
+// File: beneficiary_management_screen.dart (Refactored)
 
 import 'package:flutter/material.dart';
 
-// 💡 IMPORTANT: Import all necessary types and screens
+// 💡 IMPORTANT: Import centralized design files
 import '../api/banking_service.dart';
-import '../screens/transfer_amount_entry_screen.dart'; // For fund transfer navigation
+import '../screens/transfer_amount_entry_screen.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 // Access the shared service instance
 final BankingService _bankingService = BankingService();
 
 // --- Main Screen Class ---
 class BeneficiaryManagementScreen extends StatefulWidget {
-  // Use a named route for easy navigation back from the Fund Transfer flow
   static const String routeName = '/manageBeneficiaries';
 
   const BeneficiaryManagementScreen({super.key});
@@ -21,21 +22,16 @@ class BeneficiaryManagementScreen extends StatefulWidget {
 }
 
 class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScreen> {
-
-
   List<Beneficiary> _beneficiaries = [];
   Account? _sourceAccount;
   bool _isLoading = true;
 
-  final Color _primaryNavyBlue = const Color(0xFF003366);
-  final Color _accentGreen = const Color(0xFF4CAF50);
-  final Color _darkGrey = Colors.grey.shade700;
+  // 💡 All local color constants removed 💡
 
   @override
   void initState() {
     super.initState();
     _loadData();
-
     _bankingService.onDataUpdate.listen((_) {
       if (mounted) {
         _loadData();
@@ -50,7 +46,6 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     });
 
     try {
-
       final results = await Future.wait([
         _bankingService.fetchBeneficiaries(),
         _bankingService.fetchPrimaryAccount(),
@@ -65,7 +60,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
       }
     } catch (e) {
       if (mounted) {
-        print('Error loading data: $e');
+        // print('Error loading data: $e'); // Removed print for cleaner code
         setState(() {
           _isLoading = false;
         });
@@ -73,6 +68,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     }
   }
 
+  // --- Show Add/Edit Modal (Payee Form) ---
   Future<void> _manageBeneficiary({Beneficiary? existingBeneficiary}) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -80,12 +76,9 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
       backgroundColor: Colors.transparent,
       builder: (context) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: _BeneficiaryForm(
-          existingBeneficiary: existingBeneficiary,
-          primaryNavyBlue: _primaryNavyBlue,
-        ),
+        // 💡 Refactored: Removed primaryNavyBlue parameter
+        child: _BeneficiaryForm(existingBeneficiary: existingBeneficiary),
       ),
-
     );
 
     if (result == true) {
@@ -93,19 +86,17 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     }
   }
 
-  // --- Fund Transfer Navigation (Crucial point: Routes to the smart screen) ---
+  // --- Fund Transfer Navigation (Unchanged) ---
   void _navigateToFundTransfer(Beneficiary beneficiary) {
     if (_sourceAccount == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot initiate transfer:source account not loaded.')),
+        const SnackBar(content: Text('Cannot initiate transfer: Primary source account not loaded.')),
       );
       return;
     }
 
-
     Navigator.of(context).push(
       MaterialPageRoute(
-
         settings: const RouteSettings(name: '/transferFunds'),
         builder: (context) => TransferAmountEntryScreen(
           sourceAccount: _sourceAccount!,
@@ -116,22 +107,31 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     );
   }
 
-
+  // --- Delete Logic (Refactored Styles) ---
   Future<void> _deleteBeneficiary(Beneficiary payee) async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Deletion', style: TextStyle(color: Colors.red)),
+        // Refactored Title Style
+        title: Text('Confirm Deletion', style: textTheme.titleMedium?.copyWith(color: colorScheme.error)),
         content: Text('Are you sure you want to delete payee "${payee.nickname}"? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('CANCEL', style: TextStyle(color: _primaryNavyBlue)),
+            // Refactored TextButton Style
+            child: Text('CANCEL', style: textTheme.labelLarge?.copyWith(color: colorScheme.primary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('DELETE', style: TextStyle(color: Colors.white)),
+            // Refactored Button Style
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colorScheme.error,
+              foregroundColor: colorScheme.onError,
+            ),
+            child: Text('DELETE', style: textTheme.labelLarge),
           ),
         ],
       ),
@@ -142,7 +142,8 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
         await _bankingService.deleteBeneficiary(payee.beneficiaryId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Payee "${payee.nickname}" deleted successfully.'), backgroundColor: _accentGreen),
+            // Refactored Snack Bar Color
+            SnackBar(content: Text('Payee "${payee.nickname}" deleted successfully.'), backgroundColor: kSuccessGreen),
           );
           _loadData();
         }
@@ -156,18 +157,23 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
     }
   }
 
-
+  // --- UI Components: List View (Refactored Styles) ---
   Widget _buildPayeeList() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     if (_beneficiaries.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_add_disabled_outlined, size: 80, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            const Text('No Payees Added', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Tap "Add New Payee" to begin.', style: TextStyle(fontSize: 14, color: Colors.grey)),
+            // Refactored Icon Style
+            Icon(Icons.person_add_disabled_outlined, size: 80, color: colorScheme.onBackground.withOpacity(0.3)),
+            const SizedBox(height: kPaddingMedium),
+            // Refactored Text Styles
+            Text('No Payees Added', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: kPaddingExtraSmall),
+            Text('Tap "Add New Payee" to begin.', style: textTheme.bodyMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.6))),
           ],
         ),
       );
@@ -175,27 +181,30 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
 
     return ListView.builder(
       itemCount: _beneficiaries.length,
-      padding: const EdgeInsets.only(top: 10, bottom: 80),
+      padding: const EdgeInsets.only(top: kPaddingSmall, bottom: 80),
       itemBuilder: (context, index) {
         final payee = _beneficiaries[index];
         return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          // Refactored Card Dimensions & Style
+          margin: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingSmall),
+          elevation: kCardElevation,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
           child: ListTile(
-
             onTap: () => _navigateToFundTransfer(payee),
 
             leading: CircleAvatar(
-              backgroundColor: _primaryNavyBlue.withOpacity(0.1),
-              child: Icon(Icons.account_circle, color: _primaryNavyBlue),
+              // Refactored Avatar Colors
+              backgroundColor: colorScheme.primary.withOpacity(0.1),
+              child: Icon(Icons.account_circle, color: colorScheme.primary),
             ),
-            title: Text(payee.nickname, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            // Refactored Title Style
+            title: Text(payee.nickname, style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
             subtitle: Text(
               'A/c: ${_bankingService.maskAccountNumber(payee.accountNumber)}\nBank: ${payee.bankName} (IFSC: ${payee.ifsCode})',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: _darkGrey),
+              // Refactored Subtitle Style
+              style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
             ),
             isThreeLine: true,
             trailing: PopupMenuButton<String>(
@@ -207,16 +216,17 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
                 }
               },
               itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
+                // Refactored Icons for menu
+                PopupMenuItem<String>(
                   value: 'edit',
-                  child: Row(children: [Icon(Icons.edit, color: Colors.black54), SizedBox(width: 8), Text('Edit Nickname/Name')]),
+                  child: Row(children: [Icon(Icons.edit, color: colorScheme.onSurface), const SizedBox(width: kPaddingExtraSmall), Text('Edit Nickname/Name')]),
                 ),
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'delete',
-                  child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 8), Text('Delete Payee', style: TextStyle(color: Colors.red))]),
+                  child: Row(children: [Icon(Icons.delete, color: colorScheme.error), const SizedBox(width: kPaddingExtraSmall), Text('Delete Payee', style: TextStyle(color: colorScheme.error))]),
                 ),
               ],
-              icon: Icon(Icons.more_vert, color: _primaryNavyBlue),
+              icon: Icon(Icons.more_vert, color: colorScheme.onSurface.withOpacity(0.7)),
             ),
           ),
         );
@@ -226,27 +236,36 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
 
   @override
   Widget build(BuildContext context) {
+    // 💡 Access Theme 💡
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
+      // App Bar uses global AppBarTheme, but we override primary color for background/icons
       appBar: AppBar(
-        title: const Text('Manage Payees', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryNavyBlue,
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text('Manage Payees', style: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold)),
+        backgroundColor: colorScheme.primary,
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
         elevation: 1,
       ),
       body: RefreshIndicator(
         onRefresh: _loadData,
-        color: _primaryNavyBlue,
+        // Refactored RefreshIndicator Color
+        color: colorScheme.primary,
         child: _isLoading
-            ? Center(child: CircularProgressIndicator(color: _primaryNavyBlue))
+        // Refactored Loading Indicator Color
+            ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
             : _buildPayeeList(),
       ),
 
-      // **ACTION:** Floating button to add new payee
+      // **ACTION:** Floating button to add new payee (Refactored Styles)
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _manageBeneficiary(),
-        backgroundColor: _accentGreen,
-        icon: const Icon(Icons.person_add, color: Colors.white),
-        label: const Text('Add New Payee', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        // Refactored FAB Colors and Styles
+        backgroundColor: kSuccessGreen,
+        foregroundColor: colorScheme.onPrimary,
+        icon: const Icon(Icons.person_add),
+        label: Text('Add New Payee', style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold)),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
@@ -254,21 +273,20 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
 }
 
 // ----------------------------------------------------------------------
-// --- Beneficiary Add/Edit Form Component (Unchanged) ---
+// --- Beneficiary Add/Edit Form Component (Refactored Styles) ---
 // ----------------------------------------------------------------------
 
 class _BeneficiaryForm extends StatefulWidget {
   final Beneficiary? existingBeneficiary;
-  final Color primaryNavyBlue;
+  // 💡 Refactored: Removed primaryNavyBlue parameter
 
-  const _BeneficiaryForm({this.existingBeneficiary, required this.primaryNavyBlue});
+  const _BeneficiaryForm({super.key, this.existingBeneficiary});
 
   @override
   State<_BeneficiaryForm> createState() => _BeneficiaryFormState();
 }
 
 class _BeneficiaryFormState extends State<_BeneficiaryForm> {
-  // ... (All form logic and UI remain the same) ...
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _accountNumberController;
@@ -283,6 +301,7 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
   @override
   void initState() {
     super.initState();
+    // Initialization logic remains unchanged
     final payee = widget.existingBeneficiary;
     _nameController = TextEditingController(text: payee?.name ?? '');
     _accountNumberController = TextEditingController(text: payee?.accountNumber ?? '');
@@ -305,7 +324,7 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
     super.dispose();
   }
 
-  // --- Validators (same as before) ---
+  // --- Validators (Unchanged) ---
   String? _validateAccountNumber(String? value) {
     if (value == null || value.isEmpty) return 'Account number is required.';
     if (!RegExp(r'^\d{9,18}$').hasMatch(value)) return 'Account number must be 9-18 digits long.';
@@ -318,8 +337,9 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
     return null;
   }
 
-  // --- Recipient Lookup Logic (VERIFY Button) (Unchanged) ---
+  // --- Recipient Lookup Logic (Unchanged) ---
   Future<void> _lookupRecipient() async {
+    // Logic remains unchanged
     if (_validateAccountNumber(_accountNumberController.text) != null ||
         _validateIFSC(_ifscController.text) != null ||
         (widget.existingBeneficiary == null && _confirmAccountNumberController.text != _accountNumberController.text))
@@ -344,7 +364,7 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
           _nameController.text = _officialName!;
           _isSaving = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Recipient Verified: $_officialName'), backgroundColor: Colors.green.shade600));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Recipient Verified: $_officialName'), backgroundColor: kSuccessGreen));
       }
     } catch (e) {
       if (mounted) {
@@ -356,6 +376,7 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
 
   // --- Submission Logic (Unchanged) ---
   Future<void> _submitForm() async {
+    // Logic remains unchanged
     if (!_formKey.currentState!.validate()) return;
     final isNew = widget.existingBeneficiary == null;
     final isVerified = _officialName != null;
@@ -387,7 +408,7 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${isNew ? 'Added' : 'Updated'} Payee successfully!'), backgroundColor: Colors.green.shade600));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${isNew ? 'Added' : 'Updated'} Payee successfully!'), backgroundColor: kSuccessGreen));
         Navigator.of(context).pop(true); // Signal success to the parent screen
       }
     } catch (e) {
@@ -398,15 +419,23 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
     }
   }
 
-  // --- UI Build (Unchanged) ---
+  // --- UI Build (Refactored Styles) ---
   @override
   Widget build(BuildContext context) {
     final bool isEditing = widget.existingBeneficiary != null;
     final bool isVerified = _officialName != null;
 
+    // 💡 Access Theme 💡
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
-      padding: const EdgeInsets.all(24.0),
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      padding: const EdgeInsets.all(kPaddingMedium),
+      // Refactored Container Colors/Radius
+      decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusLarge))
+      ),
       child: Form(
         key: _formKey,
         child: Column(
@@ -417,45 +446,61 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(isEditing ? 'Edit Payee' : 'Add New Payee', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: widget.primaryNavyBlue)),
+                // Refactored Header Text Style
+                Text(isEditing ? 'Edit Payee' : 'Add New Payee', style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary)),
                 IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
               ],
             ),
-            const Divider(height: 20),
+            const Divider(height: kPaddingMedium),
 
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    TextFormField(controller: _accountNumberController, decoration: const InputDecoration(labelText: 'Account Number', prefixIcon: Icon(Icons.credit_card), border: OutlineInputBorder()), keyboardType: TextInputType.number, validator: _validateAccountNumber, readOnly: isEditing || isVerified),
-                    const SizedBox(height: 16),
+                    // TextFormFields use the global InputDecorationTheme
+                    TextFormField(controller: _accountNumberController, decoration: const InputDecoration(labelText: 'Account Number', prefixIcon: Icon(Icons.credit_card)), keyboardType: TextInputType.number, validator: _validateAccountNumber, readOnly: isEditing || isVerified),
+                    const SizedBox(height: kPaddingMedium),
                     if (!isEditing)
-                      TextFormField(controller: _confirmAccountNumberController, decoration: const InputDecoration(labelText: 'Confirm Account Number', prefixIcon: Icon(Icons.check_circle_outline), border: OutlineInputBorder()), keyboardType: TextInputType.number, validator: (value) => (value != _accountNumberController.text) ? 'Account numbers do not match.' : null, readOnly: isVerified),
-                    if (!isEditing) const SizedBox(height: 16),
+                      TextFormField(controller: _confirmAccountNumberController, decoration: const InputDecoration(labelText: 'Confirm Account Number', prefixIcon: Icon(Icons.check_circle_outline)), keyboardType: TextInputType.number, validator: (value) => (value != _accountNumberController.text) ? 'Account numbers do not match.' : null, readOnly: isVerified),
+                    if (!isEditing) const SizedBox(height: kPaddingMedium),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: TextFormField(controller: _ifscController, decoration: const InputDecoration(labelText: 'IFSC Code', prefixIcon: Icon(Icons.account_balance), border: const OutlineInputBorder(), hintText: 'e.g., SBIN0001234'), textCapitalization: TextCapitalization.characters, validator: _validateIFSC, readOnly: isEditing || isVerified, onChanged: (_) { if (isVerified && !isEditing) { setState(() { _officialName = null; _bankName = null; _nameController.clear(); }); } })),
+                        Expanded(child: TextFormField(controller: _ifscController, decoration: const InputDecoration(labelText: 'IFSC Code', prefixIcon: Icon(Icons.account_balance), hintText: 'e.g., SBIN0001234'), textCapitalization: TextCapitalization.characters, validator: _validateIFSC, readOnly: isEditing || isVerified, onChanged: (_) { if (isVerified && !isEditing) { setState(() { _officialName = null; _bankName = null; _nameController.clear(); }); } })),
                         Padding(
-                          padding: const EdgeInsets.only(left: 8.0),
+                          padding: const EdgeInsets.only(left: kPaddingExtraSmall),
                           child: ElevatedButton(
                             onPressed: _isSaving || isVerified ? null : _lookupRecipient,
-                            style: ElevatedButton.styleFrom(backgroundColor: isVerified ? Colors.green : widget.primaryNavyBlue, padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10), elevation: isVerified ? 0 : 2),
-                            child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) : Text(isVerified ? 'VERIFIED' : 'VERIFY', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                            // Refactored Verify Button Style
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: isVerified ? kSuccessGreen : colorScheme.primary,
+                                foregroundColor: colorScheme.onPrimary,
+                                padding: const EdgeInsets.symmetric(vertical: kPaddingMedium, horizontal: kPaddingSmall),
+                                elevation: isVerified ? 0 : 2
+                            ),
+                            child: _isSaving
+                                ? const SizedBox(width: kIconSizeSmall, height: kIconSizeSmall, child: CircularProgressIndicator(color: kLightSurface, strokeWidth: 3))
+                            // Refactored Text Style
+                                : Text(isVerified ? 'VERIFIED' : 'VERIFY', style: textTheme.labelSmall?.copyWith(color: colorScheme.onPrimary)),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: _nameController, decoration: InputDecoration(labelText: isEditing ? 'Payee Name' : 'Payee Name (Auto-filled on Verify)', prefixIcon: const Icon(Icons.person), border: const OutlineInputBorder()), validator: (value) => (value == null || value.isEmpty) ? 'Payee name is required.' : null, readOnly: !isEditing && isVerified, textCapitalization: TextCapitalization.words),
+                    const SizedBox(height: kPaddingMedium),
+                    TextFormField(controller: _nameController, decoration: InputDecoration(labelText: isEditing ? 'Payee Name' : 'Payee Name (Auto-filled on Verify)', prefixIcon: const Icon(Icons.person)), validator: (value) => (value == null || value.isEmpty) ? 'Payee name is required.' : null, readOnly: !isEditing && isVerified, textCapitalization: TextCapitalization.words),
                     if (_bankName != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Row(children: [Icon(Icons.check_circle, color: widget.primaryNavyBlue, size: 16), const SizedBox(width: 8), Text('Bank: $_bankName', style: TextStyle(color: widget.primaryNavyBlue, fontWeight: FontWeight.w600))]),
+                        padding: const EdgeInsets.only(top: kPaddingSmall),
+                        child: Row(children: [
+                          // Refactored Icon and Text Styles
+                          Icon(Icons.check_circle, color: colorScheme.primary, size: kIconSizeSmall),
+                          const SizedBox(width: kPaddingExtraSmall),
+                          Text('Bank: $_bankName', style: textTheme.bodyMedium?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.w600))
+                        ]),
                       ),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: _nicknameController, decoration: const InputDecoration(labelText: 'Nickname (Optional)', prefixIcon: Icon(Icons.label_outline), border: OutlineInputBorder()), textCapitalization: TextCapitalization.sentences),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: kPaddingMedium),
+                    TextFormField(controller: _nicknameController, decoration: const InputDecoration(labelText: 'Nickname (Optional)', prefixIcon: Icon(Icons.label_outline)), textCapitalization: TextCapitalization.sentences),
+                    const SizedBox(height: kPaddingLarge),
                   ],
                 ),
               ),
@@ -466,9 +511,17 @@ class _BeneficiaryFormState extends State<_BeneficiaryForm> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _isSaving ? null : _submitForm,
-                icon: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) : Icon(isEditing ? Icons.save : Icons.person_add_alt_1, color: Colors.white),
-                label: Text(isEditing ? 'Save Changes' : 'Add Payee', style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(backgroundColor: widget.primaryNavyBlue, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                // The global ElevatedButtonThemeData handles most styling,
+                // but we explicitly define colors and padding for this unique button size.
+                icon: _isSaving ? const SizedBox(width: kIconSizeSmall, height: kIconSizeSmall, child: CircularProgressIndicator(color: kLightSurface, strokeWidth: 3)) : Icon(isEditing ? Icons.save : Icons.person_add_alt_1, color: colorScheme.onPrimary),
+                // Refactored Text Style
+                label: Text(isEditing ? 'Save Changes' : 'Add Payee', style: textTheme.titleSmall?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: kPaddingMedium),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall))
+                ),
               ),
             ),
           ],

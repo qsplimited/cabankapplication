@@ -1,7 +1,13 @@
+// File: lib/screens/detailed_statement_screen.dart (Refactored)
+
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Add 'intl' package to your pubspec.yaml for date formatting
+import 'package:intl/intl.dart';
 import '../api/banking_service.dart';
 import '../main.dart'; // Assuming Account and Transaction models are here
+
+// 💡 IMPORTANT: Import centralized design files
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 // This screen will handle fetching and displaying the full transaction history,
 // and will include features for: Date Range Filtering, Downloading Statement.
@@ -30,11 +36,6 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime _endDate = DateTime.now();
 
-  // Color reference from Dashboard
-  final Color _primaryNavyBlue = const Color(0xFF003366);
-  final Color _accentRed = const Color(0xFFD32F2F);
-  final Color _accentGreen = const Color(0xFF4CAF50);
-
   @override
   void initState() {
     super.initState();
@@ -42,7 +43,7 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
     _fetchDetailedStatement();
   }
 
-  // --- Data Fetching Logic ---
+  // --- Data Fetching Logic (Unchanged) ---
   Future<void> _fetchDetailedStatement() async {
     setState(() {
       _isLoading = true;
@@ -50,8 +51,6 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
     });
 
     try {
-      // NOTE: This call relies on the API/BankingService being updated
-      // to handle date range and account ID.
       final allTransactions = await widget.bankingService.fetchTransactionHistory(
         widget.account.accountId,
         startDate: _startDate,
@@ -77,6 +76,8 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
   // --- UI Components ---
 
   Future<void> _selectDateRange(BuildContext context) async {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020, 1),
@@ -86,12 +87,13 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: ColorScheme.light(
-              primary: _primaryNavyBlue,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: Colors.black87,
+              // Refactored colors for Date Picker Theme
+              primary: colorScheme.primary,
+              onPrimary: colorScheme.onPrimary,
+              surface: colorScheme.surface,
+              onSurface: colorScheme.onSurface,
             ),
-            dialogBackgroundColor: Colors.white,
+            dialogBackgroundColor: colorScheme.surface,
           ),
           child: child!,
         );
@@ -110,8 +112,12 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
 
   // 1. Filter and Download Bar
   Widget _buildFilterAndDownloadBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      // Replaced hardcoded padding with constants (16.0, 10.0)
+      padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingTen),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -120,20 +126,26 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
             child: InkWell(
               onTap: () => _selectDateRange(context),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 12.0),
+                // Replaced hardcoded padding (10.0, 12.0) with constants
+                padding: const EdgeInsets.symmetric(vertical: kPaddingTen, horizontal: kPaddingSmall + kPaddingExtraSmall),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8.0),
-                  color: Colors.white,
+                  // Replaced hardcoded Colors.grey.shade300 with theme
+                  border: Border.all(color: colorScheme.outline),
+                  // Replaced hardcoded 8.0 with kRadiusSmall
+                  borderRadius: BorderRadius.circular(kRadiusSmall),
+                  // Replaced hardcoded Colors.white with colorScheme.surface
+                  color: colorScheme.surface,
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 18, color: _primaryNavyBlue),
-                    const SizedBox(width: 8),
+                    // Replaced hardcoded color and size with theme/constants
+                    Icon(Icons.calendar_today, size: kIconSizeSmall, color: colorScheme.primary),
+                    const SizedBox(width: kPaddingSmall), // Replaced hardcoded 8
                     Flexible(
                       child: Text(
                         '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
-                        style: TextStyle(color: _primaryNavyBlue, fontWeight: FontWeight.w600, fontSize: 13),
+                        // Replaced hardcoded style with theme/constants
+                        style: textTheme.labelLarge?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -142,22 +154,25 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          // Download Button (Placeholder)
+          const SizedBox(width: kPaddingTen), // Replaced hardcoded 10
+          // Download Button
           ElevatedButton.icon(
             onPressed: () {
-              // TODO: Implement Statement Download Logic (PDF/CSV)
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Download feature coming soon!')),
               );
             },
-            icon: const Icon(Icons.download_rounded, size: 20),
+            // Replaced hardcoded size with constant
+            icon: const Icon(Icons.download_rounded, size: kIconSizeSmall),
             label: const Text('Download'),
             style: ElevatedButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: _primaryNavyBlue,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              // Replaced hardcoded colors with theme
+              foregroundColor: colorScheme.onPrimary,
+              backgroundColor: colorScheme.primary,
+              // Replaced hardcoded padding with constants (10, 10)
+              padding: const EdgeInsets.symmetric(horizontal: kPaddingTen, vertical: kPaddingTen),
+              // Replaced hardcoded 8 with kRadiusSmall
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
             ),
           ),
         ],
@@ -168,29 +183,39 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      // Replaced hardcoded Colors.grey.shade50 with theme background
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
-        title: const Text('Detailed Statement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryNavyBlue,
-        iconTheme: const IconThemeData(color: Colors.white),
+        // Replaced hardcoded style/color with theme
+        title: Text('Detailed Statement', style: textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary, fontWeight: FontWeight.bold)),
+        // Replaced hardcoded _primaryNavyBlue with colorScheme.primary
+        backgroundColor: colorScheme.primary,
+        // Replaced hardcoded Colors.white with colorScheme.onPrimary
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
       ),
       body: Column(
         children: [
           // Account Summary Header
           Container(
-            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+            // Replaced hardcoded padding with constants
+            padding: const EdgeInsets.fromLTRB(kPaddingMedium, kPaddingMedium, kPaddingMedium, kPaddingSmall),
             alignment: Alignment.centerLeft,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   widget.account.nickname,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: Colors.black87),
+                  // Replaced hardcoded Colors.black87 with colorScheme.onSurface
+                  style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 Text(
                   'A/C No: ${widget.account.accountNumber}',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600),
+                  // Replaced hardcoded Colors.grey.shade600 with theme/opacity
+                  style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface.withOpacity(0.6)),
                 ),
               ],
             ),
@@ -199,49 +224,56 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
           // Filter and Download Bar
           _buildFilterAndDownloadBar(),
 
-          const Divider(height: 1, indent: 16, endIndent: 16),
+          // Replaced hardcoded Divider
+          const Divider(height: 1, color: kDividerColor, indent: kPaddingMedium, endIndent: kPaddingMedium),
 
           // Transaction List Area
           Expanded(
             child: _isLoading
-                ? Center(child: CircularProgressIndicator(color: _primaryNavyBlue))
+            // Replaced hardcoded _primaryNavyBlue with colorScheme.primary
+                ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
                 : _errorMessage != null
-                ? Center(child: Text(_errorMessage!, style: TextStyle(color: Theme.of(context).colorScheme.error)))
+                ? Center(child: Text(_errorMessage!, style: textTheme.bodyMedium?.copyWith(color: colorScheme.error)))
                 : _transactions.isEmpty
-                ? const Center(child: Text('No transactions found in this period.'))
+                ? Center(child: Text('No transactions found in this period.', style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.6))))
                 : ListView.separated(
               itemCount: _transactions.length,
-              separatorBuilder: (context, index) => Divider(height: 1, color: Colors.grey.shade200, indent: 16, endIndent: 16),
+              // Replaced hardcoded Divider with constant
+              separatorBuilder: (context, index) => const Divider(height: 1, color: kDividerColor, indent: kPaddingMedium, endIndent: kPaddingMedium),
               itemBuilder: (context, index) {
                 final tx = _transactions[index];
                 final isDebit = tx.type == TransactionType.debit;
-                final amountColor = isDebit ? _accentRed : _accentGreen;
-                final iconColor = isDebit ? _accentRed : _accentGreen;
+                // Refactored Color: _accentRed -> colorScheme.error, _accentGreen -> kSuccessGreen
+                final amountColor = isDebit ? colorScheme.error : kSuccessGreen;
+                // final iconColor = isDebit ? colorScheme.error : kSuccessGreen; // Same as amountColor
 
                 return ListTile(
                   leading: Container(
-                    width: 40,
-                    height: 40,
+                    // Replaced hardcoded 40 with kTxnLeadingSize
+                    width: kTxnLeadingSize,
+                    height: kTxnLeadingSize,
                     decoration: BoxDecoration(
-                      color: iconColor.withOpacity(0.1),
+                      color: amountColor.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       isDebit ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                      color: iconColor,
-                      size: 20,
+                      // Replaced hardcoded color and size with theme/constants
+                      color: amountColor,
+                      size: kIconSizeSmall,
                     ),
                   ),
                   title: Text(
                     tx.description,
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+                    // Replaced hardcoded style/color with theme
+                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: colorScheme.onSurface),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    // Assuming Transaction model has a 'date' field
                     DateFormat('dd MMM yyyy, HH:mm').format(tx.date),
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    // Replaced hardcoded style/color with theme/opacity
+                    style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withOpacity(0.6)),
                   ),
                   trailing: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -249,16 +281,16 @@ class _DetailedStatementScreenState extends State<DetailedStatementScreen> {
                     children: [
                       Text(
                         '${isDebit ? '-' : '+'} ₹${tx.amount.toStringAsFixed(2)}',
-                        style: TextStyle(
+                        // Replaced hardcoded style/color with theme. titleSmall is close to 15px.
+                        style: textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: amountColor,
-                          fontSize: 15,
                         ),
                       ),
-                      // Assuming a runningBalance is available in the Transaction model
                       Text(
                         'Bal: ₹${tx.runningBalance.toStringAsFixed(2)}',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                        // Replaced hardcoded style/color with theme/opacity. bodySmall is 12-14px.
+                        style: textTheme.labelSmall?.copyWith(color: colorScheme.onSurface.withOpacity(0.5)),
                       ),
                     ],
                   ),

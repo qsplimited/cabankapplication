@@ -1,11 +1,18 @@
+// File: lib/screens/forgot_mpin_step1_identity.dart (Refactored)
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart';
 import 'forgot_mpin_step2_new_mpin.dart';
 import 'registration_step2_otp.dart';
 
+// 💡 IMPORTANT: Import centralized design files
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
+
 
 String formatDate(DateTime date) {
+  // NOTE: This utility function is fine as is, using standard Dart formatting.
   return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 }
 
@@ -51,6 +58,21 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       helpText: 'Select Date of Birth',
+      // CRITICAL: Apply Theme for Date Picker Dialog
+      builder: (context, child) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: colorScheme.copyWith(
+              primary: colorScheme.primary, // Use primary color for header/buttons
+              onPrimary: colorScheme.onPrimary, // Text on primary
+              surface: colorScheme.surface, // Background of calendar
+              onSurface: colorScheme.onSurface, // Text on surface
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null) {
       setState(() {
@@ -72,6 +94,10 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
     final String mobileNumber = _mobileController.text.trim();
     final String dateOfBirth = _dobController.text.trim();
 
+    // Get theme colors for SnackBar
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     try {
       final result = await globalDeviceService.verifyIdentity(
         accountNumber: accountNumber,
@@ -85,20 +111,25 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
         });
 
         if (result['success'] == true) {
-          // Identity verified. Proceed to OTP screen.
-          final String otpCode = result['otp_code'] as String; // Safe cast
-          final String verifiedMobile = result['mobile_number'] as String; // Safe cast
+          final String otpCode = result['otp_code'] as String;
+          final String verifiedMobile = result['mobile_number'] as String;
 
           // Show Mock OTP (for demonstration purposes only)
           showDialog(
             context: context,
             barrierDismissible: false,
             builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              title: const Text('MOCK: OTP Generated', style: TextStyle(color: Colors.red)),
+              // Refactored Border Radius
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+              title: Text(
+                'MOCK: OTP Generated',
+                // Refactored color to theme error color
+                style: textTheme.titleMedium?.copyWith(color: colorScheme.error),
+              ),
               content: Text(
                 'For testing, please use this OTP: $otpCode. \n\n'
                     'In the real world, this is sent securely to $verifiedMobile.',
+                // Uses default text style, which is theme-compliant
               ),
               actions: <Widget>[
                 TextButton(
@@ -111,21 +142,21 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
                           mobileNumber: verifiedMobile,
                           otpCode: otpCode,
                           // CRITICAL: Success screen is the MPIN Reset Step 2
-                          // Removed 'const' for safer dynamic widget instantiation
                           successRoute: ForgotMpinStep2NewMpin(),
                         ),
                       ),
                     );
                   },
+                  // Uses default TextButton style, which is theme-compliant
                   child: const Text('OK, Proceed'),
                 ),
               ],
             ),
           );
         } else {
-
+          // Refactored SnackBar background color to theme error color
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'] as String), backgroundColor: Colors.red),
+            SnackBar(content: Text(result['message'] as String), backgroundColor: colorScheme.error),
           );
         }
       }
@@ -134,8 +165,9 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
         setState(() {
           _isLoading = false;
         });
+        // Refactored SnackBar background color to theme error color
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Network error or unexpected issue occurred.'), backgroundColor: Colors.red),
+          SnackBar(content: const Text('Network error or unexpected issue occurred.'), backgroundColor: colorScheme.error),
         );
       }
     }
@@ -143,23 +175,31 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
+        // AppBar title will inherit theme styles from the main app theme.
         title: const Text('Forgot MPIN - Step 1'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        // Replaced hardcoded 16.0 with kPaddingMedium
+        padding: const EdgeInsets.all(kPaddingMedium),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
+              Text(
                 'Verify your identity to reset your M-PIN.',
-                style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.w500),
+                // Replaced hardcoded style with theme text style
+                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w500),
               ),
-              const SizedBox(height: 24.0),
+              // Replaced hardcoded 24.0 with kPaddingLarge
+              const SizedBox(height: kPaddingLarge),
 
+              // Account Number Field
               TextFormField(
                 controller: _accountController,
                 keyboardType: TextInputType.number,
@@ -168,6 +208,7 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
                   hintText: 'Test: 123456',
                   prefixIcon: Icon(Icons.account_balance_wallet),
                   border: OutlineInputBorder(),
+                  // The colors of the border and icon will now respect the theme
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -176,7 +217,8 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16.0),
+              // Replaced hardcoded 16.0 with kPaddingMedium
+              const SizedBox(height: kPaddingMedium),
 
               // Mobile Number Field
               TextFormField(
@@ -198,7 +240,8 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16.0),
+              // Replaced hardcoded 16.0 with kPaddingMedium
+              const SizedBox(height: kPaddingMedium),
 
               // Date of Birth Field
               TextFormField(
@@ -218,13 +261,23 @@ class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
                   return null;
                 },
               ),
-              const SizedBox(height: 40.0),
+              // Replaced hardcoded 40.0 with kPaddingXXL
+              const SizedBox(height: kPaddingXXL),
 
               _isLoading
+              // CircularProgressIndicator color defaults to colorScheme.primary
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
                 onPressed: _verifyIdentity,
-                child: const Text('VERIFY & GET OTP'),
+                // ElevatedButton uses primary color by default, which is theme-compliant
+                child: Text(
+                  'VERIFY & GET OTP',
+                  // Using theme style for consistency
+                  style: textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),

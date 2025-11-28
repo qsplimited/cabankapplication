@@ -1,6 +1,12 @@
+// File: tpin_management_screen.dart (Refactored)
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Required for numerical input formatting
 
 import '../api/banking_service.dart'; // Import the service from its expected path
+// Import theme constants
+import '../theme/app_dimensions.dart';
+import '../theme/app_colors.dart';
 
 /// Defines the different flows within the T-PIN management screen.
 enum TpinFlow {
@@ -13,6 +19,12 @@ enum TpinFlow {
 }
 
 class TpinManagementScreen extends StatefulWidget {
+  // Assuming the BankingService instance is injected or provided elsewhere,
+  // but since the original code instantiates it internally, we keep that for now.
+  // If the service were passed via constructor, it would be:
+  // final BankingService bankingService;
+  // const TpinManagementScreen({super.key, required this.bankingService});
+
   const TpinManagementScreen({super.key});
 
   @override
@@ -20,15 +32,13 @@ class TpinManagementScreen extends StatefulWidget {
 }
 
 class _TpinManagementScreenState extends State<TpinManagementScreen> {
-  // Define the custom color as a constant for easy reuse
-  static const Color _primaryColor = Color(0xFF003366); // <-- YOUR REQUESTED COLOR
-
+  // Hardcoded color constant removed.
   final BankingService _service = BankingService();
   TpinFlow _currentFlow = TpinFlow.initial;
   bool _isLoading = false;
   bool _isTpinSet = false;
 
-// Controllers for various inputs
+  // Controllers for various inputs
   final TextEditingController _oldPinController = TextEditingController();
   final TextEditingController _newPinController = TextEditingController();
   final TextEditingController _confirmPinController = TextEditingController();
@@ -55,20 +65,28 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
   void _checkTpinStatus() {
     setState(() {
       _isTpinSet = _service.isTpinSet;
-// If T-PIN is not set, force the user to the Set Pin flow immediately.
-// Otherwise, show the initial options menu.
       _currentFlow = _isTpinSet ? TpinFlow.initial : TpinFlow.setPin;
     });
   }
 
-// --- Utility Methods for State and UI ---
+  // --- Utility Methods for State and UI ---
 
   void _setStatus(String message, {bool isError = false}) {
-// Show SnackBar for feedback
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    // Show SnackBar for feedback
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+        content: Text(
+          message,
+          // Use onPrimary or corresponding text color for success/error backgrounds
+          style: textTheme.bodyMedium?.copyWith(
+            color: isError ? colorScheme.onError : colorScheme.onSecondary,
+          ),
+        ),
+        // Use theme-aware colors for status feedback
+        backgroundColor: isError ? colorScheme.error : colorScheme.secondary,
         duration: const Duration(seconds: 3),
       ),
     );
@@ -86,12 +104,11 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
     _setStatus(message, isError: false);
     _resetFlowControllers();
 
-    // VITAL CHANGE: Explicitly update the local status to reflect success.
     setState(() {
       _isTpinSet = true;
     });
 
-// After success, navigate back to the previous screen.
+    // After success, navigate back to the previous screen.
     Navigator.of(context).pop(true);
   }
 
@@ -99,13 +116,12 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
     setState(() {
       _isLoading = false;
     });
-// Clean up the error message for better display
+    // Clean up the error message for better display
     _setStatus(error.toString().replaceAll('Exception: ', '').replaceAll('Error: ', ''), isError: true);
   }
 
-// --- API Interaction Handlers ---
+  // --- API Interaction Handlers (Logic preserved) ---
 
-  /// Handles setting a new PIN or changing an existing one.
   Future<void> _handleSetPin({String? oldPin}) async {
     if (_newPinController.text != _confirmPinController.text) {
       _onError('New PIN and Confirm PIN do not match.');
@@ -114,7 +130,6 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
 
     setState(() => _isLoading = true);
     try {
-// In the Forgot flow, 'oldPin' is null, which the service handles as a reset.
       final message = await _service.updateTransactionPin(
         newPin: _newPinController.text,
         oldPin: oldPin,
@@ -125,7 +140,6 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
     }
   }
 
-  /// Step 1 of Reset: Verifies mobile number and requests OTP.
   Future<void> _handleMobileVerification() async {
     setState(() => _isLoading = true);
     try {
@@ -133,7 +147,7 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
         await _service.requestTpinOtp(); // Request OTP after verification
         setState(() {
           _currentFlow = TpinFlow.resetVerifyOtp;
-          _isLoading = false; // Set loading to false upon successful transition
+          _isLoading = false;
         });
       } else {
         throw 'Mobile number not registered with this account.';
@@ -143,15 +157,13 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
     }
   }
 
-  /// Step 2 of Reset: Validates OTP.
   Future<void> _handleOtpValidation() async {
     setState(() => _isLoading = true);
     try {
       await _service.validateTpinOtp(_otpController.text);
-// Move to the final step: setting the new PIN (no old PIN required)
       setState(() {
         _currentFlow = TpinFlow.resetSetNewPin;
-        _isLoading = false; // Set loading to false upon successful transition
+        _isLoading = false;
         _newPinController.clear();
         _confirmPinController.clear();
       });
@@ -160,23 +172,30 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
     }
   }
 
-// --- UI Builders ---
+  // --- UI Builders (Refactored) ---
 
   Widget _buildPinInputField(
       TextEditingController controller,
       String label,
       ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
+      // Replaced 16.0 with kPaddingMedium
+      padding: const EdgeInsets.only(bottom: kPaddingMedium),
       child: TextField(
         controller: controller,
+        // Use input formatters to only allow digits
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
+          // Replaced hardcoded border radius
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(kRadiusMedium)),
           ),
           counterText: '',
-          prefixIcon: const Icon(Icons.lock_outline),
+          // Use theme color for icon
+          prefixIcon: Icon(Icons.lock_outline, color: colorScheme.onSurface.withOpacity(0.6)),
         ),
         keyboardType: TextInputType.number,
         obscureText: true,
@@ -187,30 +206,40 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
   }
 
   Widget _buildFlowContainer({required String title, required Widget child}) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      // Replaced 24.0 with kPaddingLarge
+      padding: const EdgeInsets.all(kPaddingLarge),
       child: Center(
         child: ConstrainedBox(
+          // Preserved max width
           constraints: const BoxConstraints(maxWidth: 400),
           child: Card(
-            elevation: 8,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            // Use theme card elevation
+            elevation: kCardElevation,
+            // Replaced 16 radius with kRadiusLarge
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              // Replaced 24.0 with kPaddingLarge
+              padding: const EdgeInsets.all(kPaddingLarge),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: _primaryColor, // <-- Color change 1/7
-                    ),
                     textAlign: TextAlign.center,
+                    // Used textTheme.titleLarge and theme primary color
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
                   ),
-                  const SizedBox(height: 20),
+                  // Replaced 20 with kPaddingMedium + kPaddingExtraSmall
+                  const SizedBox(height: kPaddingMedium + kPaddingExtraSmall),
                   child,
                 ],
               ),
@@ -228,10 +257,12 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
         ? 'Change Transaction PIN'
         : _isTpinSet ? 'Reset New Transaction PIN' : 'Set Your Transaction PIN';
 
-// The required length for submission check
     final bool canSubmit = (_newPinController.text.length == 6 &&
         _confirmPinController.text.length == 6 &&
         (!requireOldPin || _oldPinController.text.length == 6));
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return _buildFlowContainer(
       title: title,
@@ -242,7 +273,7 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
           _buildPinInputField(_newPinController, 'New 6-Digit T-PIN'),
           _buildPinInputField(_confirmPinController, 'Confirm New T-PIN'),
 
-// Only show Forgot option if T-PIN is currently set AND we are in the change flow
+          // Only show Forgot option if T-PIN is currently set AND we are in the change flow
           if (_isTpinSet && requireOldPin)
             TextButton(
               onPressed: _isLoading
@@ -251,29 +282,36 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
                 _resetFlowControllers();
                 setState(() => _currentFlow = TpinFlow.resetVerifyMobile);
               },
-              child: const Text('Forgot T-PIN? Reset via Mobile'),
+              // Relying on TextButton theme for color, but explicitly setting style
+              child: Text(
+                'Forgot T-PIN? Reset via Mobile',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.primary,
+                ),
+              ),
             ),
-          const SizedBox(height: 16),
+          // Replaced 16 with kPaddingMedium
+          const SizedBox(height: kPaddingMedium),
           _isLoading
-              ? const Center(child: CircularProgressIndicator())
+          // Use theme colors for CircularProgressIndicator
+              ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
               : ElevatedButton(
             onPressed: canSubmit
                 ? () => _handleSetPin(oldPin: requireOldPin ? _oldPinController.text : null)
                 : null,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              backgroundColor: _primaryColor, // <-- Color change 2/7
-              foregroundColor: Colors.white,
+            // Relying on global ElevatedButtonThemeData for styling
+            child: Text(
+              requireOldPin ? 'Change PIN' : 'Set PIN',
+              // Replaced hardcoded style/size with theme text style
+              style: textTheme.labelLarge,
             ),
-            child: Text(requireOldPin ? 'Change PIN' : 'Set PIN', style: const TextStyle(fontSize: 18)),
           ),
         ],
       ),
     );
   }
 
-// --- Reset PIN Flow Wizard ---
+// --- Reset PIN Flow Wizard (Logic preserved) ---
 
   Widget _buildResetFlow() {
     switch (_currentFlow) {
@@ -282,30 +320,36 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
       case TpinFlow.resetVerifyOtp:
         return _buildVerifyOtpScreen();
       case TpinFlow.resetSetNewPin:
-// Final step uses the generic form but without requiring the old PIN
         return _buildSetOrChangePinForm(requireOldPin: false);
       default:
-// Should not happen when navigating via the Forgot flow button
         return const SizedBox.shrink();
     }
   }
 
   Widget _buildVerifyMobileScreen() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return _buildFlowContainer(
       title: 'Forgot T-PIN: Step 1/3',
       child: Column(
         children: [
-          const Text('Enter your registered mobile number to receive an OTP for external verification.'),
-          const SizedBox(height: 20),
+          Text('Enter your registered mobile number to receive an OTP for external verification.', style: textTheme.bodyMedium),
+          // Replaced 20 with kPaddingMedium + kPaddingExtraSmall
+          const SizedBox(height: kPaddingMedium + kPaddingExtraSmall),
           Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
+            // Replaced 16.0 with kPaddingMedium
+            padding: const EdgeInsets.only(bottom: kPaddingMedium),
             child: TextField(
               controller: _mobileController,
-              decoration: const InputDecoration(
+              // Relying on InputDecorationTheme
+              decoration: InputDecoration(
                 labelText: 'Registered Mobile Number',
                 hintText: 'e.g., 9876541234',
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                prefixIcon: Icon(Icons.phone_android),
+                // Replaced hardcoded border radius
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(kRadiusMedium))),
+                // Use theme color for icon
+                prefixIcon: Icon(Icons.phone_android, color: colorScheme.onSurface.withOpacity(0.6)),
               ),
               keyboardType: TextInputType.phone,
               maxLength: 10,
@@ -313,16 +357,16 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
             ),
           ),
           _isLoading
-              ? const Center(child: CircularProgressIndicator())
+          // Use theme colors for CircularProgressIndicator
+              ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
               : ElevatedButton(
             onPressed: _mobileController.text.length == 10 ? _handleMobileVerification : null,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              backgroundColor: _primaryColor, // <-- Color change 3/7
-              foregroundColor: Colors.white,
+            // Relying on global ElevatedButtonThemeData for styling
+            child: Text(
+              'Verify Number & Get OTP',
+              // Replaced hardcoded style/size with theme text style
+              style: textTheme.labelLarge,
             ),
-            child: const Text('Verify Number & Get OTP', style: TextStyle(fontSize: 16)),
           ),
         ],
       ),
@@ -330,21 +374,29 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
   }
 
   Widget _buildVerifyOtpScreen() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return _buildFlowContainer(
       title: 'Forgot T-PIN: Step 2/3',
       child: Column(
         children: [
-          Text('Enter the 6-digit OTP sent to ${_service.getMaskedMobileNumber()}.'),
-          const SizedBox(height: 20),
+          Text('Enter the 6-digit OTP sent to ${_service.getMaskedMobileNumber()}.', style: textTheme.bodyMedium),
+          // Replaced 20 with kPaddingMedium + kPaddingExtraSmall
+          const SizedBox(height: kPaddingMedium + kPaddingExtraSmall),
           Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
+            // Replaced 16.0 with kPaddingMedium
+            padding: const EdgeInsets.only(bottom: kPaddingMedium),
             child: TextField(
               controller: _otpController,
-              decoration: const InputDecoration(
+              // Relying on InputDecorationTheme
+              decoration: InputDecoration(
                 labelText: '6-Digit OTP',
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                // Replaced hardcoded border radius
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(kRadiusMedium))),
                 counterText: '',
-                prefixIcon: Icon(Icons.message),
+                // Use theme color for icon
+                prefixIcon: Icon(Icons.message, color: colorScheme.onSurface.withOpacity(0.6)),
               ),
               keyboardType: TextInputType.number,
               maxLength: 6,
@@ -352,20 +404,26 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
             ),
           ),
           _isLoading
-              ? const Center(child: CircularProgressIndicator())
+          // Use theme colors for CircularProgressIndicator
+              ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
               : ElevatedButton(
             onPressed: _otpController.text.length == 6 ? _handleOtpValidation : null,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              backgroundColor: _primaryColor, // <-- Color change 4/7
-              foregroundColor: Colors.white,
+            // Relying on global ElevatedButtonThemeData for styling
+            child: Text(
+              'Validate OTP',
+              // Replaced hardcoded style/size with theme text style
+              style: textTheme.labelLarge,
             ),
-            child: const Text('Validate OTP', style: TextStyle(fontSize: 16)),
           ),
           TextButton(
             onPressed: _isLoading ? null : () => setState(() => _currentFlow = TpinFlow.resetVerifyMobile),
-            child: const Text('Change Number or Resend OTP'),
+            // Relying on TextButton theme for color, but explicitly setting style
+            child: Text(
+              'Change Number or Resend OTP',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.primary,
+              ),
+            ),
           )
         ],
       ),
@@ -375,36 +433,48 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
 // --- Initial Screen ---
 
   Widget _buildInitialScreen() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return _buildFlowContainer(
       title: 'T-PIN Security Management',
       child: Column(
         children: [
-          const Text(
+          Text(
             'Your Transaction PIN (T-PIN) is set. Select an option below.',
             textAlign: TextAlign.center,
+            style: textTheme.bodyLarge,
           ),
-          const SizedBox(height: 30),
+          // Replaced 30 with kPaddingExtraLarge - kPaddingSmall
+          const SizedBox(height: kPaddingExtraLarge - kPaddingSmall),
           ElevatedButton.icon(
             icon: const Icon(Icons.lock_reset),
-            label: const Text('Change My T-PIN', style: TextStyle(fontSize: 18)),
+            label: Text('Change My T-PIN', style: textTheme.labelLarge),
             onPressed: () => setState(() => _currentFlow = TpinFlow.changePin),
             style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              backgroundColor: _primaryColor, // <-- Color change 5/7
-              foregroundColor: Colors.white,
+              // Replaced hardcoded size with kButtonHeight and double.infinity
+              minimumSize: const Size(double.infinity, kButtonHeight),
+              // Replaced hardcoded radius with kRadiusMedium
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+              // Explicitly ensuring primary theme colors are used for icon/text
+              iconColor: colorScheme.onPrimary,
+              foregroundColor: colorScheme.onPrimary,
             ),
           ),
-          const SizedBox(height: 15),
+          // Replaced 15 with kPaddingMedium - kPaddingExtraSmall
+          const SizedBox(height: kPaddingMedium - kPaddingExtraSmall),
           OutlinedButton.icon(
             icon: const Icon(Icons.help_outline),
-            label: const Text('Forgot T-PIN?', style: TextStyle(fontSize: 18)),
+            label: Text('Forgot T-PIN?', style: textTheme.labelLarge),
             onPressed: () => setState(() => _currentFlow = TpinFlow.resetVerifyMobile),
             style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              foregroundColor: _primaryColor, // <-- Color change 6/7
-              side: const BorderSide(color: _primaryColor), // <-- Color change 7/7
+              // Replaced hardcoded size with kButtonHeight and double.infinity
+              minimumSize: const Size(double.infinity, kButtonHeight),
+              // Replaced hardcoded radius with kRadiusMedium
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+              // Used theme primary color for foreground/side border
+              foregroundColor: colorScheme.primary,
+              side: BorderSide(color: colorScheme.primary),
             ),
           ),
         ],
@@ -412,28 +482,23 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
     );
   }
 
-  // Necessary function to handle back button press and flow transitions
+  // Necessary function to handle back button press and flow transitions (Logic preserved)
   Future<bool> _onInternalBackPress() async {
     if (_isLoading) {
-      // Prevent any navigation while an API call is in progress
       return false;
     }
 
-    // If T-PIN is not set, the user MUST complete the setup and cannot go back.
     if (!_isTpinSet && _currentFlow == TpinFlow.setPin) {
       _setStatus("You must set your T-PIN to proceed.", isError: true);
       return false;
     }
 
-    // For all other flows (Change, Reset steps), go back to the initial options screen
-    // instead of popping the whole screen.
     if (_currentFlow != TpinFlow.initial) {
       _resetFlowControllers();
       setState(() => _currentFlow = TpinFlow.initial);
-      return false; // Block the default system pop action
+      return false;
     }
 
-    // Only allow system pop if we are in the initial menu (TpinFlow.initial)
     return true;
   }
 
@@ -442,10 +507,11 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     Widget currentWidget;
     String appBarTitle = 'T-PIN Management';
 
-// Determine the current view based on the flow state
     switch (_currentFlow) {
       case TpinFlow.initial:
         currentWidget = _buildInitialScreen();
@@ -466,26 +532,19 @@ class _TpinManagementScreenState extends State<TpinManagementScreen> {
         break;
     }
 
-// Wrap the widget in a PopScope to control back navigation
     return PopScope(
-      // canPop is false if:
-      // 1. We are in the mandatory setPin flow
-      // 2. We are in a sub-flow (change/reset) which should internally navigate back to initial first
-      // 3. An operation is loading
       canPop: _currentFlow == TpinFlow.initial && !_isLoading,
       onPopInvoked: (didPop) async {
-        if (didPop) return; // If canPop was true, the system handled it.
+        if (didPop) return;
 
-        // Otherwise, run custom back logic for internal flow control
         await _onInternalBackPress();
       },
       child: Scaffold(
-        backgroundColor: Colors.grey[50],
+        // Replaced hardcoded Colors.grey[50] with theme background color
+        backgroundColor: colorScheme.background,
         appBar: AppBar(
           title: Text(appBarTitle),
-          backgroundColor: _primaryColor, // <-- Color change (AppBar)
-          foregroundColor: Colors.white,
-          elevation: 0,
+          // Removed hardcoded background/foreground/elevation to rely on AppBarTheme
         ),
         body: currentWidget,
       ),

@@ -1,14 +1,19 @@
+// File: lib/screens/quick_transfer_screen.dart (Final Corrected Version)
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+// Import local theme constants
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
+import '../theme/app_sizes.dart'; // Contains AppSizes.paddingS, AppSizes.paddingM, etc.
 // Assuming your banking_service.dart file is accessible via this path.
 import '../api/banking_service.dart'; // Ensure this path is correct
 
 // --- Service Initialization ---
 final BankingService _bankingService = BankingService();
 
-const Color _primaryNavyBlue = Color(0xFF003366);
-const Color _successGreen = Color(0xFF4CAF50);
+// Note: Removed hardcoded color constants, they are now accessed via Theme or app_colors.dart
 
 class QuickTransferScreen extends StatefulWidget {
   const QuickTransferScreen({super.key});
@@ -79,16 +84,17 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
         }
       });
     } catch (e) {
-      _showSnackBar('Failed to load accounts: ${e.toString().replaceAll('Exception: ', '')}');
+      _showSnackBar('Failed to load accounts: ${e.toString().replaceAll('Exception: ', '')}', isError: true);
     }
   }
 
-  void _showSnackBar(String message, {bool isError = true}) {
+  void _showSnackBar(String message, {required bool isError}) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: isError ? Colors.red : Colors.green,
+          // Use Theme Colors for SnackBar
+          backgroundColor: isError ? Theme.of(context).colorScheme.error : kSuccessGreen,
         ),
       );
     }
@@ -139,14 +145,14 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
       _showSnackBar('Recipient Verified: ${details['officialName']!}. You may now enter the amount.', isError: false);
 
     } on TransferException catch (e) {
-      _showSnackBar(e.message);
+      _showSnackBar(e.message, isError: true);
       setState(() {
         _isRecipientVerified = false;
         _recipientDetails = null;
         _resetTransactionState();
       });
     } catch (e) {
-      _showSnackBar('Verification failed: ${e.toString().replaceAll('Exception: ', '')}');
+      _showSnackBar('Verification failed: ${e.toString().replaceAll('Exception: ', '')}', isError: true);
       setState(() {
         _isRecipientVerified = false;
         _recipientDetails = null;
@@ -161,10 +167,11 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
   // --- STEP 1: Request OTP ---
   Future<void> _requestOtp() async {
     if (!_isRecipientVerified) {
-      _showSnackBar('Please verify recipient details first.');
+      _showSnackBar('Please verify recipient details first.', isError: true);
       return;
     }
 
+    // Force validation of Amount and Remarks fields before requesting OTP
     if (!_formKey.currentState!.validate()) return;
 
     _resetTransactionState();
@@ -199,9 +206,9 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
 
       _showSnackBar('OTP successfully requested. Check your phone.', isError: false);
     } on TransferException catch (e) {
-      _showSnackBar(e.message);
+      _showSnackBar(e.message, isError: true);
     } catch (e) {
-      _showSnackBar('Error initiating transfer: ${e.toString().replaceAll('Exception: ', '')}');
+      _showSnackBar('Error initiating transfer: ${e.toString().replaceAll('Exception: ', '')}', isError: true);
     } finally {
       setState(() => _isTransferring = false);
     }
@@ -210,12 +217,12 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
   // --- STEP 2: Submit Transfer with OTP ---
   Future<void> _submitTransfer() async {
     if (_transactionReference.isEmpty) {
-      _showSnackBar('Transaction expired or not initiated. Please request OTP again.');
+      _showSnackBar('Transaction expired or not initiated. Please request OTP again.', isError: true);
       return;
     }
 
     if (_otpController.text.length != 6) {
-      _showSnackBar('Please enter the 6-digit OTP.');
+      _showSnackBar('Please enter the 6-digit OTP.', isError: true);
       return;
     }
 
@@ -251,9 +258,9 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
 
     } on TransferException catch (e) {
       _resetTransactionState();
-      _showSnackBar(e.message);
+      _showSnackBar(e.message, isError: true);
     } catch (e) {
-      _showSnackBar('Transfer failed: ${e.toString().replaceAll('Exception: ', '')}');
+      _showSnackBar('Transfer failed: ${e.toString().replaceAll('Exception: ', '')}', isError: true);
     } finally {
       setState(() => _isTransferring = false);
     }
@@ -262,9 +269,18 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Accessing theme data once
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     if (_debitAccounts.isEmpty && !_isTransferring) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quick Transfer (IMPS)', style: TextStyle(color: Colors.white)), backgroundColor: _primaryNavyBlue),
+        appBar: AppBar(
+          title: Text('Quick Transfer (IMPS)', style: textTheme.titleLarge), // Use textTheme
+          backgroundColor: colorScheme.surface, // Use surface for consistent background
+          foregroundColor: colorScheme.onSurface, // Use onSurface for icon/text color
+          elevation: 4,
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -272,32 +288,33 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Quick Transfer (IMPS)'),
-        backgroundColor: _primaryNavyBlue,
-        foregroundColor: Colors.white,
+        // AppBar style is set in AppTheme, only explicitly overriding if needed.
+        // Keeping it clean here.
       ),
       body: SingleChildScrollView(
         // UI FIX: Added bottom padding to prevent button overlap
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium), // Use constant
         child: Form(
           key: _formKey,
           child: Padding(
             padding: EdgeInsets.only(
-              top: 16.0,
+              top: kPaddingMedium, // Use constant
               // CRITICAL: Adds space equal to system navigation bar height
-              bottom: 16.0 + MediaQuery.of(context).padding.bottom,
+              bottom: kPaddingMedium + MediaQuery.of(context).padding.bottom, // Use constant
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. Source Account Selection (Dropdown)
-                _buildSourceAccountSelection(),
-                const SizedBox(height: 20),
+                _buildSourceAccountSelection(context),
+                const SizedBox(height: kSpacingMedium), // Use constant
 
                 // 2. Recipient Details
-                Text('Recipient Details', style: Theme.of(context).textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
+                Text('Recipient Details', style: textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: AppSizes.paddingS), // CORRECTED: Used AppSizes.paddingS
 
                 _buildTextField(
+                  context,
                   _acNoController,
                   'Recipient Account Number',
                   Icons.account_balance,
@@ -309,6 +326,7 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                 ),
 
                 _buildTextField(
+                  context,
                   _confirmAcNoController,
                   'Confirm A/C Number',
                   Icons.check_circle_outline,
@@ -324,6 +342,7 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                 ),
 
                 _buildTextField(
+                  context,
                   _ifscController,
                   'IFSC Code',
                   Icons.code,
@@ -334,38 +353,40 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                   textCapitalization: TextCapitalization.characters,
                   inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9A-Z]'))],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AppSizes.paddingS), // CORRECTED: Used AppSizes.paddingS
 
                 // 2.5 Recipient Verification Section
                 if (!_isOtpRequested) ...[
                   if (_isRecipientVerified)
-                    _buildRecipientVerificationStatus()
+                    _buildRecipientVerificationStatus(context)
                   else
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: _isTransferring ? null : _verifyRecipient,
                         icon: _isTransferring ?
-                        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) :
+                        SizedBox(width: kIconSizeSmall, height: kIconSizeSmall, child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2)) :
                         const Icon(Icons.verified_user_outlined),
                         label: Text(_isTransferring ? 'VERIFYING...' : 'VERIFY RECIPIENT'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade700,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          // Using a semantic color (Accent Orange/Warning) for verification
+                          backgroundColor: kAccentOrange,
+                          foregroundColor: colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: kPaddingMedium), // Use constant
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)), // Use constant
                         ),
                       ),
                     ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: kSpacingMedium), // Use constant
                 ],
 
 
                 // 3. Amount and Remarks - Enabled only after verification
-                Text('Transaction Details', style: Theme.of(context).textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
+                Text('Transaction Details', style: textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: AppSizes.paddingS), // CORRECTED: Used AppSizes.paddingS
 
                 _buildTextField(
+                    context,
                     _amountController,
                     'Amount (Max ₹${_quickTransferMaxAmount.toStringAsFixed(0)})',
                     Icons.currency_rupee,
@@ -384,6 +405,7 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                 ),
 
                 _buildTextField(
+                    context,
                     _remarksController,
                     'Remarks (Optional)',
                     Icons.notes,
@@ -392,16 +414,19 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                     isOptional: true,
                     enabled: !_isOtpRequested && !_isTransferring && _isRecipientVerified
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: kSpacingLarge), // Use constant
 
                 // 4. OTP Authorization Section (Conditional)
                 if (_isOtpRequested) ...[
-                  Text('Authorization (6-digit OTP)', style: Theme.of(context).textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold)),
+                  Text('Authorization (6-digit OTP)', style: textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold)),
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text('OTP sent to mobile ending in ******$_otpSentToMobileSuffix', style: const TextStyle(color: Colors.green)),
+                    padding: const EdgeInsets.symmetric(vertical: AppSizes.paddingS), // CORRECTED: Used AppSizes.paddingS
+                    child: Text('OTP sent to mobile ending in ******$_otpSentToMobileSuffix',
+                        // Use a semantic color for OTP/Info message
+                        style: textTheme.bodyMedium!.copyWith(color: kInfoBlue)),
                   ),
                   _buildTextField(
+                    context,
                     _otpController,
                     'Enter 6-digit OTP',
                     Icons.lock_outline,
@@ -410,7 +435,7 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                     maxLength: 6,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: kSpacingMedium), // Use constant
 
                   // Submit Button (Step 2)
                   SizedBox(
@@ -418,14 +443,16 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                     child: ElevatedButton(
                       onPressed: _isTransferring ? null : _submitTransfer,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        // Use Success Green for final transfer action
+                        backgroundColor: kSuccessGreen,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: kPaddingMedium), // Use constant
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)), // Use constant
+                        minimumSize: const Size(double.infinity, kButtonHeight), // Use constant
                       ),
                       child: _isTransferring
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('AUTHORIZE & TRANSFER', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          ? SizedBox(width: kIconSizeSmall, height: kIconSizeSmall, child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2))
+                          : Text('AUTHORIZE & TRANSFER', style: textTheme.labelLarge?.copyWith(fontSize: 16)), // Use textTheme
                     ),
                   ),
 
@@ -435,15 +462,18 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _isTransferring ? null : _requestOtp,
+                      // The style is automatically handled by the ElevatedButtonTheme defined in app_theme.dart,
+                      // but explicitly setting it to Primary for clarity
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _primaryNavyBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: kPaddingMedium),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                        minimumSize: const Size(double.infinity, kButtonHeight),
                       ),
                       child: _isTransferring
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('PROCEED & REQUEST OTP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          ? SizedBox(width: kIconSizeSmall, height: kIconSizeSmall, child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2))
+                          : Text('PROCEED & REQUEST OTP', style: textTheme.labelLarge?.copyWith(fontSize: 16)),
                     ),
                   ),
                 ],
@@ -457,31 +487,38 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
 
   // --- WIDGET BUILDERS ---
 
-  Widget _buildSourceAccountSelection() {
+  Widget _buildSourceAccountSelection(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      color: _primaryNavyBlue.withOpacity(0.05),
+      elevation: kCardElevation, // Use constant
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)), // Use constant
+      // Use the theme's background color with opacity for a subtle card
+      color: colorScheme.background.withOpacity(0.9),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(kPaddingMedium), // Use constant
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // DYNAMIC TITLE FIX: Display the selected account nickname
             Text(
               'Transfer From: ${_selectedSourceAccount?.nickname ?? 'Select Source Account'}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primaryNavyBlue),
+              style: textTheme.titleMedium!.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary // Use primary color for card title
+              ),
             ),
             const Divider(),
             if (_debitAccounts.isEmpty)
-              const Text('Loading accounts or no debitable accounts found...')
+              Text('Loading accounts or no debitable accounts found...', style: textTheme.bodyMedium)
             else
               DropdownButtonFormField<Account>(
                 value: _selectedSourceAccount,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Select Source Account',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+                  // The input decoration theme is largely handled by AppTheme
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingS, vertical: kPaddingMedium), // CORRECTED: Used AppSizes.paddingS
                 ),
                 isExpanded: true,
                 items: _debitAccounts.map((Account account) {
@@ -490,6 +527,7 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
                     child: Text(
                       '${account.nickname} (${_bankingService.maskAccountNumber(account.accountNumber)}) - ₹${account.balance.toStringAsFixed(2)}',
                       overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium, // Use textTheme
                     ),
                   );
                 }).toList(),
@@ -508,21 +546,28 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
     );
   }
 
-  Widget _buildRecipientVerificationStatus() {
+  Widget _buildRecipientVerificationStatus(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     if (_isRecipientVerified && _recipientDetails != null) {
       return Card(
-        color: Colors.lightGreen.shade50,
+        // Use a light success color for verification status
+        color: kSuccessGreen.withOpacity(0.05),
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: Colors.green, width: 1)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kRadiusSmall), // Use constant
+            side: BorderSide(color: kSuccessGreen, width: 1)
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(AppSizes.paddingM), // CORRECTED: Used AppSizes.paddingM
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Recipient Verified ✅', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-              const SizedBox(height: 5),
-              Text('Name: ${_recipientDetails!['officialName']}', style: const TextStyle(fontWeight: FontWeight.w500)),
-              Text('Bank: ${_recipientDetails!['bankName']}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              Text('Recipient Verified ✅', style: textTheme.titleSmall!.copyWith(fontWeight: FontWeight.bold, color: kSuccessGreen)),
+              const SizedBox(height: AppSizes.paddingXS), // Use constant
+              Text('Name: ${_recipientDetails!['officialName']}', style: textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w500)),
+              Text('Bank: ${_recipientDetails!['bankName']}', style: textTheme.labelSmall!.copyWith(color: colorScheme.onSurface.withOpacity(0.6))), // Use textTheme and theme color
             ],
           ),
         ),
@@ -533,6 +578,7 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
 
 
   Widget _buildTextField(
+      BuildContext context,
       TextEditingController controller,
       String label,
       IconData icon,
@@ -544,8 +590,10 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
         TextCapitalization textCapitalization = TextCapitalization.none,
         List<TextInputFormatter>? inputFormatters,
       }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15.0),
+      padding: const EdgeInsets.only(bottom: AppSizes.paddingM), // CORRECTED: Used AppSizes.paddingM
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
@@ -569,14 +617,12 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
         },
         decoration: InputDecoration(
           labelText: isOptional ? '$label (Optional)' : label,
-          prefixIcon: Icon(icon, color: _primaryNavyBlue.withOpacity(0.7)),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+          prefixIcon: Icon(icon, color: colorScheme.primary.withOpacity(0.7)), // Use theme color
+          // Input border/fill color/content padding are handled by AppTheme
           counterText: "",
+          // Overriding AppTheme's fill property for disabled fields
           filled: !enabled,
-          fillColor: Colors.grey.shade100,
+          fillColor: !enabled ? (colorScheme.brightness == Brightness.light ? kInputBackgroundColor : colorScheme.surface.withOpacity(0.5)) : colorScheme.surface,
         ),
         validator: (value) {
           if (!isOptional && (value == null || value.isEmpty)) {
@@ -595,14 +641,14 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
   }
 }
 
-// Extension to safely parse string to double
+// Extension to safely parse string to double - Logic remains the same
 extension on String {
   double? tryParseDouble() {
     return double.tryParse(this);
   }
 }
 
-// --- NEW SUCCESS SCREEN FOR RESPONSIVENESS ---
+// --- SUCCESS SCREEN (Refactored & Fixed) ---
 
 class SuccessScreen extends StatelessWidget {
   final String transactionId;
@@ -618,12 +664,17 @@ class SuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transaction Complete'),
-        backgroundColor: _successGreen,
-        foregroundColor: Colors.white,
+        // Use semantic color for success screen AppBar
+        backgroundColor: kSuccessGreen,
+        foregroundColor: colorScheme.onPrimary, // White text/icons
         automaticallyImplyLeading: false, // Prevents back button on success
+        elevation: 0, // Flat success screen
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -632,45 +683,44 @@ class SuccessScreen extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
+                child: Padding( // Added Padding widget to apply space around the content
+                  padding: const EdgeInsets.all(AppSizes.paddingXL), // Using AppSizes.paddingXL (24.0)
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Success Icon
-                      const Icon(
+                      Icon(
                         Icons.check_circle_outline,
-                        color: _successGreen,
-                        size: 96.0,
+                        color: kSuccessGreen,
+                        size: kIconSizeExtraLarge * 2, // Use constant (approx 90)
                       ),
-                      const SizedBox(height: 20),
+                      // FIX: Replaced undefined kPaddingL with defined kPaddingLarge
+                      const SizedBox(height: kPaddingLarge),
 
                       // Title
-                      const Text(
+                      Text(
                         'Transfer Successful!',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: _successGreen,
+                        style: textTheme.headlineMedium!.copyWith(
+                          color: kSuccessGreen,
                         ),
                       ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: AppSizes.paddingXL), // Using AppSizes.paddingXL
 
                       // Transaction Details Card
                       Card(
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        // CardTheme properties are applied from app_theme.dart
                         child: Padding(
-                          padding: const EdgeInsets.all(20.0),
+                          // FIX: Replaced undefined kPaddingL with defined kPaddingLarge
+                          padding: const EdgeInsets.all(kPaddingLarge),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildDetailRow('Amount:', '₹$amount'),
-                              _buildDetailRow('To A/C:', _bankingService.maskAccountNumber(recipientAccount)),
-                              _buildDetailRow('Reference ID:', transactionId),
-                              _buildDetailRow('Time:', _formatDateTime(DateTime.now())),
+                              _buildDetailRow(context, 'Amount:', '₹$amount'),
+                              _buildDetailRow(context, 'To A/C:', _bankingService.maskAccountNumber(recipientAccount)),
+                              _buildDetailRow(context, 'Reference ID:', transactionId),
+                              _buildDetailRow(context, 'Time:', _formatDateTime(DateTime.now())),
                             ],
                           ),
                         ),
@@ -680,19 +730,15 @@ class SuccessScreen extends StatelessWidget {
 
                       // Done Button
                       Padding(
-                        padding: EdgeInsets.only(top: 30.0, bottom: MediaQuery.of(context).padding.bottom),
+                        padding: EdgeInsets.only(top: kPaddingLarge, bottom: MediaQuery.of(context).padding.bottom), // Use constant
                         child: ElevatedButton(
                           onPressed: () {
                             // Navigate back to the home screen (or previous context)
                             Navigator.of(context).pop();
                           },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _primaryNavyBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: const Text('DONE', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          // Use the theme's primary button style
+                          style: Theme.of(context).elevatedButtonTheme.style,
+                          child: Text('DONE', style: textTheme.labelLarge?.copyWith(fontSize: 18)), // Use textTheme
                         ),
                       ),
                     ],
@@ -706,18 +752,21 @@ class SuccessScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailRow(BuildContext context, String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: AppSizes.paddingS), // CORRECTED: Used AppSizes.paddingS
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
+          Text(label, style: textTheme.bodyMedium!.copyWith(color: colorScheme.onSurface.withOpacity(0.6))), // Use textTheme and theme color
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold), // Use textTheme
             ),
           ),
         ],
@@ -726,7 +775,7 @@ class SuccessScreen extends StatelessWidget {
   }
 
   String _formatDateTime(DateTime dt) {
-    // Basic formatting for presentation
+    // Basic formatting for presentation - Logic remains the same
     return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
   }
 }

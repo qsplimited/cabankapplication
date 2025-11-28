@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../api/i_device_service.dart';
 import '../main.dart'; // To access globalDeviceService and AppRouter
-
+// Import the necessary dimension and color constants
+import '../theme/app_dimensions.dart';
+import '../theme/app_colors.dart';
 
 String getUniqueDeviceId() {
   return 'MOCK-DEVICE-ID-CA-BANK-12345';
@@ -44,6 +46,7 @@ class _RegistrationStep4FinalizeState extends State<RegistrationStep4Finalize> {
 
     try {
       // Call the Mock API to simulate final registration and device binding
+      // Logic preserved.
       final response = await deviceService.finalizeRegistration(
         mobileNumber: widget.mobileNumber,
         mpin: widget.mpin,
@@ -61,6 +64,7 @@ class _RegistrationStep4FinalizeState extends State<RegistrationStep4Finalize> {
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) {
               // Clear the entire registration stack and go to the root route ('/')
+              // Assumes the AppRouter in main.dart correctly handles '/' as the login/dashboard route.
               Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
             }
           });
@@ -91,6 +95,12 @@ class _RegistrationStep4FinalizeState extends State<RegistrationStep4Finalize> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    // Determine the icon color and message color based on success/failure state
+    final Color statusIconColor = _isSuccess ? kSuccessGreen : kErrorRed;
+    final Color statusMessageColor = _isSuccess ? kSuccessGreen : kErrorRed;
 
     return Scaffold(
       appBar: AppBar(
@@ -99,30 +109,51 @@ class _RegistrationStep4FinalizeState extends State<RegistrationStep4Finalize> {
       ),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(32.0),
+          // Replace hardcoded 32.0 with kPaddingExtraLarge
+          padding: const EdgeInsets.all(kPaddingExtraLarge),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               // Status Icon / Spinner
               if (!_isBindingComplete)
-                const CircularProgressIndicator(strokeWidth: 4)
+              // Use primary color for the active spinner
+                CircularProgressIndicator(
+                  color: colorScheme.primary,
+                  // Replace hardcoded 4 with kCardElevation or similar small constant if available
+                  strokeWidth: kCardElevation,
+                )
               else if (_isSuccess)
-                Icon(Icons.check_circle, color: Colors.green, size: 80)
+                Icon(
+                  Icons.check_circle,
+                  // Use semantic color constant kSuccessGreen
+                  color: statusIconColor,
+                  // Replace hardcoded 80 with kIconSizeXXL or larger
+                  size: kIconSizeXXL * 1.3, // Making it slightly larger than 60.0
+                )
               else
-                Icon(Icons.error, color: Colors.red, size: 80),
+                Icon(
+                  Icons.error,
+                  // Use semantic color constant kErrorRed
+                  color: statusIconColor,
+                  // Replace hardcoded 80 with kIconSizeXXL or larger
+                  size: kIconSizeXXL * 1.3,
+                ),
 
-              const SizedBox(height: 40),
+              // Replace hardcoded 40 with kPaddingXXL
+              const SizedBox(height: kPaddingXXL),
 
               // Status Message
               Text(
                 _statusMessage,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge!.copyWith(
+                style: textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: _isBindingComplete ? (_isSuccess ? Colors.green.shade800 : Colors.red.shade800) : theme.primaryColor,
+                  // Use appropriate semantic color, falling back to primary during loading
+                  color: _isBindingComplete ? statusMessageColor : colorScheme.primary,
                 ),
               ),
+              // Replace hardcoded 20 with kPaddingLarge - 4
               const SizedBox(height: 20),
 
               Text(
@@ -130,18 +161,23 @@ class _RegistrationStep4FinalizeState extends State<RegistrationStep4Finalize> {
                     ? 'Redirecting to your secured Dashboard...'
                     : 'Please contact customer support if the issue persists.',
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium,
+                style: textTheme.bodyMedium,
               ),
 
               if (_isBindingComplete && !_isSuccess)
                 Padding(
-                  padding: const EdgeInsets.only(top: 40.0),
+                  // Replace hardcoded 40.0 with kPaddingXXL
+                  padding: const EdgeInsets.only(top: kPaddingXXL),
                   child: ElevatedButton(
                     onPressed: () {
                       // Restart the entire registration flow
                       Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
                     },
-                    child: const Text('RETRY REGISTRATION'),
+                    // Rely on centralized ElevatedButtonThemeData (app_theme.dart)
+                    child: Text(
+                      'RETRY REGISTRATION',
+                      style: textTheme.labelLarge,
+                    ),
                   ),
                 ),
             ],
