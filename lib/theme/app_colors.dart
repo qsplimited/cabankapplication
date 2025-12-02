@@ -47,6 +47,9 @@ const Color kDarkDivider = Color(0xFF333333); // Dark divider/border color
 
 
 
+const Color kSoftGoldBackground = Color(0xFFFBE09B);
+
+
 const Color kDarkNavy = Color(0xFF004488); // For gradient use in AppBar
 const Color kDividerColor = Color(0xFFE0E5EA);
 

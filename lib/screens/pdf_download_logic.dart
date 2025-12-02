@@ -47,9 +47,6 @@ Future<bool> _saveFileNative(Uint8List data, String fileName) async {
       return false;
     }
 
-    // B. Get the correct directory for saving
-    // On Android, use getExternalStorageDirectory() to target a public-accessible folder (better for downloads).
-    // On iOS, use getApplicationDocumentsDirectory() which is the safest path.
     final directory = (Platform.isAndroid
         ? await getExternalStorageDirectory()
         : await getApplicationDocumentsDirectory());

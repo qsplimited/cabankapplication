@@ -17,10 +17,16 @@ import 'detailed_account_view_screen.dart';
 import 'transaction_history_screen.dart' as ths;
 import 'beneficiary_management_screen.dart' as bms;
 
+import 'services_management_screen.dart';
+
+
+
 final BankingService _bankingService = BankingService();
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -314,10 +320,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final List<Map<String, dynamic>> actions = [
       {'label': 'Quick Transfer', 'icon': Icons.flash_on_outlined, 'color': kAccentOrange, 'screen': const QuickTransferScreen()},
       {'label': 'Standard Transfer', 'icon': Icons.send_outlined, 'color': colorScheme.primary, 'screen': TransferFundsScreen(bankingService: _bankingService)},
-      {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': kCurrentCardColor, 'screen': const bms.BeneficiaryManagementScreen()},
-      {'label': 'Scan & Pay (UPI)', 'icon': Icons.qr_code_scanner, 'color': kSuccessGreen, 'screen': null},
-      {'label': 'Transaction History', 'icon': Icons.history, 'color': kSavingsCardColor, 'screen': ths.TransactionHistoryScreen(bankingService: _bankingService)},
+      {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': colorScheme.primary, 'screen': const bms.BeneficiaryManagementScreen()},
+      {'label': 'Scan & Pay (UPI)', 'icon': Icons.qr_code_scanner, 'color': colorScheme.primary, 'screen': null},
+      {'label': 'Transaction History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen(bankingService: _bankingService)},
       {'label': 'T-PIN Management', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
+      {'label': 'Service Management', 'icon': Icons.design_services, 'color': colorScheme.primary, 'screen': ServicesManagementScreen()},
     ];
 
     return Padding(

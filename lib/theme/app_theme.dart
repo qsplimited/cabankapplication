@@ -17,12 +17,12 @@ class AppTheme {
   // -------------------------
   static ThemeData get lightTheme => _buildThemeData(
     colorScheme: const ColorScheme.light(
-      primary: kBrandNavy,
-      secondary: kBrandLightBlue,
+      primary: kAccentOrange, // <-- CHANGED: New primary color (Gold/Amber)
+      secondary: kBrandNavy,
       surface: kLightSurface,
       background: kLightBackground,
       error: kErrorRed,
-      onPrimary: kLightSurface, // Text on the primary (Navy) button
+      onPrimary: kLightTextPrimary,// Text on the primary (Navy) button
       onSurface: kLightTextPrimary, // Text on card/container surface
       onBackground: kLightTextPrimary, // Text on screen background
       brightness: Brightness.light,
