@@ -164,7 +164,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final String maskedAccountNo = '${fullAccountNo.substring(0, 4)} **** ${fullAccountNo.substring(fullAccountNo.length - 4)}';
     final String displayAccountNo = _isAccountNoVisible ? fullAccountNo : maskedAccountNo;
 
-
     return GestureDetector(
       onTap: () {
         _navigateTo(DetailedAccountViewScreen(account: account));

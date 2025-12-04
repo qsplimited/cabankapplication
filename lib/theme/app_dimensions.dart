@@ -34,6 +34,8 @@ const double kTxnLeadingSize = 40.0; // Used for transaction list leading circle
 const double kSpacingSmall = 8.0;
 const double kSpacingMedium = 16.0;
 const double kSpacingLarge = 30.0;
+// 🌟 FIX: Added the missing constant to resolve the compilation error
+const double kSpacingExtraLarge = 40.0;
 
 // Card/Element Sizing
 const double kAvatarSize = 80.0;
