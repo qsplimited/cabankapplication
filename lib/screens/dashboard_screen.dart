@@ -18,6 +18,7 @@ import 'transaction_history_screen.dart' as ths;
 import 'beneficiary_management_screen.dart' as bms;
 
 import 'services_management_screen.dart';
+import 'deposit_opening_screen.dart';
 
 
 
@@ -324,6 +325,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {'label': 'Transaction History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen(bankingService: _bankingService)},
       {'label': 'T-PIN Management', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
       {'label': 'Service Management', 'icon': Icons.design_services, 'color': colorScheme.primary, 'screen': ServicesManagementScreen()},
+      {'label': 'Deposit Management',
+        'icon': Icons.lock_clock,
+        'color': colorScheme.primary,
+        'screen': DepositOpeningScreen()},
     ];
 
     return Padding(

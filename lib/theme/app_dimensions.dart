@@ -43,3 +43,11 @@ const double kBorderRadius = 12.0;
 
 // Divider Height
 const double kDividerHeight = 1.0;
+
+// Add under Spacing & Padding:
+const double kPaddingExtraExtraSmall = 2.0;
+
+// Add under Custom/Specific Dimensions:
+const double kCardIconBackgroundSize = 40.0; // Size of the square background behind the icon on the card.
+const double kBadgePaddingHorizontal = 6.0; // Padding for small labels/badges (e.g., 'NEW').
+const double kBadgePaddingVertical = 2.0;

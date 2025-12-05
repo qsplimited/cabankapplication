@@ -97,8 +97,6 @@ class _NomineeListScreenState extends State<NomineeListScreen> {
     }
   }
 
-  // --- UI Builder ---
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

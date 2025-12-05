@@ -63,3 +63,11 @@ const Color kInputBackgroundColor = Color(0xFFF0F4F8); // Very light blue/gray f
 
 // Border color for text fields
 const Color kInputBorderColor = Color(0xFFCCCCCC); // A light grey for borders
+
+const Color kStatusNewRed = Color(0xFFD32F2F); // Specific color for "NEW" badges
+
+// 5. App-Specific Accents (Matching Screenshot)
+const Color kBrandPurple = Color(0xFF512DA8); // Deep purple for action items/icons in the Deposit screen.
+
+// 6. Text Semantics
+const Color kLightTextLink = kBrandPurple;

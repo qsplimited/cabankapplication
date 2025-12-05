@@ -69,9 +69,9 @@ ThemeData _buildThemeData({
     textTheme: textTheme,
 
     // ------------------------------------------------------------
-    // 1. CARD THEME (FIXED with explicit type cast to resolve CardThemeData mismatch)
+    // 1. CARD THEME (FIXED: Use CardThemeData)
     // ------------------------------------------------------------
-/*    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: colorScheme.surface,
       elevation: kCardElevation,
       margin: const EdgeInsets.only(bottom: kPaddingMedium),
@@ -80,7 +80,7 @@ ThemeData _buildThemeData({
       ),
       shadowColor: colorScheme.onBackground.withOpacity(0.12),
       clipBehavior: Clip.antiAlias,
-    ) as CardTheme?, // <-- Explicitly cast CardTheme to CardTheme?*/
+    ),
 
     // ------------------------------------------------------------
     // 2. APP BAR THEME
