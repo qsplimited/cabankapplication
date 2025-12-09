@@ -26,7 +26,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
   Account? _sourceAccount;
   bool _isLoading = true;
 
-  // 💡 All local color constants removed 💡
+
 
   @override
   void initState() {
@@ -76,7 +76,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
       backgroundColor: Colors.transparent,
       builder: (context) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        // 💡 Refactored: Removed primaryNavyBlue parameter
+
         child: _BeneficiaryForm(existingBeneficiary: existingBeneficiary),
       ),
     );

@@ -25,5 +25,3 @@ abstract class FdApiService {
     required String accountId,
   });
 }
-
-// NOTE: MaturityDetails moved to fd_models.dart

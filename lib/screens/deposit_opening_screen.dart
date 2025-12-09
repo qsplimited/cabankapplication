@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 import '../api/mock_fd_api_service.dart';
-import '../api/fd_api_service.dart';// Import mock API
-import 'fd_td_input_screen.dart'; // Import the destination screen
+import '../api/mock_rd_api_service.dart';
+import 'fd_td_input_screen.dart';
+import 'rd_input_screen.dart';
 
 class DepositOpeningScreen extends StatelessWidget {
   const DepositOpeningScreen({super.key});
@@ -14,7 +15,6 @@ class DepositOpeningScreen extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     const Color appBarColor = kAccentOrange;
-    // FIX: Using defined constant kBrandPurple
     const Color cardAccentColor = kBrandPurple;
 
     return Scaffold(
@@ -23,7 +23,6 @@ class DepositOpeningScreen extends StatelessWidget {
         backgroundColor: appBarColor,
         elevation: 0,
         centerTitle: false,
-        // FIX: Using defined constant kLightSurface
         iconTheme: const IconThemeData(color: kLightSurface),
         title: Text(
           'Deposit Opening',
@@ -48,7 +47,6 @@ class DepositOpeningScreen extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => FdTdInputScreen(
-                    // Injecting the MockFdApiService instance for data fetching
                     apiService: MockFdApiService(),
                   ),
                 ),
@@ -58,7 +56,7 @@ class DepositOpeningScreen extends StatelessWidget {
             iconColor: colorScheme.primary,
           ),
 
-          // 2. Recurring Deposit Card (Placeholder)
+          // 2. Recurring Deposit Card (RD)
           _buildDepositCard(
             context,
             icon: Icons.repeat_one_sharp,
@@ -66,21 +64,23 @@ class DepositOpeningScreen extends StatelessWidget {
             subtitle: 'Open a new RD account with standing instruction for monthly amount inflow!',
             actionText: 'Open the Account',
             onActionTap: () {
-              // Placeholder for future RD screen navigation
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('RD functionality coming soon!'))
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => RdInputScreen(
+                    // 🌟 FIX: Instantiating the concrete class MockRdApiService
+                    apiService: MockRdApiService(),
+                  ),
+                ),
               );
             },
             accentColor: cardAccentColor,
           ),
-
-          // ... other cards
         ],
       ),
     );
   }
 
-  // --- _buildDepositCard implementation (FIX: Moved inside the StatelessWidget body) ---
+  // --- _buildDepositCard implementation ---
   Widget _buildDepositCard(
       BuildContext context, {
         required IconData icon,
@@ -95,7 +95,6 @@ class DepositOpeningScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    // Use kLightSurface/kStatusNewRed for 'NEW' status background
     final finalIconColor = iconColor ?? accentColor;
 
     return Card(
