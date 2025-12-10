@@ -1,3 +1,5 @@
+// File: lib/models/fd_models.dart
+
 class DepositScheme {
   final String id;
   final String name;
@@ -60,11 +62,11 @@ class FdInputData {
 class FdConfirmationResponse {
   final bool success;
   final String message;
-  final String? fdReferenceNumber;
+  final String? transactionId; // 🌟 FIXED: Renamed field to transactionId
 
   FdConfirmationResponse({
     required this.success,
     required this.message,
-    this.fdReferenceNumber,
+    this.transactionId, // 🌟 FIXED: Renamed field in constructor
   });
 }

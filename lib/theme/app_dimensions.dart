@@ -11,6 +11,8 @@ const double kPaddingLarge = 24.0;
 const double kPaddingExtraLarge = 32.0;
 const double kPaddingXXL = 40.0;
 
+const double kIconSizeXL = 48.0;
+
 // Icon Sizes
 const double kIconSizeSmall = 20.0;
 const double kIconSize = 24.0;

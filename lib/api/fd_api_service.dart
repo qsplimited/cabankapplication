@@ -1,6 +1,7 @@
 // File: lib/services/fd_api_service.dart (Interface)
 
 import '../models/fd_models.dart';
+import '../models/receipt_models.dart'; // 🌟 NEW IMPORT
 
 abstract class FdApiService {
   // Methods that must be implemented:
@@ -24,4 +25,6 @@ abstract class FdApiService {
     required double amount,
     required String accountId,
   });
+  // 🌟 NEW METHOD: Fetch a complete receipt by its transaction ID
+  Future<DepositReceipt> fetchDepositReceipt(String transactionId);
 }

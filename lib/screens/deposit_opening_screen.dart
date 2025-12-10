@@ -5,6 +5,10 @@ import '../api/mock_fd_api_service.dart';
 import '../api/mock_rd_api_service.dart';
 import 'fd_td_input_screen.dart';
 import 'rd_input_screen.dart';
+import 'deposit_receipt_screen.dart'; 
+
+// Mock transaction ID for demonstration purposes
+const String kMockTransactionIdFd = 'FD-TXN-123456789';
 
 class DepositOpeningScreen extends StatelessWidget {
   const DepositOpeningScreen({super.key});
@@ -16,6 +20,11 @@ class DepositOpeningScreen extends StatelessWidget {
 
     const Color appBarColor = kAccentOrange;
     const Color cardAccentColor = kBrandPurple;
+    const Color receiptAccentColor = kBrandLightBlue; // New accent color for receipts
+
+    // Instantiate mock services once
+    final fdApiService = MockFdApiService();
+    final rdApiService = MockRdApiService();
 
     return Scaffold(
       backgroundColor: colorScheme.background,
@@ -36,6 +45,31 @@ class DepositOpeningScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(kPaddingMedium),
         children: [
+          // 3. View Last Deposit Receipt Card (NEW SECTION)
+          _buildDepositCard(
+            context,
+            icon: Icons.receipt_long,
+            title: 'View Last FD Receipt',
+            subtitle: 'Quickly view the receipt for your most recent Fixed Deposit transaction.',
+            actionText: 'View Receipt',
+            onActionTap: () {
+              // Navigate to the DepositReceiptScreen with a mock transaction ID
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => DepositReceiptScreen(
+                    transactionId: kMockTransactionIdFd, // Use the mock ID
+                    fdApiService: fdApiService,
+                    rdApiService: rdApiService, // Pass the mock RD service too
+                    depositType: 'FD', // Specify the type
+                  ),
+                ),
+              );
+            },
+            accentColor: receiptAccentColor,
+            iconColor: receiptAccentColor,
+            isNew: true, // Highlight as a new feature
+          ),
+
           // 1. Fixed Deposit/Term Deposit Card (FD/TD)
           _buildDepositCard(
             context,
@@ -47,7 +81,7 @@ class DepositOpeningScreen extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => FdTdInputScreen(
-                    apiService: MockFdApiService(),
+                    apiService: fdApiService,
                   ),
                 ),
               );
@@ -67,8 +101,7 @@ class DepositOpeningScreen extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => RdInputScreen(
-                    // 🌟 FIX: Instantiating the concrete class MockRdApiService
-                    apiService: MockRdApiService(),
+                    apiService: rdApiService,
                   ),
                 ),
               );

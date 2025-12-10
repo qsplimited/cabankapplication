@@ -1,10 +1,17 @@
+// File: lib/api/mock_fd_api_service.dart
+
 import 'dart:async';
 import 'dart:math';
-import '../models/fd_models.dart';
+import '../models/fd_models.dart'; // Imports the updated FdConfirmationResponse
 import '../api/fd_api_service.dart'; // Import the abstract class
+import '../models/receipt_models.dart'; // 🌟 REQUIRED IMPORT for DepositReceipt, mock IDs
 
 // Simulates network latency
 const Duration _mockLatency = Duration(milliseconds: 700);
+
+// Mock ID constants (assuming they are defined in a mock_constants file or globally)
+const String mockTransactionIdFd = 'FD-TXN-123456789';
+
 
 // Utility extension for title casing scheme names
 extension StringExtension on String {
@@ -17,10 +24,11 @@ extension StringExtension on String {
   }
 }
 
+// NOTE: FdConfirmationResponse is now imported from fd_models.dart
+
 class MockFdApiService implements FdApiService {
   @override
   Future<SourceAccount> fetchSourceAccount() {
-    // Mock data with a list of TWO nominee names to test the new dropdown
     final account = SourceAccount(
       accountNumber: '1234 5678 9012',
       availableBalance: 987654.32,
@@ -32,7 +40,6 @@ class MockFdApiService implements FdApiService {
 
   @override
   Future<List<DepositScheme>> fetchDepositSchemes() {
-    // Mock data with scheme names in various cases to test title-casing
     final schemes = [
       DepositScheme(id: 's1', name: 'premium plus fd scheme', interestRate: 7.5),
       DepositScheme(id: 's2', name: 'standard fixed deposit', interestRate: 6.8),
@@ -41,7 +48,6 @@ class MockFdApiService implements FdApiService {
     return Future.delayed(_mockLatency, () => schemes);
   }
 
-  // 🌟 NEW: Mock implementation for calculating maturity details (Step 2)
   @override
   Future<MaturityDetails> calculateMaturity({
     required double amount,
@@ -52,17 +58,13 @@ class MockFdApiService implements FdApiService {
     required String nomineeName,
     required String sourceAccountId,
   }) {
-    // Basic mock calculation: assume 365 days in a year for simplicity
-    const double rate = 7.5; // Fixed mock rate for calculation simplicity
+    const double rate = 7.5;
     final double totalDays = (tenureYears * 365) + (tenureMonths * 30) + tenureDays.toDouble();
 
-    // Simple Interest Formula: I = (P * R * T) / 100
-    // Time T is calculated in years: totalDays / 365
     final double timeInYears = totalDays / 365.0;
     final double interest = (amount * rate * timeInYears) / 100.0;
     final double maturityAmount = amount + interest;
 
-    // Calculate Maturity Date
     final now = DateTime.now();
     final maturityDate = DateTime(
       now.year + tenureYears,
@@ -93,7 +95,7 @@ class MockFdApiService implements FdApiService {
       return Future.delayed(_mockLatency, () => FdConfirmationResponse(
         success: true,
         message: 'Fixed Deposit of ₹${amount.toStringAsFixed(2)} successfully created!',
-        fdReferenceNumber: 'FD${DateTime.now().millisecondsSinceEpoch}',
+        transactionId: mockTransactionIdFd, // Uses the corrected field name
       ));
     } else if (tpin != '123456') {
       // Simulate T-PIN failure
@@ -108,5 +110,29 @@ class MockFdApiService implements FdApiService {
         message: 'Transaction failed due to insufficient funds or daily limit exceeded.',
       ));
     }
+  }
+
+  @override
+  // 🌟 NEW IMPLEMENTATION: Mock fetchDepositReceipt
+  Future<DepositReceipt> fetchDepositReceipt(String transactionId) {
+    if (transactionId == mockTransactionIdFd) {
+      final receipt = DepositReceipt(
+        accountType: 'FD',
+        amount: 50000.00,
+        newAccountNumber: 'FD001-2025001',
+        transactionId: mockTransactionIdFd,
+        depositDate: DateTime.now().subtract(const Duration(hours: 1)),
+        tenureDescription: '5 Years, 0 Months, 0 Days',
+        interestRate: 6.85,
+        nomineeName: 'Deepika P. Padukone',
+        maturityDate: '09-Dec-2030',
+        maturityAmount: 75000.00,
+        schemeName: 'Standard Fixed Deposit Scheme',
+        paymentHistory: null, // Null for FD
+      );
+      return Future.delayed(_mockLatency, () => receipt);
+    }
+    // Handle error case for unknown ID
+    return Future.error('Receipt not found for transaction ID: $transactionId');
   }
 }

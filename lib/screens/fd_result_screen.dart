@@ -79,7 +79,8 @@ class FdResultScreen extends StatelessWidget {
               const SizedBox(height: kPaddingLarge),
 
               // Reference Number (if successful)
-              if (isSuccess && response.fdReferenceNumber != null)
+              // 🌟 FIXED: Use response.transactionId instead of response.fdReferenceNumber
+              if (isSuccess && response.transactionId != null)
                 Card(
                   elevation: kCardElevation,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
@@ -88,12 +89,12 @@ class FdResultScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          'Reference Number:',
+                          'Transaction ID:', // Changed label for consistency
                           style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
                         ),
                         const SizedBox(height: kPaddingSmall),
                         Text(
-                          response.fdReferenceNumber!,
+                          response.transactionId!, // FIXED: Use transactionId
                           style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ],

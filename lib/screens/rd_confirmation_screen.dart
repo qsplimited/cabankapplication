@@ -1,20 +1,27 @@
-// File: lib/screens/rd_confirmation_screen.dart (REVERTED TO PREVIOUS LOGIC)
+// File: lib/screens/rd_confirmation_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 // Assuming these models and theme constants are available via imports
 import '../api/rd_api_service.dart';
-import '../api/mock_otp_service.dart'; // NEW IMPORT
+import '../api/mock_otp_service.dart'; // Existing Mock Service
+import '../api/mock_fd_api_service.dart'; // 🌟 NEW IMPORT: Needed to pass to DepositReceiptScreen
 import '../models/rd_models.dart';
-// REMOVED: import '../models/receipt_models.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_dimensions.dart';
-import 'success_screen.dart';
-import 'otp_verification_dialog.dart'; // NEW IMPORT
+import '../theme/app_dimensions.dart' hide kSpacingMedium;
+import 'otp_verification_dialog.dart'; // Existing Dialog
+import 'deposit_receipt_screen.dart'; // 🌟 NEW IMPORT
+// REMOVED: import 'success_screen.dart';
+
 
 // Mock service initialization (In a real app, use Dependency Injection)
 final OtpService _otpService = MockOtpService();
+const String mockRegisteredMobile = '98765 43210'; // Mock mobile number for OTP dialog
 
+
+// Helper function for currency formatting
+String _formatCurrency(double amount) => '₹${NumberFormat('#,##0.00').format(amount)}';
 
 class RdConfirmationScreen extends StatelessWidget {
   final RdApiService apiService;
@@ -40,14 +47,17 @@ class RdConfirmationScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: kPaddingExtraSmall),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // FIX: Label size adjusted to bodyMedium, using secondary color
-          Text(label, style: textTheme.bodyMedium?.copyWith(color: kLightTextSecondary)),
+          SizedBox(
+            width: kLabelColumnWidth, // Use fixed width for label
+            child: Text(label, style: textTheme.bodyMedium?.copyWith(color: kLightTextSecondary)),
+          ),
+          const SizedBox(width: kPaddingMedium),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              // FIX: Default value style changed to bodyLarge, which is less prominent than titleMedium
               style: valueStyle ?? textTheme.bodyLarge?.copyWith(
                 color: valueColor,
                 fontWeight: FontWeight.w600,
@@ -59,51 +69,21 @@ class RdConfirmationScreen extends StatelessWidget {
     );
   }
 
-  // --- Helper Widget to build a section card ---
-  Widget _buildSectionCard({
-    required BuildContext context,
-    required String title,
-    required List<Widget> children,
-    Color? color,
-  }) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      elevation: kCardElevation,
-      color: color ?? Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
-      child: Padding(
-        padding: const EdgeInsets.all(kPaddingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title remains titleLarge (20px) for section heading clarity
-            Text(title, style: textTheme.titleLarge?.copyWith(color: kBrandNavy)),
-            const Divider(color: kLightDivider, height: kPaddingMedium),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Core Logic for Finalizing Deposit (REVERTED to Old Logic) ---
+  // --- Core Logic for Finalizing Deposit (UPDATED NAVIGATION) ---
   void _confirmDeposit(BuildContext context) async {
-
     // 1. Launch OTP Verification Dialog
-    final bool? otpVerified = await showDialog<bool>(
+    final String? otpResult = await showDialog<String?>(
       context: context,
-      barrierDismissible: false, // User must verify or explicitly close
+      barrierDismissible: false,
       builder: (context) => OtpVerificationDialog(
         otpService: _otpService,
-        // Using the mock registered mobile number for the dialog
         mobileNumber: mockRegisteredMobile,
       ),
     );
 
-    // 2. Check OTP result
-    if (otpVerified == true) {
-      // 3. OTP successful, finalize deposit (Simulate API call: apiService.openRD(inputData))
-      // Show final processing feedback
+    // 2. Check OTP result (Assuming 'SUCCESS' is returned on success)
+    if (otpResult == 'SUCCESS') {
+      // 3. OTP successful, finalize deposit
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('OTP verified. Finalizing Recurring Deposit...'),
@@ -111,26 +91,50 @@ class RdConfirmationScreen extends StatelessWidget {
         ),
       );
 
-      // Simulate Final API delay
-      await Future.delayed(const Duration(milliseconds: 1000));
+      try {
+        // CALL API METHOD: submitRdDeposit returns transactionId
+        final transactionId = await apiService.submitRdDeposit(
+          inputData: inputData,
+          maturityDetails: maturityDetails,
+        );
 
-      // 4. Navigate to a success screen and clear the navigation stack below it
-      if (!context.mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          // REVERTED: Using old SuccessScreen constructor with strings
-          builder: (context) => const SuccessScreen(
-            title: 'RD Created Successfully!',
-            message: 'Your new Recurring Deposit contract is now active and the first installment has been debited from your account.',
+        // 4. SUCCESS: Navigate to the new DepositReceiptScreen and clear the navigation stack
+        if (!context.mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => DepositReceiptScreen(
+              transactionId: transactionId, // Pass the transaction ID
+              rdApiService: apiService,
+              // Pass a MockFdApiService here, as the ReceiptScreen takes both.
+              fdApiService: MockFdApiService(),
+              depositType: 'RD',
+            ),
           ),
-        ),
-            (Route<dynamic> route) => route.isFirst,
-      );
-    } else {
-      // OTP failed or dialog dismissed
+              (Route<dynamic> route) => route.isFirst,
+        );
+      } catch (e) {
+        // API failed
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Transaction failed: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } else if (otpResult == 'CANCELLED') {
+      // OTP dialog cancelled
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Transaction failed or OTP verification cancelled.'),
+          content: const Text('Transaction cancelled by user.'),
+          backgroundColor: kWarningYellow,
+        ),
+      );
+    } else {
+      // OTP failed or dialog dismissed due to failure
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(otpResult ?? 'OTP verification failed. Please try again.'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -139,18 +143,10 @@ class RdConfirmationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
-
-    // Helper function to format amount
-    String formatCurrency(double amount) => '₹${amount.toStringAsFixed(2)}';
-
-    // Frequency conversion for display
-    final frequencyMap = {
-      'Monthly': 'Every Month',
-      'Quarterly': 'Every 3 Months',
-      'Half-Yearly': 'Every 6 Months',
-    };
+    final textTheme = Theme.of(context).textTheme;
+    final data = inputData;
+    final details = maturityDetails;
 
     return Scaffold(
       appBar: AppBar(
@@ -163,87 +159,90 @@ class RdConfirmationScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. DEPOSIT SUMMARY ---
-            _buildSectionCard(
-              context: context,
-              title: 'Deposit Summary',
-              children: [
-                _buildDetailRow(context, 'Source Account:', inputData.sourceAccount.accountNumber),
-                _buildDetailRow(context, 'Scheme Name:', inputData.selectedScheme.name),
-                _buildDetailRow(context, 'Interest Rate:', '${inputData.selectedScheme.interestRate.toStringAsFixed(2)}% p.a.'),
-                _buildDetailRow(
-                    context,
-                    'Tenure:',
-                    '${inputData.tenureYears} Years, ${inputData.tenureMonths} Months'
+            // 1. Transaction Summary Card
+            Card(
+              elevation: kCardElevation,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+              child: Padding(
+                padding: const EdgeInsets.all(kPaddingMedium),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Monthly Installment',
+                      style: textTheme.bodyLarge?.copyWith(color: kLightTextSecondary),
+                    ),
+                    const SizedBox(height: kPaddingExtraSmall),
+                    Text(
+                      _formatCurrency(data.installmentAmount),
+                      style: textTheme.headlineMedium?.copyWith(
+                        color: kFixedDepositCardColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Divider(height: kSpacingMedium),
+                    _buildDetailRow(context, 'Scheme:', data.selectedScheme.name),
+                    _buildDetailRow(context, 'Rate:', '${data.selectedScheme.interestRate}% p.a.'),
+                    _buildDetailRow(context, 'Tenure:', '${data.tenureYears} Years, ${data.tenureMonths} Months, ${data.tenureDays} Days'),
+                    _buildDetailRow(context, 'Source A/c:', data.sourceAccount.accountNumber),
+                    _buildDetailRow(context, 'Nominee:', data.selectedNominee),
+                    _buildDetailRow(context, 'Frequency:', data.frequencyMode),
+                  ],
                 ),
-                _buildDetailRow(
-                    context,
-                    'Deposit Frequency:',
-                    '${frequencyMap[inputData.frequencyMode] ?? inputData.frequencyMode}'
-                ),
-                _buildDetailRow(context, 'Nominee:', inputData.selectedNominee),
-              ],
+              ),
             ),
             const SizedBox(height: kPaddingMedium),
 
-            // --- 2. PAYMENT & MATURITY DETAILS (Moved from Input Screen) ---
-            _buildSectionCard(
-              context: context,
-              title: 'Maturity Details (Estimated)',
-              color: kInputBackgroundColor,
-              children: [
-                // The amount to be paid NOW (first installment)
-                _buildDetailRow(
-                  context,
-                  'Installment Amount (Initial Debit):',
-                  formatCurrency(inputData.installmentAmount),
-                  valueColor: kFixedDepositCardColor,
+            // 2. Maturity Details Card
+            Card(
+              elevation: kCardElevation,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+              child: Padding(
+                padding: const EdgeInsets.all(kPaddingMedium),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Estimated Maturity',
+                      style: textTheme.titleMedium?.copyWith(color: kBrandNavy),
+                    ),
+                    const Divider(height: kSpacingMedium),
+                    _buildDetailRow(context, 'Total Principal:', _formatCurrency(details.totalPrincipalAmount)),
+                    _buildDetailRow(context, 'Interest Earned:', _formatCurrency(details.interestEarned), valueColor: kSuccessGreen),
+                    const Divider(height: kSpacingMedium),
+                    _buildDetailRow(context, 'Maturity Date:', details.maturityDate),
+                    _buildDetailRow(
+                        context,
+                        'Maturity Amount:',
+                        _formatCurrency(details.maturityAmount),
+                        valueColor: kBrandNavy,
+                        valueStyle: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
+                    ),
+                  ],
                 ),
-                const Divider(height: kSpacingMedium),
+              ),
+            ),
+            const SizedBox(height: kPaddingMedium),
 
-                // Maturity Breakdown (Principal & Interest)
-                _buildDetailRow(
-                    context,
-                    'Total Principal Investment:',
-                    formatCurrency(maturityDetails.totalPrincipalAmount)
-                ),
-                _buildDetailRow(
-                  context,
-                  'Total Interest Earned (Est.):',
-                  formatCurrency(maturityDetails.interestEarned),
-                  valueColor: kSuccessGreen,
-                ),
-                const Divider(height: kSpacingMedium),
-
-                // Final Maturity Amount & Date
-                _buildDetailRow(
-                    context,
-                    'Estimated Maturity Amount:',
-                    formatCurrency(maturityDetails.maturityAmount),
-                    valueStyle: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: kBrandNavy
-                    )
-                ),
-                _buildDetailRow(
-                    context,
-                    'Estimated Maturity Date:',
-                    maturityDetails.maturityDate,
-                    valueColor: kBrandNavy
-                ),
-              ],
+            // 3. Confirmation/Warning Text
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: kPaddingSmall),
+              child: Text(
+                'By confirming, you authorize the debit of ${_formatCurrency(data.installmentAmount)} from your account for the first installment and recurring debits for subsequent installments. OTP verification is required.',
+                style: textTheme.bodySmall?.copyWith(color: kErrorRed),
+                textAlign: TextAlign.center,
+              ),
             ),
             const SizedBox(height: kPaddingXXL),
 
-            // --- 3. ACTION BUTTONS (Edit Details and Confirm) ---
+            // 4. Action Buttons
             Row(
               children: [
-                // 1. Edit Details / Back Button (Outlined/Secondary Action)
+                // 1. Cancel/Go Back Button
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pop(), // Go back to RdInputScreen
-                    icon: const Icon(Icons.edit, size: kIconSizeSmall),
-                    label: const Text('EDIT DETAILS'),
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('GO BACK'),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(double.infinity, kButtonHeight),
                       side: const BorderSide(color: kBrandLightBlue, width: 2),
@@ -258,8 +257,7 @@ class RdConfirmationScreen extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => _confirmDeposit(context),
-                    // Icon changed to reflect security/verification required
-                    icon: const Icon(Icons.lock_open, size: kIconSizeSmall),
+                    icon: const Icon(Icons.lock_open, size: kIconSizeSmall, color: kLightSurface),
                     label: const Text('CONFIRM'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: kSuccessGreen,

@@ -71,3 +71,5 @@ const Color kBrandPurple = Color(0xFF512DA8); // Deep purple for action items/ic
 
 // 6. Text Semantics
 const Color kLightTextLink = kBrandPurple;
+
+const double kTpinFieldSize = 40.0;
