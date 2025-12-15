@@ -58,6 +58,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    // Ensure the initial dates are set to midnight for clean comparison
     _endDate = DateTime.now();
     _startDate = _endDate.subtract(const Duration(days: 30));
     _fetchData();
@@ -125,10 +126,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     }
 
     // 1. Filter transactions to be only those within the selected date range
+    // Adjusting to include the whole day of the end date:
+    final endOfEndDate = _endDate.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+
     final filteredTxs = _allTransactions
         .where((t) =>
     t.date.isAfter(_startDate.subtract(const Duration(seconds: 1))) &&
-        t.date.isBefore(_endDate.add(const Duration(days: 1))))
+        t.date.isBefore(endOfEndDate))
         .toList();
 
     // 2. Sort chronologically for correct running balance calculation
@@ -180,11 +184,40 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   Future<void> _selectDate(BuildContext context, bool isStart) async {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // 1. Determine the dynamic bounds for the DatePicker
+    DateTime firstDate;
+    DateTime lastDate;
+    DateTime initialDate = isStart ? _startDate : _endDate;
+
+    if (isStart) {
+      // Start Date: Must be no earlier than year 2000, and no later than the current End Date
+      firstDate = DateTime(2000);
+      lastDate = _endDate;
+    } else {
+      // End Date: Must be no earlier than the current Start Date, and no later than Today
+      firstDate = _startDate;
+      // Truncate DateTime.now() to the date part for correct picker limit
+      lastDate = DateTime.now();
+    }
+
+    // Ensure initialDate is within the calculated range (safety check)
+    if (initialDate.isBefore(firstDate)) {
+      initialDate = firstDate;
+    } else if (initialDate.isAfter(lastDate)) {
+      initialDate = lastDate;
+    }
+
+    // Ensure initialDate is truncated for clean picker display if it has time component
+    initialDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+    firstDate = DateTime(firstDate.year, firstDate.month, firstDate.day);
+    lastDate = DateTime(lastDate.year, lastDate.month, lastDate.day);
+
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: isStart ? _startDate : _endDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
@@ -208,14 +241,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       setState(() {
         if (isStart) {
           _startDate = picked;
-          if (_startDate.isAfter(_endDate)) {
-            _endDate = _startDate;
-          }
         } else {
           _endDate = picked;
-          if (_endDate.isBefore(_startDate)) {
-            _startDate = _endDate;
-          }
         }
         _applyFilters();
       });
@@ -239,6 +266,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       ),
     );
 
+    // This correctly calls the external PDF logic
     final success = await generateAndSavePdf(
       transactionsToDownload,
       _primaryAccount!,

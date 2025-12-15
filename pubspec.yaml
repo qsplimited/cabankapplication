@@ -47,6 +47,11 @@ dependencies:
   json_annotation: ^4.8.1 # Check for the latest stable version
 
 
+  printing: ^5.9.1 # Often used alongside pdf for printing/saving
+  share_plus: ^7.0.2 # For opening the device's share sheet
+
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

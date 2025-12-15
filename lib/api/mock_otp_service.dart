@@ -4,8 +4,10 @@ import 'dart:async';
 
 // Mock phone number and OTP for demonstration
 const String mockRegisteredMobile = '9876543210';
-const String mockValidOtp = '123456';
+// FIX: Confirmed mockValidOtp is '654321' to match MockFdApiService
+const String mockValidOtp = '654321';
 
+// Abstract class definition (assuming it lives here or in an adjacent file)
 abstract class OtpService {
   Future<String> sendOtp(String mobileNumber); // Returns success message or throws error
   Future<bool> verifyOtp(String mobileNumber, String otp);

@@ -2,18 +2,18 @@
 
 import 'dart:async';
 import 'dart:math';
-import '../models/fd_models.dart'; // Imports the updated FdConfirmationResponse
-import '../api/fd_api_service.dart'; // Import the abstract class
-import '../models/receipt_models.dart'; // 🌟 REQUIRED IMPORT for DepositReceipt, mock IDs
+import '../models/fd_models.dart';
+import '../api/fd_api_service.dart';
+import '../models/receipt_models.dart';
 
-// Simulates network latency
+
 const Duration _mockLatency = Duration(milliseconds: 700);
 
-// Mock ID constants (assuming they are defined in a mock_constants file or globally)
+
 const String mockTransactionIdFd = 'FD-TXN-123456789';
+const String mockOtp = '654321';
 
 
-// Utility extension for title casing scheme names
 extension StringExtension on String {
   String titleCase() {
     if (isEmpty) return this;
@@ -23,8 +23,6 @@ extension StringExtension on String {
     }).join(' ');
   }
 }
-
-// NOTE: FdConfirmationResponse is now imported from fd_models.dart
 
 class MockFdApiService implements FdApiService {
   @override
@@ -83,25 +81,33 @@ class MockFdApiService implements FdApiService {
     return Future.delayed(_mockLatency, () => details);
   }
 
+
+  @override
+  Future<void> requestOtp({required String accountId}) {
+
+    print('MOCK: OTP $mockOtp requested and sent to user\'s device associated with $accountId.');
+    return Future.delayed(_mockLatency);
+  }
+
   @override
   Future<FdConfirmationResponse> confirmDeposit({
-    required String tpin,
+    required String otp, // Changed parameter name
     required double amount,
     required String accountId,
   }) {
-    // 🌟 Mock T-PIN validation logic: Success if TPIN is '123456'
-    if (tpin == '123456' && amount > 0) {
-      // Simulate successful deduction and FD creation
+
+    if (otp == mockOtp && amount > 0) {
+
       return Future.delayed(_mockLatency, () => FdConfirmationResponse(
         success: true,
         message: 'Fixed Deposit of ₹${amount.toStringAsFixed(2)} successfully created!',
-        transactionId: mockTransactionIdFd, // Uses the corrected field name
+        transactionId: mockTransactionIdFd,
       ));
-    } else if (tpin != '123456') {
-      // Simulate T-PIN failure
+    } else if (otp != mockOtp) {
+      // Simulate OTP failure
       return Future.delayed(_mockLatency, () => FdConfirmationResponse(
         success: false,
-        message: 'Invalid T-PIN. Please try again.',
+        message: 'Invalid OTP. Please try again.',
       ));
     } else {
       // General failure case
@@ -113,7 +119,6 @@ class MockFdApiService implements FdApiService {
   }
 
   @override
-  // 🌟 NEW IMPLEMENTATION: Mock fetchDepositReceipt
   Future<DepositReceipt> fetchDepositReceipt(String transactionId) {
     if (transactionId == mockTransactionIdFd) {
       final receipt = DepositReceipt(
@@ -128,11 +133,12 @@ class MockFdApiService implements FdApiService {
         maturityDate: '09-Dec-2030',
         maturityAmount: 75000.00,
         schemeName: 'Standard Fixed Deposit Scheme',
-        paymentHistory: null, // Null for FD
+        paymentHistory: null,
       );
       return Future.delayed(_mockLatency, () => receipt);
     }
-    // Handle error case for unknown ID
+
+
     return Future.error('Receipt not found for transaction ID: $transactionId');
   }
 }

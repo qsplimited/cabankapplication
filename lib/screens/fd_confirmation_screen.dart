@@ -1,18 +1,26 @@
-// File: lib/screens/fd_confirmation_screen.dart
 
+import 'package:cabankapplication/screens/success_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../api/fd_api_service.dart';
 import '../api/mock_rd_api_service.dart';
 import '../models/fd_models.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_dimensions.dart' hide kSpacingMedium; // REQUIRED IMPORT for kTpinFieldSize
-import 'deposit_receipt_screen.dart';
+import '../theme/app_dimensions.dart' hide kSpacingMedium;
 
-// -----------------------------------------------------------------------------
-// Utility extension for title casing scheme names
-// -----------------------------------------------------------------------------
+import '../api/mock_otp_service.dart';
+
+import 'otp_verification_dialog.dart';
+
+
+// Mock service initialization constants
+final OtpService _otpService = MockOtpService();
+const String mockRegisteredMobile = '9876543210';
+
+// Constants
+const double kSpacingMedium = 12.0;
+
+
 extension StringExtension on String {
   String titleCase() {
     if (isEmpty) return this;
@@ -23,13 +31,9 @@ extension StringExtension on String {
   }
 }
 
-// Helper function for currency formatting
 String _formatCurrency(double amount) => '₹${NumberFormat('#,##0.00').format(amount)}';
 
 
-// -----------------------------------------------------------------------------
-// Main Widget
-// -----------------------------------------------------------------------------
 
 class FdConfirmationScreen extends StatefulWidget {
   final FdApiService apiService;
@@ -69,7 +73,7 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: valueStyle ?? textTheme.bodyLarge?.copyWith(
+              style: valueStyle ?? textTheme.bodyMedium?.copyWith(
                 color: valueColor,
                 fontWeight: FontWeight.w600,
               ),
@@ -80,134 +84,44 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
     );
   }
 
-  // --- T-PIN Dialog Logic ---
-  Future<String?> _showTpinDialog(BuildContext context) {
-    final TextEditingController tpinController = TextEditingController();
-    final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
-
-    return showDialog<String?>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-            builder: (context, setState) {
-              final textTheme = Theme.of(context).textTheme;
-
-              String _getTpinFromController() {
-                return List.generate(6, (i) {
-                  if (i < tpinController.text.length) {
-                    return tpinController.text[i];
-                  }
-                  return '';
-                }).join();
-              }
-
-              String _currentTpin = _getTpinFromController();
-              final bool _isTpinComplete = _currentTpin.length == 6;
-
-              return AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
-                title: Text(
-                  'Confirm Deposit with T-PIN',
-                  style: textTheme.titleLarge?.copyWith(color: kBrandNavy),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Enter your 6-digit Transaction PIN (T-PIN) to confirm the Fixed Deposit.',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium?.copyWith(color: kLightTextSecondary),
-                    ),
-                    const SizedBox(height: kPaddingMedium),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: List.generate(6, (index) {
-                        return SizedBox(
-                          width: kTpinFieldSize, // Uses the constant
-                          child: TextFormField(
-                            controller: tpinController,
-                            focusNode: _focusNodes[index],
-                            keyboardType: TextInputType.number,
-                            textAlign: TextAlign.center,
-                            obscureText: true,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(6)
-                            ],
-                            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                            decoration: const InputDecoration(
-                              counterText: '',
-                              contentPadding: EdgeInsets.zero,
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (value) {
-                              setState(() {
-
-                                if (value.isNotEmpty && index < 5 && value.length > index) {
-                                  _focusNodes[index + 1].requestFocus();
-                                } else if (value.isEmpty && index > 0 && tpinController.text.length < index) {
-                                  _focusNodes[index - 1].requestFocus();
-                                }
-
-                                _currentTpin = _getTpinFromController();
-                              });
-                            },
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-                actionsAlignment: MainAxisAlignment.center,
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(null); // Pass null indicating CANCEL
-                    },
-                    child: Text('CANCEL', style: textTheme.labelLarge?.copyWith(color: kErrorRed)),
-                  ),
-                  ElevatedButton(
-                    onPressed: _isTpinComplete
-                        ? () {
-                      Navigator.of(context).pop(tpinController.text);
-                    }
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kBrandNavy,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
-                      elevation: kCardElevation,
-                    ),
-                    child: Text(
-                      'SUBMIT',
-                      style: textTheme.labelLarge?.copyWith(color: kLightSurface, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: kPaddingSmall),
-                ],
-              );
-            }
-        );
-      },
-    );
-  }
-
-
-  // --- Core Confirmation Logic (UPDATED NAVIGATION) ---
-  Future<void> _submitTpin(BuildContext context) async {
+  // --- Core Confirmation Logic (Now uses the verified OTP) ---
+  Future<void> _confirmDeposit(BuildContext context) async {
     if (_isConfirming) return;
 
-    // 1. Show T-PIN Dialog
-    final String? tpin = await _showTpinDialog(context);
+    // 1. Show the GENERIC OTP Dialog
+    final String? otpResult = await showDialog<String?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => OtpVerificationDialog(
+        otpService: _otpService,
+        mobileNumber: mockRegisteredMobile,
+      ),
+    );
 
-    if (tpin == null || tpin.length != 6) return;
+    // 2. Check OTP result
+    if (otpResult == null || otpResult.length != 6) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Fixed Deposit transaction cancelled.')),
+      );
+      return;
+    }
 
+    // 3. OTP successful, proceed with final API call
     setState(() => _isConfirming = true);
 
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('OTP verified. Finalizing Fixed Deposit...'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+      ),
+    );
+
     try {
-      // 2. Call API
+      final String confirmedOtp = otpResult;
+
       final response = await widget.apiService.confirmDeposit(
-        tpin: tpin,
+        otp: confirmedOtp,
         amount: widget.inputData.amount,
         accountId: widget.inputData.sourceAccount.accountNumber,
       );
@@ -215,20 +129,18 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
       if (!context.mounted) return;
 
       if (response.success && response.transactionId != null) {
-        // 3. SUCCESS: Navigate to DepositReceiptScreen using the new `transactionId`
+        // 4. SUCCESS: Navigate to the generic SuccessScreen
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => DepositReceiptScreen(
-              transactionId: response.transactionId!,
-              fdApiService: widget.apiService,
-              rdApiService: MockRdApiService(),
-              depositType: 'FD',
+            builder: (context) => const SuccessScreen(
+              title: 'Fixed Deposit Confirmed!',
+              message: 'Your Fixed Deposit has been successfully created and the amount has been debited from your account.',
             ),
           ),
-              (Route<dynamic> route) => route.isFirst,
+              (Route<dynamic> route) => route.isFirst, // Clear all routes and go to Home
         );
       } else {
-        // 3. FAILURE: Show error result
+        // 4. FAILURE: Show error result
         _showErrorDialog(context, response.message);
       }
     } catch (e) {
@@ -241,6 +153,8 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
   }
 
   void _showErrorDialog(BuildContext context, String message) {
+    // Hide any previous snackbars (like the "Finalizing" message)
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -284,19 +198,28 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'FD Amount',
-                      style: textTheme.bodyLarge?.copyWith(color: kLightTextSecondary),
+                    // FIX: Changed to Row layout for single straight line display of amount
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center, // Vertically center the text
+                      children: [
+                        // FD Amount Label (Left aligned)
+                        Text(
+                          'FD Amount',
+                          style: textTheme.bodyLarge?.copyWith(color: kLightTextSecondary),
+                        ),
+                        // The Actual Amount (Right aligned and prominent)
+                        Text(
+                          _formatCurrency(data.amount),
+                          style: textTheme.headlineMedium?.copyWith(
+                            color: kFixedDepositCardColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: kPaddingExtraSmall),
-                    Text(
-                      _formatCurrency(data.amount),
-                      style: textTheme.headlineMedium?.copyWith(
-                        color: kFixedDepositCardColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Divider(height: kSpacingMedium),
+
+                    const Divider(height: kSpacingMedium),
                     _buildDetailRow(context, 'Scheme:', data.selectedScheme.name.titleCase()),
                     _buildDetailRow(context, 'Rate:', '${data.selectedScheme.interestRate}% p.a.'),
                     _buildDetailRow(context, 'Tenure:', '${data.tenureYears} Years, ${data.tenureMonths} Months, ${data.tenureDays} Days'),
@@ -342,7 +265,8 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: kPaddingSmall),
               child: Text(
-                'By confirming, you authorize the debit of ${_formatCurrency(data.amount)} from your account and agree to the FD terms and conditions.',
+                // FIX: Removed the double asterisks (**)
+                'By confirming, you authorize the debit of ${_formatCurrency(data.amount)} from your account and agree to the FD terms and conditions. OTP verification is required.',
                 style: textTheme.bodySmall?.copyWith(color: kErrorRed),
                 textAlign: TextAlign.center,
               ),
@@ -350,33 +274,64 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
             const SizedBox(height: kPaddingXXL),
 
             // 4. Action Buttons
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isConfirming ? null : () => _submitTpin(context),
-                icon: _isConfirming
-                    ? const SizedBox(width: kIconSizeSmall, height: kIconSizeSmall, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(kLightSurface)))
-                    : const Icon(Icons.lock_open, size: kIconSizeSmall, color: kLightSurface),
-                label: Text(
-                  _isConfirming ? 'CONFIRMING...' : 'CONFIRM & PAY',
+            Row(
+              children: [
+                // 1. Cancel/Go Back Button
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isConfirming ? null : () => Navigator.of(context).pop(),
+                    child: const Text('GO BACK'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, kButtonHeight),
+                      side: const BorderSide(color: kBrandLightBlue, width: 2),
+                      foregroundColor: kBrandLightBlue,
+                      textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kBrandNavy,
-                  foregroundColor: kLightSurface,
-                  minimumSize: const Size(double.infinity, kButtonHeight),
-                  textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-                  elevation: kCardElevation,
+                const SizedBox(width: kPaddingMedium),
+
+                // 2. Confirm Deposit Button (Elevated/Primary Action)
+                Expanded(
+                  child: ElevatedButton( // Changed from ElevatedButton.icon to standard ElevatedButton
+                    onPressed: _isConfirming ? null : () => _confirmDeposit(context),
+                    // Removed the icon property entirely
+
+                    child: _isConfirming
+                        ? Row( // Use a Row to center the loading indicator and text
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Loading Indicator replaces the icon
+                        const SizedBox(
+                          width: kIconSizeSmall,
+                          height: kIconSizeSmall,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(kLightSurface),
+                          ),
+                        ),
+                        const SizedBox(width: kPaddingSmall), // Add spacing between indicator and text
+                        // Text remains
+                        Text('CONFIRMING...', style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                      ],
+                    )
+                        : Text(
+                      'CONFIRM & PAY',
+                      style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kSuccessGreen,
+                      foregroundColor: kLightSurface,
+                      minimumSize: const Size(double.infinity, kButtonHeight),
+                      // Text style is handled in the child widget for the loading state consistency
+                      elevation: kCardElevation,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: kPaddingSmall),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: _isConfirming ? null : () => Navigator.of(context).pop(),
-                child: const Text('GO BACK'),
-              ),
-            ),
+            const SizedBox(height: kPaddingMedium),
           ],
         ),
       ),

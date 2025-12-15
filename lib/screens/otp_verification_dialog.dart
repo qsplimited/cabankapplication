@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../api/mock_otp_service.dart';
+import '../api/mock_otp_service.dart'; // Use the abstract interface defined in mock_otp_service.dart
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 import 'dart:async';
@@ -22,7 +22,7 @@ class OtpVerificationDialog extends StatefulWidget {
 }
 
 class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
-  // FIX: Initialize controllers and focus nodes directly to avoid LateInitializationError
+  // Initialize controllers and focus nodes for the 6 OTP fields
   final List<TextEditingController> _otpControllers = List.generate(6, (index) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
 
@@ -34,25 +34,23 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
   @override
   void initState() {
     super.initState();
-
     _startResendTimer();
-    _sendOtp(); // Initial OTP send
+    _sendOtp();
 
     // Add listeners to controllers to handle automatic focus shift
     for (int i = 0; i < 6; i++) {
       _otpControllers[i].addListener(() {
-        if (_otpControllers[i].text.length == 1 && i < 5) {
-          // Move to the next field if a digit is entered
-          _focusNodes[i + 1].requestFocus();
+        if (_otpControllers[i].text.length == 1) {
+          if (i < 5) {
+            _focusNodes[i + 1].requestFocus(); // Move to next field
+          }
         } else if (_otpControllers[i].text.length > 1) {
-          // Keep only the last character if more than one is pasted/entered
           _otpControllers[i].text = _otpControllers[i].text.substring(_otpControllers[i].text.length - 1);
         }
 
-        // Clear error message on input
         if (_errorMessage != null && mounted) {
           setState(() {
-            _errorMessage = null;
+            _errorMessage = null; // Clear error on new input
           });
         }
       });
@@ -62,7 +60,6 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
   @override
   void dispose() {
     _resendTimer?.cancel();
-    // Dispose all resources
     for (var controller in _otpControllers) {
       controller.dispose();
     }
@@ -88,7 +85,6 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
   }
 
   Future<void> _sendOtp() async {
-    // Clear previous OTP input on resend
     for (var controller in _otpControllers) {
       controller.clear();
     }
@@ -101,7 +97,6 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
       });
       await widget.otpService.sendOtp(widget.mobileNumber);
       _startResendTimer();
-      // Inform the user that OTP has been resent
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -121,7 +116,6 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
     }
   }
 
-  // Method to combine the 6 digits into a single string
   String get _currentOtp => _otpControllers.map((c) => c.text).join();
 
   Future<void> _verifyOtp() async {
@@ -147,7 +141,8 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
 
       if (mounted) {
         if (success) {
-          Navigator.of(context).pop(true); // OTP verified successfully
+          // 🌟 CRUCIAL: Pop the actual verified OTP string (e.g., '654321')
+          Navigator.of(context).pop(otp);
         } else {
           setState(() {
             _errorMessage = 'Invalid OTP. Please try again.';
@@ -165,10 +160,8 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
     }
   }
 
-  // Widget to build a single OTP input box
   Widget _buildOtpBox(int index) {
     return Container(
-      // FIX: Reduced fixed width/height for responsiveness
       width: 38.0,
       height: 45.0,
       child: RawKeyboardListener(
@@ -195,7 +188,7 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: kBrandNavy,
             fontWeight: FontWeight.bold,
-            fontSize: 22.0, // FIX: Slightly smaller font to fit the reduced box size
+            fontSize: 22.0,
           ),
           decoration: InputDecoration(
             counterText: '',
@@ -238,12 +231,11 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
 
             // --- 6 OTP Input Boxes ---
             Row(
-              // FIX: Use spaceEvenly to distribute the boxes responsively
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: List.generate(6, (index) => _buildOtpBox(index)),
             ),
 
-            // Error Message for the whole block
+            // Error Message
             if (_errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(top: kPaddingSmall),
@@ -278,7 +270,6 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                // Button is disabled if verifying or if not all 6 digits are entered
                 onPressed: (_isVerifying || _currentOtp.length != 6) ? null : _verifyOtp,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kBrandNavy,
@@ -297,6 +288,17 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
           ],
         ),
       ),
+      // Action to allow cancelling the dialog
+      actions: [
+        TextButton(
+          onPressed: () {
+            // Pop null to signify cancellation
+            Navigator.of(context).pop(null);
+          },
+          child: const Text('CANCEL', style: TextStyle(color: kErrorRed)),
+        ),
+      ],
+      actionsAlignment: MainAxisAlignment.end,
     );
   }
 }

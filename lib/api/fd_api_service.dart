@@ -1,14 +1,11 @@
-// File: lib/services/fd_api_service.dart (Interface)
-
 import '../models/fd_models.dart';
-import '../models/receipt_models.dart'; // 🌟 NEW IMPORT
+import '../models/receipt_models.dart';
 
 abstract class FdApiService {
   // Methods that must be implemented:
   Future<SourceAccount> fetchSourceAccount();
   Future<List<DepositScheme>> fetchDepositSchemes();
 
-  // 🌟 UPDATED: Calculate maturity based on inputs
   Future<MaturityDetails> calculateMaturity({
     required double amount,
     required String schemeId,
@@ -19,12 +16,16 @@ abstract class FdApiService {
     required String sourceAccountId,
   });
 
-  // Method for confirming the deposit using T-PIN
+  // 🌟 NEW METHOD: Request OTP for confirmation
+  Future<void> requestOtp({required String accountId});
+
+  // 🌟 UPDATED: Method for confirming the deposit using OTP
   Future<FdConfirmationResponse> confirmDeposit({
-    required String tpin,
+    required String otp, // Parameter name changed from tpin to otp
     required double amount,
     required String accountId,
   });
-  // 🌟 NEW METHOD: Fetch a complete receipt by its transaction ID
+
+  // NEW METHOD: Fetch a complete receipt by its transaction ID
   Future<DepositReceipt> fetchDepositReceipt(String transactionId);
 }

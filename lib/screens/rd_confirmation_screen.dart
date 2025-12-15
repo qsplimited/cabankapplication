@@ -6,22 +6,27 @@ import 'package:intl/intl.dart';
 // Assuming these models and theme constants are available via imports
 import '../api/rd_api_service.dart';
 import '../api/mock_otp_service.dart'; // Existing Mock Service
-import '../api/mock_fd_api_service.dart'; // 🌟 NEW IMPORT: Needed to pass to DepositReceiptScreen
+import '../api/mock_fd_api_service.dart'; // Needed to pass to DepositReceiptScreen
 import '../models/rd_models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart' hide kSpacingMedium;
 import 'otp_verification_dialog.dart'; // Existing Dialog
-import 'deposit_receipt_screen.dart'; // 🌟 NEW IMPORT
-// REMOVED: import 'success_screen.dart';
+
 
 
 // Mock service initialization (In a real app, use Dependency Injection)
 final OtpService _otpService = MockOtpService();
-const String mockRegisteredMobile = '98765 43210'; // Mock mobile number for OTP dialog
+// NOTE: mockRegisteredMobile from mock_otp_service.dart is '9876543210'.
+// Changed the mock string here to match for consistency.
+const String mockRegisteredMobile = '9876543210';
 
 
 // Helper function for currency formatting
 String _formatCurrency(double amount) => '₹${NumberFormat('#,##0.00').format(amount)}';
+
+// Constants
+const double kSpacingMedium = 12.0;
+const double kLabelColumnWidth = 120.0; // Assuming this constant is needed for alignment
 
 class RdConfirmationScreen extends StatelessWidget {
   final RdApiService apiService;
@@ -69,7 +74,7 @@ class RdConfirmationScreen extends StatelessWidget {
     );
   }
 
-  // --- Core Logic for Finalizing Deposit (UPDATED NAVIGATION) ---
+  // --- Core Logic for Finalizing Deposit (FIXED OTP CHECK) ---
   void _confirmDeposit(BuildContext context) async {
     // 1. Launch OTP Verification Dialog
     final String? otpResult = await showDialog<String?>(
@@ -81,8 +86,10 @@ class RdConfirmationScreen extends StatelessWidget {
       ),
     );
 
-    // 2. Check OTP result (Assuming 'SUCCESS' is returned on success)
-    if (otpResult == 'SUCCESS') {
+    // 2. Check OTP result
+    // The dialog returns the verified OTP string (6 digits) on success, or null on cancel.
+    if (otpResult != null && otpResult.length == 6) {
+
       // 3. OTP successful, finalize deposit
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -96,25 +103,26 @@ class RdConfirmationScreen extends StatelessWidget {
         final transactionId = await apiService.submitRdDeposit(
           inputData: inputData,
           maturityDetails: maturityDetails,
+          // NOTE: The mock RD API doesn't currently take the OTP,
+          // but if it did, we would pass it here: otp: otpResult,
         );
 
         // 4. SUCCESS: Navigate to the new DepositReceiptScreen and clear the navigation stack
         if (!context.mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (context) => DepositReceiptScreen(
-              transactionId: transactionId, // Pass the transaction ID
-              rdApiService: apiService,
-              // Pass a MockFdApiService here, as the ReceiptScreen takes both.
-              fdApiService: MockFdApiService(),
-              depositType: 'RD',
+            builder: (context) => const SuccessScreen(
+              title: 'Recuring Deposit Confirmed!',
+              message: 'Your Fixed Deposit has been successfully created and the amount has been debited from your account.',
+              // NOTE: You could optionally pass a 'View Receipt' action/button here
             ),
           ),
-              (Route<dynamic> route) => route.isFirst,
+              (Route<dynamic> route) => route.isFirst, // Clear all routes and go to Home
         );
       } catch (e) {
         // API failed
         if (!context.mounted) return;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide 'Finalizing' message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Transaction failed: $e'),
@@ -122,20 +130,15 @@ class RdConfirmationScreen extends StatelessWidget {
           ),
         );
       }
-    } else if (otpResult == 'CANCELLED') {
-      // OTP dialog cancelled
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Transaction cancelled by user.'),
-          backgroundColor: kWarningYellow,
-        ),
-      );
     } else {
-      // OTP failed or dialog dismissed due to failure
+      // OTP failed or dialog cancelled (otpResult will be null or incorrect length)
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(otpResult ?? 'OTP verification failed. Please try again.'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+          content: Text(otpResult == null
+              ? 'Transaction cancelled by user.'
+              : 'OTP verification failed. Please try again.'),
+          backgroundColor: otpResult == null ? kWarningYellow : Theme.of(context).colorScheme.error,
         ),
       );
     }
@@ -272,6 +275,53 @@ class RdConfirmationScreen extends StatelessWidget {
             ),
             const SizedBox(height: kPaddingMedium),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class SuccessScreen extends StatelessWidget {
+  final String title;
+  final String message;
+
+  const SuccessScreen({super.key, required this.title, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(kPaddingLarge),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Use a prominent check icon for success
+              const Icon(Icons.check_circle_outline, color: kSuccessGreen, size: kIconSizeXXL * 1.5),
+              const SizedBox(height: kPaddingExtraLarge),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: kBrandNavy),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: kPaddingMedium),
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodyLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: kPaddingXXL),
+              ElevatedButton(
+                onPressed: () {
+                  // This command correctly clears the entire transaction flow (RD Input, Confirmation, OTP, Success)
+                  // and navigates back to the Dashboard/Home screen (the first route in the stack).
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: const Text('GO TO HOME'),
+              ),
+            ],
+          ),
         ),
       ),
     );

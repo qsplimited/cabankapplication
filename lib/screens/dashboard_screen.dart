@@ -1,12 +1,8 @@
 // File: dashboard_screen.dart (Refactored)
-
 import 'package:flutter/material.dart';
 import '../api/banking_service.dart';
-
-// Import Theme Files
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
-
 import 'profile_management_screen.dart';
 import 'transfer_funds_screen.dart';
 import 'tpin_management_screen.dart';
@@ -20,15 +16,12 @@ import 'beneficiary_management_screen.dart' as bms;
 import 'services_management_screen.dart';
 import 'deposit_opening_screen.dart';
 
-
+import 'atm_locator_screen.dart';
 
 final BankingService _bankingService = BankingService();
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
-
-
-
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
@@ -47,8 +40,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _currentAccountIndex = 0;
   // CRITICAL FIX: Initialize PageController
   late final PageController _pageController;
-
-  // 💡 All hardcoded color/style constants removed 💡
 
   @override
   void initState() {
@@ -329,6 +320,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'icon': Icons.lock_clock,
         'color': colorScheme.primary,
         'screen': DepositOpeningScreen()},
+
+      {'label': 'Locate Us',
+        'icon': Icons.lock_clock,
+        'color': colorScheme.primary,
+        'screen': AtmLocatorScreen()},
     ];
 
     return Padding(
@@ -459,7 +455,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
   // 4. Mini Statement List - Refactored
   Widget _buildMiniStatement(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -474,7 +469,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
-
     final currentAccount = _allAccounts[_currentAccountIndex];
 
     return Padding(
@@ -603,7 +597,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     // 💡 THEME REFERENCES 💡
@@ -628,7 +621,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
-
     if (_errorMessage.isNotEmpty || _userProfile == null) {
       return Scaffold(
         body: Center(
@@ -823,20 +815,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         }),
                       ),
                     ),
-
                     // T-PIN Status Alert
                     _buildTpinAlertCard(),
-
                     // Quick Actions
                     _buildQuickActions(),
-
                     // Mini Statement List
                     _buildMiniStatement(context),
                   ],
                 ),
               ),
             ),
-
             SliverToBoxAdapter(
               child: SizedBox(height: 80 + MediaQuery.of(context).padding.bottom),
             ),
