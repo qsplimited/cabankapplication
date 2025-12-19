@@ -12,6 +12,7 @@ import 'deposit_receipt_screen.dart';
 import 'deposit_terms_and_conditions_screen.dart';
 
 import 'interest_rate_screen.dart';
+import 'manage_deposit_screen.dart';
 
 
 const String kMockTransactionIdFd = 'FD-TXN-123456789';
@@ -53,7 +54,7 @@ class DepositOpeningScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: kPaddingSmall), //
+          const SizedBox(height: kPaddingSmall),
 
           // 2. Interest Rate Button
           TextButton(
@@ -162,6 +163,74 @@ class DepositOpeningScreen extends StatelessWidget {
             context,
             icon: Icons.receipt_long,
             title: 'View Last FD Receipt',
+            subtitle: 'Quickly view the receipt for your most recent Fixed Deposit transaction.',
+            actionText: 'View Receipt',
+            onActionTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => DepositReceiptScreen(
+                    transactionId: kMockTransactionIdFd,
+                    fdApiService: fdApiService,
+                    rdApiService: rdApiService,
+                    depositType: 'FD',
+                  ),
+                ),
+              );
+            },
+            accentColor: receiptAccentColor,
+            iconColor: receiptAccentColor,
+            isNew: true,
+          ),
+          _buildDepositCard(
+            context,
+            icon: Icons.account_balance_wallet,
+            title: 'Manage Deposit',
+            subtitle: 'Manage your maturity instructions and nominee details here.',
+            actionText: 'Manage Deposit',
+            onActionTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ManageDepositScreen(
+
+                  ),
+                ),
+              );
+            },
+            accentColor: cardAccentColor,
+            iconColor: colorScheme.primary,
+          ),
+
+
+/*          _buildDepositCard(
+            context,
+            icon: Icons.receipt_long,
+            title: 'Manage Deposit',
+            subtitle: 'Manage your maturity instructions and nominee details here.',
+            actionText: 'Manage Deposit',
+            onActionTap: () {
+              // 1. Ensure you have access to your API services and constants
+              // These would typically be passed into your Dashboard widget or accessed via a Provider/Service Locator
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ManageDepositScreen(
+
+                    apiService: fdApiService,
+                  ),
+                ),
+              );
+            },
+            // Using colors defined in app_colors.dart
+            accentColor: kBrandPurple, // Recommended brand accent for deposits
+            iconColor: kBrandPurple,
+            isNew: true,
+          ),*/
+
+
+
+          _buildDepositCard(
+            context,
+            icon: Icons.receipt_long,
+            title: 'Loan Aganist Deposit',
             subtitle: 'Quickly view the receipt for your most recent Fixed Deposit transaction.',
             actionText: 'View Receipt',
             onActionTap: () {

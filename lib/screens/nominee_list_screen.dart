@@ -244,7 +244,6 @@ class NomineeCard extends StatelessWidget {
     );
   }
 }
-
 // --- Nominee Update Dialog (Simple Form Simulation) ---
 
 class NomineeUpdateDialog extends StatefulWidget {
