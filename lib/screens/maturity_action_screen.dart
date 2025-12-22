@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 import '../models/deposit_account.dart';
-import '../api/deposit_repository.dart';
 import '../utils/app_formatters.dart';
+import 'maturity_review_screen.dart'; // Ensure this exists
 
 class MaturityActionScreen extends StatefulWidget {
   final DepositAccount deposit;
@@ -16,12 +16,21 @@ class MaturityActionScreen extends StatefulWidget {
 class _MaturityActionScreenState extends State<MaturityActionScreen> {
   late String _selectedAction;
   String _selectedTenure = '1 Year';
-  bool _isLoading = false;
+
+  // Industry Standard: These would eventually come from an API call
+  final List<String> _tenureOptions = [
+    '6 Months',
+    '1 Year',
+    '2 Years',
+    '3 Years',
+    '4 Years',
+    '5 Years'
+  ];
 
   @override
   void initState() {
     super.initState();
-    // VALIDATION 1: Default selection depends on maturity status
+    // Default: If matured, suggest renewal; if not, suggest closure (withdrawal)
     _selectedAction = widget.deposit.isMatured ? 'FULL_RENEWAL' : 'CLOSE';
   }
 
@@ -35,117 +44,79 @@ class _MaturityActionScreenState extends State<MaturityActionScreen> {
       appBar: AppBar(
         title: Text(isMatured ? "Maturity Action" : "Early Withdrawal"),
         backgroundColor: kAccentOrange,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(kPaddingMedium),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // VALIDATION 2: Banner changes based on status
             isMatured ? _buildMaturityBanner() : _buildPrematureWarning(),
-
             const SizedBox(height: kSpacingMedium),
-
-            // VALIDATION 3: Financial Summary includes penalty if not matured
             _buildFinancialSummary(deposit, !isMatured),
-
             const SizedBox(height: kSpacingLarge),
+
             const Text("Select Instruction", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: kPaddingSmall),
 
-            // VALIDATION 4: Only show Renewals if the deposit is actually matured
             if (isMatured) ...[
               _buildActionOption(
                 id: 'FULL_RENEWAL',
                 title: "Renew Principal + Interest",
-                subtitle: "Reinvest \$${deposit.totalMaturityAmount} for a new term.",
+                subtitle: "Reinvest ${AppFormatters.formatCurrency(deposit.totalMaturityAmount)}",
                 icon: Icons.autorenew,
               ),
               _buildActionOption(
                 id: 'PRINCIPAL_RENEWAL',
                 title: "Renew Principal Only",
-                subtitle: "Interest to A/C ${deposit.linkedAccountNumber}.",
+                subtitle: "Interest to A/C ${deposit.linkedAccountNumber}",
                 icon: Icons.account_balance,
               ),
             ],
 
-            // Close option is always available
             _buildActionOption(
               id: 'CLOSE',
               title: isMatured ? "Close & Payout" : "Premature Payout",
-              subtitle: "Transfer funds to A/C ${deposit.linkedAccountNumber}.",
+              subtitle: "Transfer all funds to A/C ${deposit.linkedAccountNumber}",
               icon: Icons.exit_to_app,
             ),
 
-            const SizedBox(height: kSpacingLarge),
-
-            // VALIDATION 5: Tenure dropdown only for renewals
             if (_selectedAction != 'CLOSE' && isMatured) ...[
-              const Text("New Tenure", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: kSpacingLarge),
+              const Text("Select New Tenure", style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: kPaddingSmall),
               _buildTenureDropdown(),
             ],
 
             const SizedBox(height: kSpacingExtraLarge),
-
-            _buildSubmitButton(isMatured),
+            _buildSubmitButton(),
           ],
         ),
       ),
     );
   }
 
-  // --- Supporting UI Methods ---
-
-  Widget _buildPrematureWarning() {
-    return Container(
-      padding: const EdgeInsets.all(kPaddingMedium),
-      decoration: BoxDecoration(color: kErrorRed.withOpacity(0.1), borderRadius: BorderRadius.circular(kRadiusSmall)),
-      child: const Text("⚠ Withdrawal before maturity attracts a penalty on interest.",
-          style: TextStyle(color: kErrorRed, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildMaturityBanner() {
-    return Container(
-      padding: const EdgeInsets.all(kPaddingMedium),
-      decoration: BoxDecoration(color: kSuccessGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(kRadiusSmall)),
-      child: const Text(" This deposit has matured. Select an action to proceed.",
-          style: TextStyle(color: kSuccessGreen, fontWeight: FontWeight.bold)),
-    );
-  }
+  // --- UI Component Methods ---
 
   Widget _buildFinancialSummary(DepositAccount d, bool showPenalty) {
     double penalty = showPenalty ? (d.accruedInterest * 0.01) : 0.0;
     double netAmount = d.totalMaturityAmount - penalty;
 
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
       child: Padding(
         padding: const EdgeInsets.all(kPaddingMedium),
         child: Column(
           children: [
-            _row("Principal", AppFormatters.formatCurrency(d.principalAmount)),
-            _row("Interest", "+${AppFormatters.formatCurrency(d.accruedInterest)}"),
+            _row("Principal Amount", AppFormatters.formatCurrency(d.principalAmount)),
+            _row("Interest Earned", "+${AppFormatters.formatCurrency(d.accruedInterest)}"),
             if (showPenalty)
-              _row("Early Penalty (1%)", "-${AppFormatters.formatCurrency(penalty)}", color: kErrorRed),
-            const Divider(),
-            // This will now show ₹1,08,250.00 correctly
-            _row("Net Amount", AppFormatters.formatCurrency(netAmount), isBold: true),
+              _row("Premature Penalty (1%)", "-${AppFormatters.formatCurrency(penalty)}", color: kErrorRed),
+            const Divider(height: 24),
+            _row("Net Payable Amount", AppFormatters.formatCurrency(netAmount), isBold: true),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _row(String l, String v, {bool isBold = false, Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(l, style: const TextStyle(color: kLightTextSecondary)),
-          Text(v, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.w600, color: color ?? kBrandNavy)),
-        ],
       ),
     );
   }
@@ -182,40 +153,73 @@ class _MaturityActionScreenState extends State<MaturityActionScreen> {
   Widget _buildTenureDropdown() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(kRadiusSmall), border: Border.all(color: kDividerColor)),
+      decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(kRadiusSmall),
+          border: Border.all(color: kDividerColor),
+          color: Colors.white
+      ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _selectedTenure,
           isExpanded: true,
           onChanged: (val) => setState(() => _selectedTenure = val!),
-          items: ['1 Year', '3 Years'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+          items: _tenureOptions.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
         ),
       ),
     );
   }
 
-  Widget _buildSubmitButton(bool isMatured) {
+  Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
       height: kButtonHeight,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _submit,
-        style: ElevatedButton.styleFrom(backgroundColor: isMatured ? kBrandNavy : kErrorRed),
-        child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.white)
-            : const Text("CONFIRM", style: TextStyle(color: Colors.white)),
+        onPressed: _submit,
+        style: ElevatedButton.styleFrom(
+            backgroundColor: kBrandNavy,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall))
+        ),
+        child: const Text("REVIEW INSTRUCTION", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  void _submit() async {
-    setState(() => _isLoading = true);
-    bool success = await DepositRepository().submitMaturityAction(
-      depositId: widget.deposit.id,
-      actionType: _selectedAction,
-      tenure: _selectedTenure,
+  void _submit() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (c) => MaturityReviewScreen(
+          deposit: widget.deposit,
+          actionType: _selectedAction,
+          tenure: _selectedTenure,
+        ),
+      ),
     );
-    setState(() => _isLoading = false);
-    if (success) Navigator.pop(context);
+  }
+
+  // Banners and Helpers...
+  Widget _buildMaturityBanner() => Container(
+    padding: const EdgeInsets.all(kPaddingSmall),
+    decoration: BoxDecoration(color: kSuccessGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(kRadiusSmall)),
+    child: const Row(children: [Icon(Icons.check_circle, color: kSuccessGreen, size: 18), SizedBox(width: 8), Text("Deposit Matured", style: TextStyle(color: kSuccessGreen, fontWeight: FontWeight.bold))]),
+  );
+
+  Widget _buildPrematureWarning() => Container(
+    padding: const EdgeInsets.all(kPaddingSmall),
+    decoration: BoxDecoration(color: kErrorRed.withOpacity(0.1), borderRadius: BorderRadius.circular(kRadiusSmall)),
+    child: const Row(children: [Icon(Icons.warning, color: kErrorRed, size: 18), SizedBox(width: 8), Expanded(child: Text("Premature withdrawal penalty applies.", style: TextStyle(color: kErrorRed, fontSize: 12)))]),
+  );
+
+  Widget _row(String l, String v, {bool isBold = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(l, style: const TextStyle(color: kLightTextSecondary, fontSize: 13)),
+          Text(v, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.w600, color: color ?? kBrandNavy, fontSize: 14)),
+        ],
+      ),
+    );
   }
 }
