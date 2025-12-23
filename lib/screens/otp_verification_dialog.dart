@@ -272,7 +272,7 @@ class _OtpVerificationDialogState extends State<OtpVerificationDialog> {
               child: ElevatedButton(
                 onPressed: (_isVerifying || _currentOtp.length != 6) ? null : _verifyOtp,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: kBrandNavy,
+                  backgroundColor: kAccentOrange,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, kButtonHeight),
                 ),

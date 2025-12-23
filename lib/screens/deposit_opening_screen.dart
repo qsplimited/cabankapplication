@@ -1,4 +1,3 @@
-// File: lib/screens/deposit_opening_screen.dart
 
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
@@ -7,7 +6,7 @@ import '../api/mock_fd_api_service.dart';
 import '../api/mock_rd_api_service.dart';
 import 'fd_td_input_screen.dart';
 import 'rd_input_screen.dart';
-import 'deposit_receipt_screen.dart';
+import 'receipt_selection_screen.dart';
 
 import 'deposit_terms_and_conditions_screen.dart';
 
@@ -159,21 +158,17 @@ class DepositOpeningScreen extends StatelessWidget {
           ),
 
           // 3. View Last Deposit Receipt Card (links to DepositReceiptScreen)
+// Inside DepositOpeningScreen body...
           _buildDepositCard(
             context,
             icon: Icons.receipt_long,
             title: 'View Last FD Receipt',
-            subtitle: 'Quickly view the receipt for your most recent Fixed Deposit transaction.',
-            actionText: 'View Receipt',
+            subtitle: 'Access your receipts for New Openings, Renewals, or Closures.',
+            actionText: 'View Receipts', // Updated text
             onActionTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => DepositReceiptScreen(
-                    transactionId: kMockTransactionIdFd,
-                    fdApiService: fdApiService,
-                    rdApiService: rdApiService,
-                    depositType: 'FD',
-                  ),
+                  builder: (context) => const ReceiptSelectionScreen(), // Navigates to the 3-card choice page
                 ),
               );
             },
@@ -234,7 +229,7 @@ class DepositOpeningScreen extends StatelessWidget {
             subtitle: 'Quickly view the receipt for your most recent Fixed Deposit transaction.',
             actionText: 'View Receipt',
             onActionTap: () {
-              Navigator.of(context).push(
+             /* Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => DepositReceiptScreen(
                     transactionId: kMockTransactionIdFd,
@@ -243,7 +238,7 @@ class DepositOpeningScreen extends StatelessWidget {
                     depositType: 'FD',
                   ),
                 ),
-              );
+              );*/
             },
             accentColor: receiptAccentColor,
             iconColor: receiptAccentColor,
@@ -338,7 +333,7 @@ class DepositOpeningScreen extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: kPaddingExtraSmall), //
+                      const SizedBox(height: kPaddingExtraSmall),
                       Text(
                         subtitle,
                         style: textTheme.bodyMedium?.copyWith(
@@ -350,7 +345,7 @@ class DepositOpeningScreen extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: kPaddingMedium), //
+            const SizedBox(height: kPaddingMedium),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(

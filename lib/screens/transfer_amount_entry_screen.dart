@@ -10,7 +10,6 @@ import 'package:cabankapplication/screens/transfer_result_screen.dart';
 import 'package:cabankapplication/theme/app_colors.dart';
 import 'package:cabankapplication/theme/app_dimensions.dart';
 
-
 // -----------------------------------------------------------------------------
 // --- STYLED OTP INPUT FIELD WIDGET ---
 // -----------------------------------------------------------------------------
@@ -588,6 +587,7 @@ class _TransferAmountEntryScreenState extends State<TransferAmountEntryScreen> {
                 textAlign: TextAlign.center,
                 style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.7), fontStyle: FontStyle.italic)
             ),
+
             const SizedBox(height: kPaddingLarge),
 
             StyledOtpInputFields(

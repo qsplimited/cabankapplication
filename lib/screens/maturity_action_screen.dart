@@ -176,7 +176,7 @@ class _MaturityActionScreenState extends State<MaturityActionScreen> {
       child: ElevatedButton(
         onPressed: _submit,
         style: ElevatedButton.styleFrom(
-            backgroundColor: kBrandNavy,
+            backgroundColor: kAccentOrange,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall))
         ),
         child: const Text("REVIEW INSTRUCTION", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
