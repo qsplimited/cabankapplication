@@ -1,507 +1,295 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
-
-
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'dart:io';
-import 'package:permission_handler/permission_handler.dart';
 
-import '../api/fd_api_service.dart';
-import '../api/rd_api_service.dart';
 import '../models/receipt_models.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_dimensions.dart'; // Source of all constants
 
-// Helper function for currency formatting
-String _formatCurrency(double amount) => '₹${NumberFormat('#,##0.00').format(amount)}';
-
-// Helper for PDF colors
-PdfColor _toPdfColor(Color color) => PdfColor.fromInt(color.value);
-
-
-// -----------------------------------------------------------------------------
-// DepositReceiptScreen Widget
-// -----------------------------------------------------------------------------
 class DepositReceiptScreen extends StatefulWidget {
-  final String transactionId;
-  final String depositType;
-  final FdApiService fdApiService;
-  final RdApiService rdApiService;
-
-  const DepositReceiptScreen({
-    super.key,
-    required this.transactionId,
-    required this.depositType,
-    required this.fdApiService,
-    required this.rdApiService,
-  });
+  final DepositReceipt receipt;
+  const DepositReceiptScreen({super.key, required this.receipt});
 
   @override
   State<DepositReceiptScreen> createState() => _DepositReceiptScreenState();
 }
 
 class _DepositReceiptScreenState extends State<DepositReceiptScreen> {
-  late Future<DepositReceipt> _receiptFuture;
   bool _isProcessing = false;
+  final fmt = NumberFormat('#,##0.00');
+  final dateFmt = DateFormat('dd-MMM-yyyy');
 
-  @override
-  void initState() {
-    super.initState();
-    _receiptFuture = widget.depositType == 'FD'
-        ? widget.fdApiService.fetchDepositReceipt(widget.transactionId)
-        : widget.rdApiService.fetchDepositReceipt(widget.transactionId);
-  }
-
-  // Helper widget to build a clean, minimalist detail row
-  Widget _buildDetailRow(
-      BuildContext context,
-      String label,
-      String value, {
-        Color valueColor = kBrandNavy,
-        bool isHighlight = false,
-      }) {
-    final textTheme = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: kPaddingExtraSmall),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 4,
-            child: Text(
-              label,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodyMedium?.copyWith(color: kLightTextSecondary),
-            ),
-          ),
-          Expanded(
-            flex: 5,
-            child: Text(
-              value,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: isHighlight
-                  ? textTheme.titleSmall?.copyWith(color: valueColor, fontWeight: FontWeight.bold)
-                  : textTheme.bodyMedium?.copyWith(color: valueColor, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Helper to build a clean title and value row in PDF format
-  pw.Widget _buildPdfDetailRow(String label, String value, {bool highlight = false, PdfColor? customColor}) {
-    final PdfColor pdfBrandNavy = _toPdfColor(kBrandNavy);
-    final PdfColor pdfSuccessGreen = _toPdfColor(kSuccessGreen);
-
-    final PdfColor finalColor = customColor ?? (highlight ? pdfSuccessGreen : pdfBrandNavy);
-
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 3),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            label,
-            style: const pw.TextStyle(
-              fontSize: 10,
-              color: PdfColors.grey700,
-            ),
-          ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontSize: highlight ? 12 : 10,
-              fontWeight: highlight ? pw.FontWeight.bold : pw.FontWeight.normal,
-              color: finalColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------------------
-  // CORE PDF GENERATION LOGIC (omitted for brevity)
-  // ----------------------------------------------------------------------
-  pw.Widget _buildPdfContent(DepositReceipt receipt) {
-    final String depositType = widget.depositType;
-    final String amountLabel = depositType == 'FD' ? 'Fixed Deposit Amount' : 'Monthly Installment';
-    final String dateFormatted = DateFormat('dd MMM yyyy | hh:mm a').format(receipt.depositDate);
-
-    final PdfColor pdfBrandNavy = _toPdfColor(kBrandNavy);
-    final PdfColor pdfSuccessGreen = _toPdfColor(kSuccessGreen);
-
-    // Define a darker shade of green for text contrast inside the box
-    final PdfColor pdfDarkerSuccessGreen = pdfSuccessGreen.shade(0.5);
-
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        // HEADER
-        pw.Center(
-            child: pw.Text(
-                'CA Bank $depositType Deposit Receipt',
-                style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: pdfBrandNavy)
-            )
-        ),
-        pw.SizedBox(height: 15),
-
-        // STATUS SECTION (HIGHLIGHTED)
-        pw.Text(
-            'Transaction Successful',
-            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: pdfSuccessGreen)
-        ),
-        pw.Divider(thickness: 1, color: pdfSuccessGreen.shade(0.3)),
-        _buildPdfDetailRow('Reference ID', receipt.transactionId),
-        _buildPdfDetailRow('Deposit Date & Time', dateFormatted),
-        _buildPdfDetailRow(amountLabel, _formatCurrency(receipt.amount), highlight: true),
-
-        pw.SizedBox(height: 15),
-
-        // SCHEME DETAILS
-        pw.Text(
-          'Scheme Details',
-          style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: pdfBrandNavy),
-        ),
-        pw.Divider(thickness: 1, color: PdfColors.grey500),
-        _buildPdfDetailRow('Scheme Name', receipt.schemeName),
-        _buildPdfDetailRow('Account Number', receipt.newAccountNumber),
-        _buildPdfDetailRow('Tenure', receipt.tenureDescription),
-        _buildPdfDetailRow('Interest Rate', '${receipt.interestRate}% p.a.'),
-        _buildPdfDetailRow('Nominee', receipt.nomineeName),
-
-        pw.SizedBox(height: 15),
-
-        // MATURITY DETAILS (HIGHLIGHTED BOX)
-        pw.Container(
-          padding: const pw.EdgeInsets.all(10),
-          decoration: pw.BoxDecoration(
-            color: pdfSuccessGreen.shade(0.95), // Light background for box
-            borderRadius: pw.BorderRadius.circular(5),
-            border: pw.Border.all(color: pdfSuccessGreen.shade(0.8), width: 1),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('Maturity & Returns', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: pdfDarkerSuccessGreen)),
-              pw.Divider(height: 5, color: pdfSuccessGreen),
-              _buildPdfDetailRow('Maturity Date', receipt.maturityDate, customColor: pdfDarkerSuccessGreen),
-              _buildPdfDetailRow('Maturity Amount', _formatCurrency(receipt.maturityAmount), highlight: true, customColor: pdfBrandNavy),
-            ],
-          ),
-        ),
-
-        pw.Spacer(),
-
-        // FOOTER
-        pw.Center(
-          child: pw.Text(
-            'This is an electronically generated receipt and does not require a signature.',
-            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500),
-          ),
-        ),
-        pw.SizedBox(height: 5),
-        pw.Center(
-          child: pw.Text(
-            'CA Bank | E. & O.E. | Generated on ${DateFormat('dd-MMM-yyyy').format(DateTime.now())}',
-            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey500),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ----------------------------------------------------------------------
-  // FILE SAVING LOGIC (Used only for temporary file creation for sharing)
-  // ----------------------------------------------------------------------
-  Future<String?> _generateAndSavePdfFile(DepositReceipt receipt) async {
-    if (!context.mounted || kIsWeb) return null;
+  // --- COMPLETE FILE LOGIC (SHARE & DOWNLOAD) ---
+  Future<void> _handleFileAction({required bool isShare}) async {
+    setState(() => _isProcessing = true);
+    final r = widget.receipt;
 
     try {
       final pdf = pw.Document();
-      final String depositType = widget.depositType;
-      final String fileName = '${depositType}_Receipt_${receipt.transactionId}.pdf';
 
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          build: (pw.Context context) => _buildPdfContent(receipt),
-        ),
-      );
-
-      final pdfBytes = await pdf.save();
-
-      // Use Temporary directory for sharing (always works and is cleaned up)
-      final Directory directory = await getTemporaryDirectory();
-
-      final file = File('${directory.path}/$fileName');
-      await file.writeAsBytes(pdfBytes);
-
-      return file.path;
-
-    } catch (e) {
-      if(context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error generating PDF file: $e'), duration: const Duration(seconds: 5), backgroundColor: kErrorRed),
-        );
-      }
-      return null;
-    }
-  }
-
-  // ----------------------------------------------------------------------
-  // 🌟 Handle Share Receipt Action - The reliable public save method
-  // ----------------------------------------------------------------------
-  void _handleShareReceipt(DepositReceipt receipt) async {
-    if (_isProcessing || !context.mounted) return;
-    setState(() => _isProcessing = true);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Generating PDF...')),
-    );
-
-    String? filePath;
-    try {
-      // Save to TEMPORARY directory
-      filePath = await _generateAndSavePdfFile(receipt);
-
-      if (filePath != null && context.mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-        // Clear instruction for the user
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            // **CRITICAL INSTRUCTION FOR THE USER**
-            content: Text('Please select "Save to Files" or "Download" from the menu to save the PDF publicly to your device storage.'),
-            backgroundColor: kBrandLightBlue, // Info color
-            duration: Duration(seconds: 7),
-          ),
-        );
-
-        // Open the system share sheet (this is what allows public saving)
-        await Share.shareXFiles(
-          [XFile(filePath)],
-          text: 'Attached is your CA Bank Deposit Receipt.',
-          subject: 'CA Bank Deposit Receipt - ${receipt.transactionId}',
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Share/Save operation failed: $e')),
-        );
-      }
-    } finally {
-      // Ensure processing state is reset to un-stuck the button
-      if (context.mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  // ----------------------------------------------------------------------
-  // 🌟 Download PDF Action - Rerouted to use the reliable Share method
-  // ----------------------------------------------------------------------
-  void _handleDownloadPdf(DepositReceipt receipt) {
-    // The "Share Receipt" flow is the only reliable way to save publicly on modern devices.
-    // Reroute the Download button to the Share handler for a guaranteed save experience.
-    _handleShareReceipt(receipt);
-  }
-
-
-  // --- Build Receipt View ---
-  Widget _buildReceiptView(BuildContext context, DepositReceipt receipt) {
-    final textTheme = Theme.of(context).textTheme;
-    const Color statusColor = kSuccessGreen;
-    final String amountLabel = widget.depositType == 'FD'
-        ? 'Fixed Deposit Amount'
-        : 'Monthly Installment';
-
-    final double bottomSafeArea = MediaQuery.of(context).padding.bottom;
-
-    return Column(
-      children: [
-        // 1. SCROLLABLE DETAILS AREA
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(kPaddingMedium),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1A. TRANSACTION STATUS & AMOUNT CARD
-                Card(
-                  elevation: kCardElevation,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(kPaddingLarge),
-                    child: Column(
-                      children: [
-                        Icon(Icons.check_circle_outline, size: kIconSizeXXL, color: statusColor),
-                        const SizedBox(height: 8.0),
-                        Text('Transaction Successful!', style: textTheme.titleLarge?.copyWith(color: kBrandNavy, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16.0),
-                        Text(amountLabel, style: textTheme.bodyMedium?.copyWith(color: kLightTextSecondary)),
-                        const SizedBox(height: 4.0),
-                        Text(_formatCurrency(receipt.amount), style: textTheme.titleLarge?.copyWith(color: kBrandNavy, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-                        const Divider(height: 12.0),
-                        _buildDetailRow(context, 'Reference ID', receipt.transactionId, valueColor: kBrandNavy),
-                        _buildDetailRow(context, 'Deposit Date', DateFormat('dd MMM yyyy | hh:mm a').format(receipt.depositDate)),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16.0),
-
-                // 1B. SCHEME DETAILS CARD
-                _buildSectionCard(
-                  context,
-                  title: 'Scheme Details',
-                  children: [
-                    _buildDetailRow(context, 'Scheme Name', receipt.schemeName),
-                    _buildDetailRow(context, 'Account Number', receipt.newAccountNumber),
-                    _buildDetailRow(context, 'Interest Rate', '${receipt.interestRate}% p.a.'),
-                    _buildDetailRow(context, 'Tenure', receipt.tenureDescription),
-                    _buildDetailRow(context, 'Nominee', receipt.nomineeName),
-                  ],
-                ),
-                const SizedBox(height: 16.0),
-
-                // 1C. MATURITY DETAILS CARD
-                Container(
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    color: kSuccessGreen.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12.0),
-                    border: Border.all(color: kSuccessGreen.withOpacity(0.3), width: 1),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Maturity & Returns', style: textTheme.titleSmall?.copyWith(color: kSuccessGreen, fontWeight: FontWeight.w700)),
-                      const Divider(height: 8.0, color: kSuccessGreen),
-                      _buildDetailRow(context, 'Maturity Date', receipt.maturityDate, valueColor: kSuccessGreen),
-                      _buildDetailRow(context, 'Maturity Amount', _formatCurrency(receipt.maturityAmount), valueColor: kSuccessGreen, isHighlight: true),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24.0),
-              ],
-            ),
-          ),
-        ),
-
-        // 2. ACTION BUTTONS (Fixed at the bottom)
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            kPaddingMedium,
-            kPaddingSmall,
-            kPaddingMedium,
-            kPaddingMedium + bottomSafeArea,
-          ),
-          child: Row(
+      // Generate the PDF content
+      pdf.addPage(pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context context) => pw.Padding(
+          padding: const pw.EdgeInsets.all(30),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // SHARE RECEIPT (Original Share action)
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _isProcessing ? null : () => _handleShareReceipt(receipt),
-                  icon: _isProcessing
-                      ? const SizedBox(width: 20.0, height: 20.0, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.share_outlined, size: 20.0),
-                  label: Text(_isProcessing ? 'PREPARING...' : 'SHARE RECEIPT'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: kBrandNavy,
-                    side: const BorderSide(color: kBrandNavy, width: 1),
-                    minimumSize: const Size(double.infinity, 56.0),
-                    textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-                  ),
+              pw.Center(
+                child: pw.Text("CA BANK - ${r.receiptType.name.toUpperCase()} ADVICE",
+                    style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Divider(thickness: 2),
+              pw.SizedBox(height: 10),
+              _pdfRow("Transaction Ref", r.transactionId),
+              _pdfRow("Value Date (Start)", dateFmt.format(r.valueDate ?? r.date)),
+              if (r.receiptType == ReceiptType.closure)
+                _pdfRow("Closing Date", dateFmt.format(DateTime.now())),
+              _pdfRow("Account Number", r.accountNumber),
+              if (r.oldAccountNumber != null)
+                _pdfRow("Previous Account", r.oldAccountNumber!),
+              _pdfRow("Nominee", r.nomineeName),
+
+              pw.SizedBox(height: 25),
+              pw.Text("DEPOSIT SUMMARY", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+              pw.Divider(),
+              _pdfRow("Principal Amount", "Rs. ${fmt.format(r.amount)}"),
+              _pdfRow("Interest Rate", "${r.interestRate}% p.a."),
+              _pdfRow("Tenure", r.tenure),
+              _pdfRow("Lien Status", r.lienStatus ?? "Nil"),
+
+              if (r.receiptType != ReceiptType.closure) ...[
+                _pdfRow("Maturity Date", r.maturityDate ?? ""),
+                _pdfRow("Instruction", r.maturityInstruction ?? "Credit to Account"),
+              ],
+
+              if (r.receiptType == ReceiptType.closure) ...[
+                _pdfRow("Interest Accrued", "Rs. ${fmt.format(r.accruedInterest ?? 0)}"),
+                _pdfRow("Tax Deducted (TDS)", "Rs. ${fmt.format(r.taxDeducted ?? 0)}"),
+                _pdfRow("Penalty", "Rs. ${fmt.format(r.penaltyAmount ?? 0)}"),
+              ],
+
+              pw.SizedBox(height: 30),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(15),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey100,
+                  border: pw.Border.all(color: PdfColors.grey300),
+                ),
+                child: _pdfRow(
+                  r.receiptType == ReceiptType.closure ? "Final Payout" : "Maturity Value",
+                  "Rs. ${fmt.format(r.receiptType == ReceiptType.closure ? r.netPayout : r.maturityAmount)}",
+                  isBold: true,
                 ),
               ),
-              const SizedBox(width: kPaddingMedium),
-              // SAVE TO FILES (Rerouted to use the reliable Share action)
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isProcessing ? null : () => _handleDownloadPdf(receipt),
-                  icon: _isProcessing
-                      ? const SizedBox(width: 20.0, height: 20.0, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(kLightSurface)))
-                      : const Icon(Icons.save_alt, size: 20.0), // Changed to save icon
-                  label: Text(_isProcessing ? 'PREPARING SAVE...' : 'SAVE TO FILES'), // Changed text for clarity
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccentOrange,
-                    foregroundColor: kLightSurface,
-                    minimumSize: const Size(double.infinity, 56.0),
-                    textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-                    elevation: 4.0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-                  ),
-                ),
+              pw.Spacer(),
+              pw.Center(
+                child: pw.Text("This is a computer-generated advice and does not require a signature.",
+                    style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
               ),
             ],
           ),
         ),
+      ));
+
+      // Save the file to temporary storage
+      final dir = await getTemporaryDirectory();
+      final String fileName = "Receipt_${r.transactionId}_${DateTime.now().millisecondsSinceEpoch}.pdf";
+      final file = File("${dir.path}/$fileName");
+      await file.writeAsBytes(await pdf.save());
+
+      if (isShare) {
+        // Trigger Share UI
+        await Share.shareXFiles([XFile(file.path)], text: 'My CA Bank Deposit Receipt');
+      } else {
+        // Handle Download (In a real app, you might move this to the Downloads folder)
+        // For this demo, we show a success snackbar with the path
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("PDF Saved: ${file.path.split('/').last}"),
+              backgroundColor: kSuccessGreen,
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(label: "VIEW", textColor: Colors.white, onPressed: () {
+                // You could add a PDF viewer logic here
+              }),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error processing file: $e"), backgroundColor: kErrorRed),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  pw.Widget _pdfRow(String l, String v, {bool isBold = false}) => pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(vertical: 4),
+    child: pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text(l, style: pw.TextStyle(fontSize: 12)),
+        pw.Text(v, style: pw.TextStyle(fontSize: 12, fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal))
       ],
-    );
-  }
+    ),
+  );
 
-  // Helper to build a detail section card
-  Widget _buildSectionCard(BuildContext context, {required String title, required List<Widget> children}) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      elevation: 4.0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-      child: Padding(
-        padding: const EdgeInsets.all(kPaddingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: textTheme.titleSmall?.copyWith(color: kBrandNavy, fontWeight: FontWeight.w700)),
-            const Divider(height: 16.0, color: kLightTextSecondary),
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Build Method ---
+  // --- UI BUILDING BLOCKS ---
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
+    final r = widget.receipt;
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text('${widget.depositType} Deposit Receipt', style: textTheme.titleLarge?.copyWith(color: kLightSurface)),
+        title: const Text("Transaction Advice"),
         backgroundColor: kAccentOrange,
-        iconTheme: const IconThemeData(color: kLightSurface),
+        elevation: 0,
       ),
-      body: FutureBuilder<DepositReceipt>(
-        future: _receiptFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(kPaddingMedium),
-                child: Text('Error fetching receipt: ${snapshot.error}', textAlign: TextAlign.center, style: textTheme.bodyLarge?.copyWith(color: kErrorRed)),
-              ),
-            );
-          } else if (snapshot.hasData) {
-            return _buildReceiptView(context, snapshot.data!);
-          }
-          return const Center(child: Text('No receipt data found.'));
-        },
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(children: [
+                _buildStatusBanner(r),
+                const SizedBox(height: 16),
+                _buildReceiptCard(r),
+              ]),
+            ),
+          ),
+          _buildActionPanel(),
+        ],
       ),
+    );
+  }
+
+  Widget _buildStatusBanner(DepositReceipt r) {
+    bool isNeg = r.receiptType == ReceiptType.closure;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)],
+      ),
+      child: Row(children: [
+        Icon(isNeg ? Icons.cancel_rounded : Icons.check_circle_rounded,
+            color: isNeg ? kErrorRed : kSuccessGreen, size: 40),
+        const SizedBox(width: 15),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(r.receiptType.name.toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: kBrandNavy)),
+          Text("Ref: ${r.transactionId}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        ])
+      ]),
+    );
+  }
+
+  Widget _buildReceiptCard(DepositReceipt r) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10)],
+      ),
+      child: Column(children: [
+        _section([
+          _uiRow("Value Date", dateFmt.format(r.valueDate ?? r.date)),
+          if (r.receiptType == ReceiptType.closure)
+            _uiRow("Closing Date", dateFmt.format(DateTime.now()), color: kErrorRed),
+          _uiRow("Account No.", r.accountNumber),
+          _uiRow("Nominee", r.nomineeName),
+          _uiRow("Lien Status", r.lienStatus ?? "Nil"),
+        ]),
+        const Divider(height: 1),
+        _section([
+          const Text("DEPOSIT SUMMARY", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+          const SizedBox(height: 12),
+          _uiRow("Principal", "₹${fmt.format(r.amount)}"),
+          _uiRow("Scheme", r.schemeName),
+          _uiRow("Interest", "${r.interestRate}% p.a."),
+          _uiRow("Tenure", r.tenure),
+          if (r.receiptType != ReceiptType.closure) ...[
+            _uiRow("Maturity Date", r.maturityDate ?? ""),
+            _uiRow("Maturity Instruction", r.maturityInstruction ?? "Auto-Credit"),
+          ],
+          if (r.receiptType == ReceiptType.closure) ...[
+            _uiRow("Interest Accrued", "₹${fmt.format(r.accruedInterest ?? 0)}", color: kSuccessGreen),
+            _uiRow("Tax (TDS)", "-₹${fmt.format(r.taxDeducted ?? 0)}"),
+            _uiRow("Penalty", "-₹${fmt.format(r.penaltyAmount ?? 0)}", color: kErrorRed),
+          ],
+        ]),
+        _totalStrip(r),
+      ]),
+    );
+  }
+
+  Widget _totalStrip(DepositReceipt r) {
+    bool isCl = r.receiptType == ReceiptType.closure;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: (isCl ? kErrorRed : kSuccessGreen).withOpacity(0.08),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15)),
+      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(isCl ? "Final Payout" : "Maturity Value", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        Text("₹${fmt.format(isCl ? r.netPayout : r.maturityAmount)}",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: isCl ? kErrorRed : kSuccessGreen)),
+      ]),
+    );
+  }
+
+  Widget _section(List<Widget> children) => Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children));
+
+  Widget _uiRow(String l, String v, {Color? color}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(l, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+      Text(v, style: TextStyle(fontWeight: FontWeight.w600, color: color ?? kBrandNavy, fontSize: 13))
+    ]),
+  );
+
+  Widget _buildActionPanel() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: Row(children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _isProcessing ? null : () => _handleFileAction(isShare: true),
+            icon: _isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.share_outlined),
+            label: const Text("SHARE"),
+            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15), side: BorderSide(color: kAccentOrange)),
+          ),
+        ),
+        const SizedBox(width: 15),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: _isProcessing ? null : () => _handleFileAction(isShare: false),
+            icon: const Icon(Icons.file_download_outlined),
+            label: const Text("DOWNLOAD"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAccentOrange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              elevation: 0,
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }

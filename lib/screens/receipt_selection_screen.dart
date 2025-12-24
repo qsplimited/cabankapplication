@@ -3,81 +3,115 @@ import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 import '../api/mock_fd_api_service.dart';
 import '../api/mock_rd_api_service.dart';
+import '../models/receipt_models.dart';
 import 'deposit_receipt_screen.dart';
 
-class ReceiptSelectionScreen extends StatelessWidget {
+class ReceiptSelectionScreen extends StatefulWidget {
   const ReceiptSelectionScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Re-using the same mock services
-    final fdApiService = MockFdApiService();
-    final rdApiService = MockRdApiService();
+  State<ReceiptSelectionScreen> createState() => _ReceiptSelectionScreenState();
+}
 
-    return Scaffold(
-      backgroundColor: kLightBackground,
-      appBar: AppBar(
-        title: const Text('View Receipts', style: TextStyle(color: kLightSurface)),
-        backgroundColor: kAccentOrange,
-        iconTheme: const IconThemeData(color: kLightSurface),
-        elevation: 0,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(kPaddingMedium),
-        children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: kPaddingSmall),
-            child: Text(
-              "Select the type of transaction receipt you wish to view or download.",
-              style: TextStyle(color: kLightTextSecondary),
+class _ReceiptSelectionScreenState extends State<ReceiptSelectionScreen> {
+  final fdService = MockFdApiService();
+  bool _isLoading = false;
+
+  // --- CORE NAVIGATION LOGIC ---
+  // This method fetches the data first to ensure the Receipt Screen has everything it needs.
+  Future<void> _handleNavigation(BuildContext context, String type) async {
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Generate a mock ID based on the selection
+      final String mockId = 'TXN-$type-${DateTime.now().millisecondsSinceEpoch}';
+
+      // 2. Fetch the full data object (This triggers the logic for Renewal/Closure/New)
+      final DepositReceipt receiptData = await fdService.fetchDepositReceipt(mockId);
+
+      // 3. Navigate and pass only the 'receipt' object
+      if (context.mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => DepositReceiptScreen(
+              receipt: receiptData, // ✅ Fixed: Matches the required constructor
             ),
           ),
-          const SizedBox(height: kPaddingSmall),
-
-          // 1. NEW DEPOSIT RECEIPT
-          _buildSelectionCard(
-            context,
-            title: 'New Deposit Receipt',
-            subtitle: 'Receipt for your initial account opening and funding.',
-            icon: Icons.note_add_outlined,
-            accentColor: kBrandLightBlue,
-            onTap: () => _navigateToReceipt(context, 'NEW', fdApiService, rdApiService),
-          ),
-
-          // 2. RENEWAL ADVICE
-          _buildSelectionCard(
-            context,
-            title: 'Renewal Advice',
-            subtitle: 'Details of your most recent maturity renewal instruction.',
-            icon: Icons.published_with_changes_outlined,
-            accentColor: kBrandPurple,
-            onTap: () => _navigateToReceipt(context, 'RENEWAL', fdApiService, rdApiService),
-          ),
-
-          // 3. PREMATURE CLOSE ADVICE
-          _buildSelectionCard(
-            context,
-            title: 'Premature Close Advice',
-            subtitle: 'Final payout details for accounts closed before maturity.',
-            icon: Icons.door_back_door_outlined,
-            accentColor: kErrorRed,
-            onTap: () => _navigateToReceipt(context, 'PREMATURE_CLOSE', fdApiService, rdApiService),
-          ),
-        ],
-      ),
-    );
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error fetching receipt: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _navigateToReceipt(BuildContext context, String actionType, dynamic fdApi, dynamic rdApi) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DepositReceiptScreen(
-          transactionId: 'FD-TXN-12345', // In a real app, you'd fetch the latest ID
-          depositType: 'FD',
-          actionType: actionType, // Passing the specific type to your main screen
-          fdApiService: fdApi,
-          rdApiService: rdApi,
-        ),
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7F9),
+      appBar: AppBar(
+        title: const Text("Select Receipt Type"),
+        backgroundColor: kAccentOrange,
+        elevation: 0,
+      ),
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.all(kPaddingMedium),
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: kPaddingMedium),
+                child: Text(
+                  "Which receipt would you like to view?",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.grey),
+                ),
+              ),
+
+              _buildSelectionCard(
+                context,
+                title: "New Deposit Receipt",
+                subtitle: "View the official receipt for your recently opened FD/RD.",
+                icon: Icons.add_circle_outline_rounded,
+                color: kSuccessGreen,
+                onTap: () => _handleNavigation(context, 'NEW'),
+              ),
+
+              _buildSelectionCard(
+                context,
+                title: "Renewal Advice",
+                subtitle: "View details of your renewed deposit and linked history.",
+                icon: Icons.history_rounded,
+                color: kBrandPurple,
+                onTap: () => _handleNavigation(context, 'RENEWAL'),
+              ),
+
+              _buildSelectionCard(
+                context,
+                title: "Closure Advice",
+                subtitle: "View final settlement, interest earned, and payout tax.",
+                icon: Icons.account_balance_wallet_outlined,
+                color: kErrorRed,
+                onTap: () => _handleNavigation(context, 'CLOSE'),
+              ),
+            ],
+          ),
+
+          // Loading Overlay
+          if (_isLoading)
+            Container(
+              color: Colors.black26,
+              child: const Center(
+                child: CircularProgressIndicator(color: kAccentOrange),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -87,26 +121,49 @@ class ReceiptSelectionScreen extends StatelessWidget {
         required String title,
         required String subtitle,
         required IconData icon,
-        required Color accentColor,
+        required Color color,
         required VoidCallback onTap,
       }) {
     return Card(
-      margin: const EdgeInsets.only(bottom: kPaddingMedium),
       elevation: 2,
+      margin: const EdgeInsets.only(bottom: kPaddingMedium),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(kPaddingMedium),
+      child: InkWell(
         onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: accentColor.withOpacity(0.1),
-          child: Icon(icon, color: accentColor),
+        borderRadius: BorderRadius.circular(kRadiusMedium),
+        child: Padding(
+          padding: const EdgeInsets.all(kPaddingMedium),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(kPaddingSmall),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 32),
+              ),
+              const SizedBox(width: kPaddingMedium),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kBrandNavy),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+            ],
+          ),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: kBrandNavy)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(subtitle, style: const TextStyle(fontSize: 12)),
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: kDividerColor),
       ),
     );
   }
