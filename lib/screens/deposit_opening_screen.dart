@@ -114,17 +114,14 @@ class DepositOpeningScreen extends StatelessWidget {
             context,
             icon: Icons.monetization_on,
             title: 'Loan Against Deposit',
-            subtitle: 'Quickly view the receipt for your most recent Fixed Deposit transaction.',
-            actionText: 'View Receipt',
-            onActionTap: () async {
-              // We fetch the receipt first, then navigate
-              final receipt = await fdApiService.fetchDepositReceipt('FD-123456');
-/*              Navigator.of(context).push(
+            subtitle: 'Apply for a loan against your active fixed or recurring deposits.',
+            actionText: 'Select Deposit', // Changed from "View Receipt" to be more accurate
+            onActionTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => DepositReceiptScreen(receipt: receipt),
-                ),
-              );*/
-            },
+                  // We pass the LOAN mode here
+                    builder: (context) => const DepositListScreen(mode: DepositListMode.loan)
+                )
+            ),
             accentColor: kBrandLightBlue,
             isNew: true,
           ),

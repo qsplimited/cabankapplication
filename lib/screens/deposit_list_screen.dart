@@ -6,8 +6,18 @@ import '../api/deposit_repository.dart';
 import '../utils/app_formatters.dart';
 import 'manage_deposit_screen.dart'; // This is your "Deposit Hub"
 
+import 'loan_details_screen.dart';
+
+// Define an enum for clarity - easy for newcomers to read
+enum DepositListMode { manage, loan }
+
 class DepositListScreen extends StatefulWidget {
-  const DepositListScreen({Key? key}) : super(key: key);
+  final DepositListMode mode; // mode for manage and LAD
+
+  const DepositListScreen({
+    Key? key,
+    this.mode = DepositListMode.manage // Default is manage
+  }) : super(key: key);
 
   @override
   State<DepositListScreen> createState() => _DepositListScreenState();
@@ -86,13 +96,19 @@ class _DepositListScreenState extends State<DepositListScreen> with SingleTicker
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-
-            builder: (c) => ManageDepositScreen(deposit: d),
-          ),
-        );
+        if (widget.mode == DepositListMode.loan) {
+          // Navigate to Loan Details Screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (c) => LoanDetailsScreen(deposit: d)),
+          );
+        } else {
+          // Navigate to Management Screen (Current behavior)
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (c) => ManageDepositScreen(deposit: d)),
+          );
+        }
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: kPaddingMedium),
