@@ -1,4 +1,9 @@
+// lib/models/deposit_account.dart
+
 import 'package:flutter/material.dart';
+
+// 🌟 INDUSTRY STANDARD: Distinguish between active and matured accounts
+enum DepositStatus { running, matured, closed }
 
 class Nominee {
   final String name;
@@ -7,7 +12,6 @@ class Nominee {
 
   Nominee({required this.name, required this.relationship, required this.share});
 
-  // CRITICAL: This allows updating the object data easily
   Nominee copyWith({String? name, String? relationship, double? share}) {
     return Nominee(
       name: name ?? this.name,
@@ -20,7 +24,7 @@ class Nominee {
 class DepositAccount {
   final String id;
   final String accountNumber;
-  final String accountType;
+  final String accountType; // "Fixed Deposit" or "Recurring Deposit"
   final double principalAmount;
   final double accruedInterest;
   final double interestRate;
@@ -28,6 +32,7 @@ class DepositAccount {
   final DateTime maturityDate;
   final String linkedAccountNumber;
   final List<Nominee> nominees;
+  final DepositStatus status; // 🌟 NEW CRITICAL FIELD
 
   DepositAccount({
     required this.id,
@@ -40,13 +45,15 @@ class DepositAccount {
     required this.maturityDate,
     required this.linkedAccountNumber,
     required this.nominees,
+    required this.status,
   });
 
   double get totalMaturityAmount => principalAmount + accruedInterest;
-  bool get isMatured => DateTime.now().isAfter(maturityDate);
 
-  // CRITICAL: To update the list after T-PIN success
-  DepositAccount copyWith({List<Nominee>? nominees}) {
+  // Logic check: Is this deposit past its maturity date?
+  bool get hasMatured => DateTime.now().isAfter(maturityDate);
+
+  DepositAccount copyWith({List<Nominee>? nominees, DepositStatus? status}) {
     return DepositAccount(
       id: id,
       accountNumber: accountNumber,
@@ -58,6 +65,7 @@ class DepositAccount {
       maturityDate: maturityDate,
       linkedAccountNumber: linkedAccountNumber,
       nominees: nominees ?? this.nominees,
+      status: status ?? this.status,
     );
   }
 }

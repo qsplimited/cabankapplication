@@ -6,6 +6,8 @@ import '../api/banking_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 
+import 'transfer_success_screen.dart';
+
 // Removed hardcoded color/style constants and will use Theme.of(context) instead.
 // const Color kPrimaryColor = Color(0xFF003366);
 // const Color kSecondaryColor = Color(0xFFF0F0F0);
@@ -16,13 +18,9 @@ import '../theme/app_dimensions.dart';
 /// Custom widget to handle the 6-digit T-PIN input fields with only an underline.
 class OtpInputFields extends StatefulWidget {
   final ValueChanged<String> onOtpChanged;
-  final int pinLength; // Renamed to pinLength for generic input fields
+  final int pinLength;
 
-  const OtpInputFields({
-    super.key,
-    required this.onOtpChanged,
-    this.pinLength = 6,
-  });
+  const OtpInputFields({super.key, required this.onOtpChanged, this.pinLength = 6});
 
   @override
   State<OtpInputFields> createState() => _OtpInputFieldsState();
@@ -31,7 +29,6 @@ class OtpInputFields extends StatefulWidget {
 class _OtpInputFieldsState extends State<OtpInputFields> {
   late List<TextEditingController> _controllers;
   late List<FocusNode> _focusNodes;
-  String _currentOtp = '';
 
   @override
   void initState() {
@@ -42,96 +39,48 @@ class _OtpInputFieldsState extends State<OtpInputFields> {
 
   @override
   void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-    for (var node in _focusNodes) {
-      node.dispose();
-    }
+    for (var c in _controllers) c.dispose();
+    for (var f in _focusNodes) f.dispose();
     super.dispose();
-  }
-
-  /// Updates the full OTP string and notifies the parent widget.
-  void _updateOtp() {
-    // Join the text from all controllers
-    final newOtp = _controllers.map((c) => c.text.isNotEmpty ? c.text : '').join('');
-
-    if (_currentOtp != newOtp) {
-      _currentOtp = newOtp;
-      widget.onOtpChanged(_currentOtp);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: List.generate(widget.pinLength, (index) {
         return SizedBox(
-          // Refactored hardcoded 40 to kPaddingXXL
-          width: kPaddingXXL,
+          width: 38, // Reduced size to prevent overflow
+          height: 45,
           child: TextFormField(
             controller: _controllers[index],
             focusNode: _focusNodes[index],
             keyboardType: TextInputType.number,
-            obscureText: false,
-            maxLength: 1,
             textAlign: TextAlign.center,
-            // Refactored hardcoded style
-            style: textTheme.titleLarge?.copyWith(
-              fontSize: 24,
-              color: colorScheme.primary,
-            ),
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-            // --- FOCUS AND PIN LOGIC IMPLEMENTED HERE ---
-            onChanged: (value) {
-              // 1. Auto-advance to the next field
-              if (value.length == 1 && index < widget.pinLength - 1) {
-                FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
-              }
-
-              // 2. Auto-move back to the previous field on delete (backspace)
-              else if (value.isEmpty && index > 0) {
-                // Using a slight delay prevents potential focus conflicts
-                Future.delayed(const Duration(milliseconds: 50), () {
-                  if (mounted) {
-                    FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
-                  }
-                });
-              }
-
-              // 3. Update the aggregated PIN value for the parent widget
-              _updateOtp();
-            },
-
-            // --- DECORATION FOR UNDERLINE ONLY (no box) ---
+            maxLength: 1,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             decoration: InputDecoration(
               counterText: "",
-              hintText: '•',
-              // Refactored hardcoded style
-              hintStyle: textTheme.titleLarge?.copyWith(
-                  fontSize: 24,
-                  color: colorScheme.onSurface.withOpacity(0.2) // Light grey hint
+              contentPadding: EdgeInsets.zero,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Colors.grey),
               ),
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: colorScheme.onSurface.withOpacity(0.4), width: 2),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
               ),
-              focusedBorder: UnderlineInputBorder(
-                // Refactored hardcoded color
-                borderSide: BorderSide(color: colorScheme.primary, width: 3),
-              ),
-              errorBorder: UnderlineInputBorder(
-                // Refactored hardcoded color
-                borderSide: BorderSide(color: colorScheme.error, width: 2),
-              ),
-              // Refactored hardcoded padding
-              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: kPaddingExtraSmall),
             ),
+            onChanged: (value) {
+              if (value.isNotEmpty && index < widget.pinLength - 1) {
+                _focusNodes[index + 1].requestFocus();
+              } else if (value.isEmpty && index > 0) {
+                _focusNodes[index - 1].requestFocus();
+              }
+              // Collect all values and send to parent
+              String currentOtp = _controllers.map((c) => c.text).join();
+              widget.onOtpChanged(currentOtp);
+            },
           ),
         );
       }),
@@ -146,8 +95,8 @@ class TransferVerificationDialog extends StatefulWidget {
   final double amount;
   final Account sourceAccount;
   final Account destinationAccount;
-  final String transactionReference; // NEW: Reference ID from initiate call
-  final String message; // NEW: OTP message
+  final String transactionReference;
+  final String message;
   final Function(double amount, String otp, String ref) onConfirm;
 
   const TransferVerificationDialog({
@@ -165,39 +114,23 @@ class TransferVerificationDialog extends StatefulWidget {
 }
 
 class _TransferVerificationDialogState extends State<TransferVerificationDialog> {
-  String _otp = ''; // Changed from _tpin to _otp
+  String _currentOtp = '';
 
-  // Helper widget to display a single confirmation detail line
-  Widget _buildDetailRow({required String label, required String value, bool isAmount = false}) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
+  Widget _detailRow(String label, String value, {bool isBold = false}) {
     return Padding(
-      // Refactored hardcoded padding
-      padding: const EdgeInsets.symmetric(vertical: kPaddingExtraSmall),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Label on the left
-          Expanded(
-            flex: 2,
-            // Refactored hardcoded style
-            child: Text(label, style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.6))),
-          ),
-
-          // Value on the right
-          Expanded(
-            flex: 3,
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Flexible( // Prevents text overflow
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: isAmount
-              // Refactored hardcoded style
-                  ? textTheme.titleMedium?.copyWith(fontSize: 18, color: colorScheme.primary)
-              // Refactored hardcoded style
-                  : textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, color: colorScheme.onSurface.withOpacity(0.8), fontSize: 14),
-              overflow: TextOverflow.clip,
+              style: TextStyle(
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                fontSize: 14,
+              ),
             ),
           ),
         ],
@@ -207,124 +140,52 @@ class _TransferVerificationDialogState extends State<TransferVerificationDialog>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    final sourceFull = widget.sourceAccount.accountNumber;
-    final destFull = widget.destinationAccount.accountNumber;
-
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)),
-      // Refactored hardcoded padding
-      contentPadding: const EdgeInsets.fromLTRB(kPaddingLarge, kIconSizeSmall, kPaddingLarge, 0),
-      title: Text(
-        'Verify Transfer with OTP',
-        textAlign: TextAlign.center,
-        // Refactored hardcoded style
-        style: textTheme.titleMedium?.copyWith(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.primary),
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // --- TRANSFER DETAILS ---
-            const Divider(height: 1, color: kDividerColor),
-            // Refactored hardcoded 16 to kPaddingMedium
-            const SizedBox(height: kPaddingMedium),
-
-            // Transfer Amount (Highlighted)
-            _buildDetailRow(
-              label: 'Transfer Amount',
-              value: '₹${widget.amount.toStringAsFixed(2)}',
-              isAmount: true,
-            ),
-            const Divider(height: 1, color: kDividerColor),
-
-            // From Account (Full Number Display)
-            _buildDetailRow(
-              label: 'From',
-              value: '${widget.sourceAccount.nickname} (${sourceFull})',
-            ),
-
-            // To Account (Full Number Display)
-            _buildDetailRow(
-              label: 'To',
-              value: '${widget.destinationAccount.nickname} (${destFull})',
-            ),
-
-            // Refactored hardcoded 24 to kPaddingLarge
-            const SizedBox(height: kPaddingLarge),
-
-            // --- OTP INPUT SECTION ---
-            Text(
-                widget.message, // Display the masked mobile number message
-                // Refactored hardcoded style
-                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, fontSize: 15)
-            ),
-            // Refactored hardcoded 16 to kPaddingMedium
-            const SizedBox(height: kPaddingMedium),
-
-            // Underline Pin Input (Now for OTP)
-            OtpInputFields(
-              onOtpChanged: (otp) {
-                setState(() {
-                  _otp = otp;
-                });
-              },
-            ),
-
-            // Refactored hardcoded 24 to kPaddingLarge
-            const SizedBox(height: kPaddingLarge),
-          ],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text("Confirm Transaction", textAlign: TextAlign.center),
+      content: SizedBox( // Explicit width fixes RenderFlex/Constraint issues
+        width: MediaQuery.of(context).size.width * 0.9,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    _detailRow("Amount", "₹${widget.amount.toStringAsFixed(2)}", isBold: true),
+                    const Divider(),
+                    _detailRow("From", widget.sourceAccount.nickname),
+                    _detailRow("To", widget.destinationAccount.nickname),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(widget.message, style: const TextStyle(fontSize: 12), textAlign: TextAlign.center),
+              const SizedBox(height: 20),
+              OtpInputFields(
+                onOtpChanged: (otp) => setState(() => _currentOtp = otp),
+              ),
+            ],
+          ),
         ),
       ),
-      // --- ACTION BUTTONS ---
-      // Refactored hardcoded padding
-      actionsPadding: const EdgeInsets.all(kPaddingMedium),
       actions: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Cancel Button
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Cancel',
-                // Refactored hardcoded style
-                style: textTheme.labelLarge?.copyWith(color: colorScheme.error, fontWeight: FontWeight.bold),
-              ),
-            ),
-
-            // Confirm & Pay Button
-            ElevatedButton(
-              onPressed: _otp.length == 6
-                  ? () => widget.onConfirm(widget.amount, _otp, widget.transactionReference)
-                  : null,
-              style: ElevatedButton.styleFrom(
-                // Refactored hardcoded colors
-                backgroundColor: colorScheme.primary,
-                disabledBackgroundColor: colorScheme.primary.withOpacity(0.5),
-                // Refactored hardcoded padding
-                padding: const EdgeInsets.symmetric(horizontal: kPaddingLarge, vertical: kRadiusMedium),
-                // Refactored hardcoded 10 to kPaddingTen
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kPaddingTen)),
-                elevation: kCardElevation,
-              ),
-              child: Text(
-                'Verify & Pay',
-                // Refactored hardcoded style
-                style: textTheme.labelLarge?.copyWith(color: colorScheme.onPrimary, fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+        ElevatedButton(
+          onPressed: _currentOtp.length == 6
+              ? () => widget.onConfirm(widget.amount, _currentOtp, widget.transactionReference)
+              : null,
+          child: const Text("Confirm Payment"),
         ),
       ],
     );
   }
-}
-
-// --------------------------------------------------------------------------
+}// --------------------------------------------------------------------------
 
 class OwnAccountTransferScreen extends StatefulWidget {
   final BankingService bankingService;
@@ -438,32 +299,152 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
     }
   }
 
-  // --- TRANSFER EXECUTION (Two-Step OTP Flow) ---
-
-  void _handleInitiateTransfer() {
-    if (_isTransferring) return;
-
-    if (_selectedSource == null || _selectedDestination == null || _amountController.text.isEmpty) {
-      setState(() => _errorMessage = 'Please select both accounts and enter a valid amount.');
+// 1. The Initiate Button Handler
+  void _handleInitiateTransfer() async {
+    // 1. Basic UI Check
+    if (_selectedSource == null || _selectedDestination == null) {
+      setState(() => _errorMessage = "Please select source and destination accounts.");
       return;
     }
 
-    final double amount = double.tryParse(_amountController.text) ?? 0.0;
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
     if (amount <= 0) {
-      setState(() => _errorMessage = 'Amount must be greater than ₹0.');
+      setState(() => _errorMessage = "Enter a valid transfer amount.");
       return;
     }
 
-    // Check for insufficient funds
-    if (amount > (_selectedSource?.balance ?? 0.0)) {
-      setState(() => _errorMessage = 'Insufficient funds. Available: ₹${(_selectedSource?.balance ?? 0.0).toStringAsFixed(2)}');
-      return;
-    }
+    // 2. Start Loading State
+    setState(() {
+      _isTransferring = true;
+      _errorMessage = null;
+    });
 
-    _initiateTransfer(amount);
+    try {
+      // 3. Request OTP from Service
+      final result = await _bankingService.requestFundTransferOtp(
+        recipientAccount: _selectedDestination!.accountNumber,
+        amount: amount,
+        sourceAccountNumber: _selectedSource!.accountNumber,
+        transferType: TransferType.internal,
+      );
+
+      // 4. Trigger Dialog with Reference ID
+      if (mounted) {
+        _showVerificationDialog(
+            amount,
+            result['message'] ?? "Verify Transaction",
+            result['transactionReference'] as String
+        );
+      }
+    } catch (e) {
+      setState(() => _errorMessage = e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      // 5. Always stop the loading spinner
+      if (mounted) setState(() => _isTransferring = false);
+    }
   }
 
-  /// Step 1: Calls API to check balance/limits and get OTP/Reference ID
+  void _showVerificationDialog(double amount, String message, String referenceId) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        String localOtp = "";
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Confirm OTP"),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.9,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Small transaction summary
+                      Text("Paying: ₹$amount", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 20),
+
+                      // Compact OTP boxes
+                      OtpInputFields(
+                        onOtpChanged: (otp) => setDialogState(() => localOtp = otp),
+                      ),
+
+                      const SizedBox(height: 30),
+
+                      // THE VERIFY BUTTON
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: localOtp.length == 6
+                              ? () {
+                            Navigator.pop(ctx);
+                            _executeFinalTransfer(amount, localOtp, referenceId);
+                          }
+                              : null,
+                          child: const Text("VERIFY & PAY"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+// Helper row for details
+  Widget _buildDetailRow(String label, String value, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(value, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+// 3. The Execution Handler
+// inside own_account_transfer_screen.dart
+  Future<void> _executeFinalTransfer(double amount, String otp, String ref) async {
+    setState(() => _isTransferring = true);
+    try {
+      await _bankingService.submitFundTransfer(
+        recipientAccount: _selectedDestination!.accountNumber,
+        recipientName: _selectedDestination!.nickname,
+        transferType: TransferType.internal,
+        amount: amount,
+        transactionReference: ref,
+        transactionOtp: otp,
+        sourceAccountNumber: _selectedSource!.accountNumber,
+      );
+
+      if (mounted) {
+        // INSTEAD OF DIALOG, WE NAVIGATE
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TransferSuccessScreen(
+              transactionId: ref,
+              amount: amount,
+              fromAccount: _selectedSource!.nickname,
+              toAccount: _selectedDestination!.nickname,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _errorMessage = e.toString());
+    } finally {
+      if (mounted) setState(() => _isTransferring = false);
+    }
+  }
+
   Future<void> _initiateTransfer(double amount) async {
     setState(() {
       _isTransferring = true;
@@ -472,64 +453,40 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
     });
 
     try {
-      // NOTE: Even for internal transfers, the mock API requires a call to requestFundTransferOtp
       final response = await _bankingService.requestFundTransferOtp(
         recipientAccount: _selectedDestination!.accountNumber,
         amount: amount,
         sourceAccountNumber: _selectedSource!.accountNumber,
-        transferType: TransferType.internal, // Use internal type
+        transferType: TransferType.internal,
       );
 
       if (!mounted) return;
+
+      final refId = response['transactionReference'] as String;
+      final msg = response['message'] as String;
+
       setState(() {
-        _currentReferenceId = response['transactionReference'] as String;
-        _isTransferring = false; // Allow the user to proceed to the OTP dialog
+        _currentReferenceId = refId;
+        _isTransferring = false;
       });
 
-      // Show the verification dialog immediately after receiving the reference
-      _showVerificationDialog(amount, response['message'] as String);
+      // FIX: Pass all 3 required arguments here
+      _showVerificationDialog(amount, msg, refId);
 
     } on TransferException catch (e) {
       setState(() {
         _errorMessage = e.message;
         _isTransferring = false;
       });
-    } on Exception catch (e) {
+    } catch (e) {
       setState(() {
-        _errorMessage = 'An unexpected error occurred during initiation: ${e.toString()}';
+        _errorMessage = 'An unexpected error occurred: ${e.toString()}';
         _isTransferring = false;
       });
     }
   }
 
-  void _showVerificationDialog(double amount, String otpMessage) {
-    // Ensure we have the necessary data before showing the dialog
-    if (_currentReferenceId == null) {
-      setState(() => _errorMessage = 'Failed to get transaction reference.');
-      return;
-    }
 
-    final sourceAccountDisplay = _selectedSource!;
-    final destAccountDisplay = _selectedDestination!;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Force user to use buttons
-      builder: (BuildContext context) {
-        return TransferVerificationDialog(
-          amount: amount,
-          sourceAccount: sourceAccountDisplay,
-          destinationAccount: destAccountDisplay,
-          transactionReference: _currentReferenceId!,
-          message: otpMessage,
-          onConfirm: (amount, otp, ref) {
-            Navigator.of(context).pop(); // Close the OTP dialog
-            _verifyAndExecuteTransfer(amount, otp, ref);
-          },
-        );
-      },
-    );
-  }
 
   /// Step 2: Calls API to verify OTP and execute the transfer
   Future<void> _verifyAndExecuteTransfer(double amount, String otp, String ref) async {

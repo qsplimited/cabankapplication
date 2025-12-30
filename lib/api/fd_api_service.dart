@@ -16,10 +16,10 @@ abstract class FdApiService {
     required String sourceAccountId,
   });
 
-  // 🌟 NEW METHOD: Request OTP for confirmation
+
   Future<void> requestOtp({required String accountId});
 
-  // 🌟 UPDATED: Method for confirming the deposit using OTP
+
   Future<FdConfirmationResponse> confirmDeposit({
     required String otp, // Parameter name changed from tpin to otp
     required double amount,

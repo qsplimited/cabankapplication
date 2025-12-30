@@ -8,7 +8,7 @@ import 'rd_input_screen.dart';
 import 'receipt_selection_screen.dart';
 import 'deposit_terms_and_conditions_screen.dart';
 import 'interest_rate_screen.dart';
-import 'manage_deposit_screen.dart';
+import 'deposit_list_screen.dart';
 import 'deposit_receipt_screen.dart'; // Ensure this is imported
 
 class DepositOpeningScreen extends StatelessWidget {
@@ -105,7 +105,7 @@ class DepositOpeningScreen extends StatelessWidget {
             title: 'Manage Deposit',
             subtitle: 'Manage your maturity instructions and nominee details here.',
             actionText: 'Manage Deposit',
-            onActionTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const ManageDepositScreen())),
+            onActionTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (context) => const DepositListScreen())),
             accentColor: kBrandPurple,
           ),
 

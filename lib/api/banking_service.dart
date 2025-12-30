@@ -433,33 +433,24 @@ class BankingService {
     return List.from(_mockBeneficiaries);
   }
   /// Simulates the POST call to save a new payee to the list.
-  Future<Beneficiary> addBeneficiary({
-    required String name,
-    required String accountNumber,
-    required String ifsCode,
-    required String bankName,
-    required String nickname,
-    AddBeneficiaryPayload? payload,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 1000));
+  // Locate your addBeneficiary method in banking_service.dart and update it
+  Future<Beneficiary> addBeneficiary(AddBeneficiaryPayload payload) async {
+    await Future.delayed(const Duration(milliseconds: 800));
 
-    // Check if the beneficiary already exists (case-insensitive)
-    if (_mockBeneficiaries.any((b) => b.accountNumber == accountNumber)) {
-      throw TransferException('Beneficiary with this account number already exists.');
-    }
-
-    // Use the Random instance defined globally
     final newBeneficiary = Beneficiary(
       beneficiaryId: 'BENF${_random.nextInt(10000)}',
-      name: name,
-      accountNumber: accountNumber,
-      ifsCode: ifsCode.toUpperCase(), // Ensure IFSC is stored uppercase
-      bankName: bankName,
-      nickname: nickname,
+      name: payload.name,
+      accountNumber: payload.accountNumber,
+      ifsCode: payload.ifsCode,
+      bankName: payload.bankName,
+      nickname: payload.nickname,
     );
 
     _mockBeneficiaries.add(newBeneficiary);
+
+    // CRITICAL: Notify the stream listeners
     _notifyListeners();
+
     return newBeneficiary;
   }
 
@@ -476,18 +467,30 @@ class BankingService {
   }
 
   /// Updates a beneficiary using a full Beneficiary object.
-  Future<Beneficiary> updateBeneficiary(Beneficiary updatedBeneficiary) async {
+  /// Updates a beneficiary locally in the mock list using their ID and a payload.
+  Future<Beneficiary> updateBeneficiary(String beneficiaryId, AddBeneficiaryPayload payload) async {
     await Future.delayed(const Duration(milliseconds: 500));
-    final index = _mockBeneficiaries.indexWhere((b) => b.beneficiaryId == updatedBeneficiary.beneficiaryId);
+
+    // Find the index of the existing beneficiary
+    final index = _mockBeneficiaries.indexWhere((b) => b.beneficiaryId == beneficiaryId);
 
     if (index == -1) {
       throw TransferException('Beneficiary not found for update.');
     }
 
-    _mockBeneficiaries[index] = updatedBeneficiary.copyWith(
-      ifsCode: updatedBeneficiary.ifsCode.toUpperCase(), // Ensure IFSC is updated uppercase
+    // Update the record in the local mock list with new data
+    _mockBeneficiaries[index] = Beneficiary(
+      beneficiaryId: beneficiaryId,
+      name: payload.name,
+      accountNumber: payload.accountNumber,
+      ifsCode: payload.ifsCode.toUpperCase(), // Ensure IFSC remains uppercase
+      bankName: payload.bankName,
+      nickname: payload.nickname,
     );
+
+    // CRITICAL: Notify the UI listeners so the Manage Payees screen refreshes
     _notifyListeners();
+
     return _mockBeneficiaries[index];
   }
 
@@ -524,7 +527,6 @@ class BankingService {
     // General failure for everything else
     throw TransferException('Verification failed. Check account number and IFS code.');
   }
-
 
   // --- T-PIN SECURITY METHODS (Unchanged) ---
   bool findAccountByMobileNumber(String mobileNumber) {
@@ -716,56 +718,47 @@ class BankingService {
     };
   }
 
-  // -------------------------------------------------------------------------
-  // --- OTP FUND TRANSFER FLOW (Two-Step API) ---
-  // -------------------------------------------------------------------------
+// -------------------------------------------------------------------------
+// --- CORRECTED OTP FUND TRANSFER FLOW ---
+// -------------------------------------------------------------------------
 
-  /// Step 1 (API /initiate): Performs soft validation, generates an OTP, and returns a reference ID.
   Future<Map<String, dynamic>> requestFundTransferOtp({
     required String recipientAccount,
     required double amount,
     required String sourceAccountNumber,
     required TransferType transferType,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    // --- SOFT VALIDATION (Uses existing detailed calculation logic) ---
     try {
-      // This call checks limits, funds, and RTGS minimums
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // VALIDATION: Matches your previous working logic
       await calculateTransferDetails(
         transferType: transferType,
         amount: amount,
         sourceAccountNumber: sourceAccountNumber,
       );
+
+      final otp = (100000 + _random.nextInt(900000)).toString();
+      final transactionReference = 'TX${DateTime.now().millisecondsSinceEpoch}';
+
+      _mockOtp = otp; // This is what the user must type
+      _mockTransactionReference = transactionReference;
+      _otpGenerationTime = DateTime.now();
+
+      if (kDebugMode) print('DEBUG OTP FOR TESTING: $otp');
+
+      return {
+        'transactionReference': transactionReference,
+        'message': 'OTP sent to mobile ending in ${_registeredMobileNumber.substring(_registeredMobileNumber.length - 4)}',
+        'mockOtp': otp,
+      };
     } on TransferException {
       rethrow;
     } catch (e) {
-      // Catches generic errors during calculation
-      throw TransferException(e.toString().replaceAll('Exception: ', ''));
+      throw TransferException('Initiation failed: ${e.toString()}');
     }
-
-    // --- OTP GENERATION ---
-    final otp = (100000 + _random.nextInt(900000)).toString();
-    final transactionReference = 'TX${_random.nextInt(99999999)}';
-
-    // Store state for Step 2 (Verification)
-    _mockOtp = otp;
-    _mockTransactionReference = transactionReference;
-    _otpGenerationTime = DateTime.now();
-
-    if (kDebugMode) {
-      print('MOCK TRANSFER OTP GENERATED: $_mockOtp (Ref: $_mockTransactionReference)');
-    }
-
-    // Return the reference ID and message. The 'mockOtp' is for debug/testing only.
-    return {
-      'transactionReference': transactionReference,
-      'message': 'OTP sent to mobile number: ******${_registeredMobileNumber.substring(_registeredMobileNumber.length - 4)}',
-      'mockOtp': otp,
-    };
   }
 
-  /// Step 2 (API /verify): Validates OTP and executes the ledger update.
   Future<String> submitFundTransfer({
     required String recipientAccount,
     required String recipientName,
@@ -773,104 +766,48 @@ class BankingService {
     required TransferType transferType,
     required double amount,
     String? narration,
-    required String transactionReference, // Reference ID
-    required String transactionOtp, // OTP
+    required String transactionReference,
+    required String transactionOtp,
     required String sourceAccountNumber,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    // --- HARD VALIDATION (OTP & Reference Check) ---
-    // Use null checks and safe comparisons for the state variables
-    if (transactionReference != _mockTransactionReference || _mockTransactionReference == null) {
-      throw TransferException('Transaction failed: Invalid or expired transaction reference ID.');
+    // 1. Validate OTP and Reference
+    if (_mockTransactionReference == null || transactionReference != _mockTransactionReference) {
+      throw TransferException('Session expired. Please start again.');
     }
 
-    if (transactionOtp != _mockOtp || _mockOtp == null || transactionOtp.length != _otpLength) {
-      throw TransferException('Transaction failed: Invalid OTP.');
+    if (_mockOtp == null || transactionOtp != _mockOtp) {
+      throw TransferException('Invalid OTP entered.');
     }
 
-    if (_otpGenerationTime == null || DateTime.now().difference(_otpGenerationTime!).inMinutes > 5) {
-      // Clear expired OTP state
+    // 2. Check Expiry (5 Minutes)
+    if (_otpGenerationTime != null &&
+        DateTime.now().difference(_otpGenerationTime!).inMinutes > 5) {
+      _mockOtp = null; // Clear state
+      throw TransferException('OTP has expired.');
+    }
+
+    // 3. Process the Ledger update
+    try {
+      // Find accounts
+      final sourceIndex = _mockUserAccounts.indexWhere((acc) => acc.accountNumber == sourceAccountNumber);
+      if (sourceIndex == -1) throw TransferException('Source account not found.');
+
+      final sourceAccount = _mockUserAccounts[sourceIndex];
+
+      // Clear state before execution to prevent double-tap reuse
       _mockOtp = null;
       _mockTransactionReference = null;
-      throw TransferException('Transaction failed: OTP expired. Please initiate the transfer again.');
-    }
-    // --- MOCK SYSTEM FAILURE POINT (NEW ADDITION) ---
-    // If the reference ID contains 'TX999', simulate a system error after OTP validation
-    if (transactionReference.contains('TX999')) {
-      // Clear OTP/Reference state to prevent reuse
-      _mockOtp = null;
-      _mockTransactionReference = null;
-      _otpGenerationTime = null;
-      throw TransferException('Transaction failed: Internal System Error (Mock 999). Please try again later.', code: 'SYSTEM_999');
-    }
 
-    // Clear OTP/Reference after successful verification to prevent reuse
-    _mockOtp = null;
-    _mockTransactionReference = null;
-    _otpGenerationTime = null;
-
-    // --- EXECUTION SETUP ---
-    final sourceIndex = _mockUserAccounts.indexWhere((acc) => acc.accountNumber == sourceAccountNumber);
-    final sourceAccount = sourceIndex != -1 ? _mockUserAccounts[sourceIndex] : null;
-
-    if (sourceAccount == null) {
-      throw TransferException('Transaction failed: Source account not found during final execution.');
-    }
-
-    double fee = 0.0;
-    double totalDebitAmount = amount;
-
-    // Re-run the fee/total calculation for external transfers right before execution
-    final isTransferToOwnAccount = _mockUserAccounts.any((a) => a.accountNumber == recipientAccount);
-
-    if (transferType != TransferType.internal && !isTransferToOwnAccount) {
-      if (kDebugMode) {
-        print('External transfer detected. Re-validating fees and limits...');
-      }
-      try {
-        final details = await calculateTransferDetails(
-          transferType: transferType,
-          amount: amount,
-          sourceAccountNumber: sourceAccountNumber,
-        );
-        // Explicitly cast the returned doubles
-        fee = details['fee'] as double;
-        totalDebitAmount = details['totalDebit'] as double;
-      } on TransferException {
-        rethrow;
-      } catch (e) {
-        throw TransferException('Execution failed during fee check: ${e.toString().replaceAll('Exception: ', '')}');
-      }
-    }
-
-    final finalNarration = narration?.trim() ?? '';
-
-    if (isTransferToOwnAccount || isInternalIfsc(ifsCode ?? '')) {
-      // Case 1: Internal Bank Transfer (Own Account or Beneficiary in Same Bank)
-      return _performInternalTransfer(
+      // Use existing internal logic to move the money
+      return await _performInternalTransfer(
         amount: amount,
-        narration: finalNarration,
+        narration: narration ?? 'Transfer',
         sourceAccount: sourceAccount,
         recipientAccount: recipientAccount,
         sourceIndex: sourceIndex,
       );
-    } else {
-      // Case 2: External Transfer (IMPS/NEFT/RTGS to different bank)
-      if (ifsCode == null || ifsCode.isEmpty) {
-        throw TransferException('Transaction failed: IFS Code is required for external transfers (IMPS/NEFT/RTGS).');
-      }
-
-      return _performExternalTransfer(
-        transferType: transferType,
-        amount: amount,
-        fee: fee,
-        totalDebitAmount: totalDebitAmount,
-        recipientName: recipientName,
-        narration: finalNarration,
-        sourceAccount: sourceAccount,
-        sourceIndex: sourceIndex,
-      );
+    } catch (e) {
+      throw TransferException(e.toString());
     }
   }
 

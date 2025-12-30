@@ -142,11 +142,14 @@ class _EditNomineeScreenState extends State<EditNomineeScreen> {
                 ),
               );
 
-              // 4. FIX: Use pushAndRemoveUntil to go specifically to ManageDepositScreen
-              // This prevents the user from clicking 'back' and seeing the PIN screen again.
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const ManageDepositScreen()),
-                    (route) => route.isFirst, // This keeps your Dashboard/Landing as the base
+                MaterialPageRoute(
+                  builder: (context) => ManageDepositScreen(
+                    // 🌟 CHANGE: Pass the deposit with the new nominees
+                    deposit: widget.deposit.copyWith(nominees: _tempNominees),
+                  ),
+                ),
+                    (route) => route.isFirst,
               );
             }
             return isSuccess;

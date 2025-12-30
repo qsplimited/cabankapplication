@@ -6,6 +6,9 @@ import 'package:cabankapplication/api/mock_device_service.dart';
 
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
+import 'screens/dashboard_screen.dart';
+
+
 
 final IDeviceService globalDeviceService = MockDeviceService();
 
@@ -27,6 +30,11 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
+      routes: {
+
+        '/dashboard': (context) => const DashboardScreen(), // <--- THIS FIXES THE ERROR
+
+      },
 
 
       home: const SplashScreen(),

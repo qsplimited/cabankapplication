@@ -276,12 +276,22 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
     if (_debitAccounts.isEmpty && !_isTransferring) {
       return Scaffold(
         appBar: AppBar(
-          title: Text('Quick Transfer (IMPS)', style: textTheme.titleLarge), // Use textTheme
-          backgroundColor: colorScheme.surface, // Use surface for consistent background
-          foregroundColor: colorScheme.onSurface, // Use onSurface for icon/text color
+          title: Text('Quick Transfer (IMPS)', style: textTheme.titleLarge?.copyWith(
+            color: Colors.white, // Ensure text is white on orange
+            fontWeight: FontWeight.bold,
+          )),
+          // APPLYING THE ACCENT ORANGE COLOR HERE
+          backgroundColor: kAccentOrange,
+          // Set icons (back button, etc.) to white
+          foregroundColor: Colors.white,
           elevation: 4,
+          centerTitle: true, // Optional: centers the title for a cleaner look
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(kAccentOrange), // Match loader to theme
+          ),
+        ),
       );
     }
 
@@ -671,7 +681,7 @@ class SuccessScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Transaction Complete'),
         // Use semantic color for success screen AppBar
-        backgroundColor: kSuccessGreen,
+        backgroundColor: kAccentOrange,
         foregroundColor: colorScheme.onPrimary, // White text/icons
         automaticallyImplyLeading: false, // Prevents back button on success
         elevation: 0, // Flat success screen
