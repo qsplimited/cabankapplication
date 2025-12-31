@@ -5,7 +5,6 @@ import '../models/deposit_account.dart';
 import '../api/deposit_repository.dart';
 import '../utils/app_formatters.dart';
 import 'manage_deposit_screen.dart'; // This is your "Deposit Hub"
-
 import 'loan_details_screen.dart';
 
 // Define an enum for clarity - easy for newcomers to read

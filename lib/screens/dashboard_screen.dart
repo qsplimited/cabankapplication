@@ -16,6 +16,8 @@ import 'beneficiary_management_screen.dart' as bms;
 import 'services_management_screen.dart';
 import 'deposit_opening_screen.dart';
 
+import 'chat_bot_screen.dart';
+
 import 'atm_locator_screen.dart';
 
 final BankingService _bankingService = BankingService();
@@ -636,6 +638,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final String userFirstName = userFullName.split(' ').first;
     final String userInitial = userFullName.split(' ').first.substring(0, 1).toUpperCase();
 
+
+
     return Scaffold(
       backgroundColor: colorScheme.background,
       // --- DRAWER (Menu Bar) ---
@@ -666,6 +670,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Text('Account Holder', style: textTheme.labelSmall?.copyWith(color: colorScheme.onPrimary.withOpacity(0.7))),
               ]),
             ),
+
+
 
             // Refactored ListTiles (using primary color for active icons)
             ListTile(leading: Icon(Icons.dashboard_outlined, color: colorScheme.primary),
@@ -830,6 +836,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+      ),
+
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: colorScheme.primary, // Matches your app's theme
+        child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+        tooltip: 'Chat with Assistant',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ChatBotScreen()),
+          );
+        },
       ),
     );
   }
