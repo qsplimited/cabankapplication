@@ -57,24 +57,18 @@ class _AppRouterState extends State<AppRouter> {
   @override
   Widget build(BuildContext context) {
     if (_isDeviceBound == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // -------------------------------------------------------------------
-    // <<< MODIFICATION 2: ADDED DEBUG CHECK BEFORE BINDING STATUS >>>
-    // If the debug flag is TRUE, always return the landing screen for demos.
+    // Since this is TRUE now, Path B is always chosen for testing.
     if (_forceRegistrationDemo) {
       return const RegistrationLandingScreen();
     }
-    // -------------------------------------------------------------------
 
+    // (This part will be used only when you are ready to ship with Real API)
     if (_isDeviceBound == true) {
-
       return const LoginScreen();
     } else {
-
       return const RegistrationLandingScreen();
     }
   }

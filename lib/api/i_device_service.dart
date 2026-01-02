@@ -1,27 +1,28 @@
-import 'dart:async';
+import '../models/registration_models.dart';
 
 abstract class IDeviceService {
-
   Future<bool> checkDeviceBinding(String deviceId);
 
-  Future<Map<String, dynamic>> verifyIdentity({
-    required String accountNumber,
-    required String mobileNumber,
-    required String dateOfBirth,
-  });
+  // Step 1: Customer ID & Password
+  Future<AuthResponse> verifyCredentials(AuthRequest request);
 
-  Future<bool> verifyOtp({
-    required String mobileNumber,
-    required String otp,
-  });
+  // Step 2: OTP
+  Future<bool> verifyOtp({required String otp, String? sessionId});
 
+  // Step 4: Finalize & Bind
   Future<Map<String, dynamic>> finalizeRegistration({
-    required String mobileNumber,
     required String mpin,
-    required String deviceId
+    required String deviceId,
+    String? sessionId,
   });
 
   Future<bool> loginWithMpin({required String mpin});
 
-  Future<Map<String, dynamic>> resetMpin({required String newMpin});
+  Future<AuthResponse> verifyIdentityForReset(AuthRequest request);
+
+  // NEW: Finalize the new MPIN
+  Future<Map<String, dynamic>> resetMpin({
+    required String newMpin,
+    String? sessionId
+  });
 }

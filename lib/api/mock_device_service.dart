@@ -1,118 +1,98 @@
+// lib/api/mock_device_service.dart
+
 import 'dart:async';
 import 'i_device_service.dart';
+import '../models/registration_models.dart';
 
 class MockDeviceService implements IDeviceService {
-  static const Duration _simulatedNetworkDelay = Duration(seconds: 1);
 
-  // --- MOCK STORAGE & TEST DATA ---
-  static const String _testAccount = '123456';
-  static const String _testMobile = '9999999999';
-  static const String _testDob = '01/01/1980';
-  static const String _fixedOtp = '123456';
 
-  static bool _isDeviceBound = false;
-  static String _storedMpin = '112233';
-  // ---------------------------------
+  static const Duration _delay = Duration(seconds: 1);
 
-  @override
-  Future<bool> checkDeviceBinding(String deviceId) async {
-    await Future.delayed(_simulatedNetworkDelay);
-    print('MockDeviceService: Checking binding status... bound: $_isDeviceBound');
-    return _isDeviceBound;
-  }
+  // MOCK DATA - Credentials for Step 1
+  static const String _validCustId = "A0001";
+  static const String _validPass = "pass123";
+  static const String _mockOtp = "123456";
+
+  // --- PERSISTENCE ---
+  // Set _isBound to TRUE by default so the app skips registration and goes to LOGIN
+  static bool _isBound = false;
+
+  // Set the DEFAULT PIN to 112233 so it works every time you start the app
+  static String _storedMpin = "112233";
 
   @override
-  Future<Map<String, dynamic>> verifyIdentity({
-    required String accountNumber,
-    required String mobileNumber,
-    required String dateOfBirth,
-  }) async {
-    await Future.delayed(_simulatedNetworkDelay);
-    if (accountNumber == _testAccount && mobileNumber == _testMobile && dateOfBirth == _testDob) {
-      return {
-        'success': true,
-        'otp_code': _fixedOtp,
-        'mobile_number': mobileNumber,
-        'message': 'Identity Verified. OTP successfully sent to $mobileNumber (Use: $_fixedOtp)'
-      };
-    } else {
-      return {
-        'success': false,
-        'message': 'Identity verification failed. Please ensure all details match.',
-      };
+  Future<AuthResponse> verifyCredentials(AuthRequest request) async {
+    await Future.delayed(_delay);
+    if (request.customerId == _validCustId && request.password == _validPass) {
+      return AuthResponse(success: true, otpCode: _mockOtp, sessionId: "MOCK_SESSION_999");
     }
+    return AuthResponse(success: false, message: "Invalid Customer ID or Password");
   }
 
   @override
-  Future<bool> verifyOtp({
-    required String mobileNumber,
-    required String otp,
-
-
-  }) async {
-    await Future.delayed(_simulatedNetworkDelay);
-
-    // For this simplified mock, we always check against the fixed OTP.
-    // In a real app, this logic would depend on a server-side state lookup.
-    final String validationCode = _fixedOtp;
-
-    print('MockService: Verifying OTP. Input: $otp, Required: $validationCode');
-    return otp == validationCode;
-  }
-
-  @override
-  Future<void> setMpin({required String mpin}) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _storedMpin = mpin;
-    print('MockService: MPIN successfully set during registration: $_storedMpin');
+  Future<bool> verifyOtp({required String otp, String? sessionId}) async {
+    await Future.delayed(_delay);
+    return otp == _mockOtp;
   }
 
   @override
   Future<Map<String, dynamic>> finalizeRegistration({
-    required String mobileNumber,
     required String mpin,
     required String deviceId,
+    String? sessionId,
   }) async {
-    await Future.delayed(_simulatedNetworkDelay);
-    _isDeviceBound = true;
-    print('MockService: Device binding successful. Flag set to true.');
+    await Future.delayed(const Duration(seconds: 2));
 
-    return {
-      'success': true,
-      'message': 'Device successfully bound and registration complete.',
-    };
+    // Update the stored PIN with what the user typed in Step 3
+    _storedMpin = mpin;
+    _isBound = true;
+
+    print('--- MOCK API BINDING SUCCESSFUL ---');
+    print('Device: $deviceId');
+    print('New Active MPIN: $_storedMpin');
+
+    return {'success': true, 'message': 'Device Bound Successfully'};
+  }
+
+  @override
+  Future<bool> checkDeviceBinding(String deviceId) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    // 2. REMOVE "return true;" and use the variable
+    return _isBound;
   }
 
   @override
   Future<bool> loginWithMpin({required String mpin}) async {
-    await Future.delayed(_simulatedNetworkDelay);
-    print('MockService: Attempting login with MPIN: $mpin. Stored MPIN: $_storedMpin');
+    await Future.delayed(_delay);
 
-    if (_storedMpin.isEmpty) {
-      return false;
-    }
+    // LOGIC: Accept the user-set pin OR the master test pin (112233)
+    bool isValid = (mpin == _storedMpin || mpin == "112233");
 
-    return mpin == _storedMpin;
+    print('--- LOGIN ATTEMPT ---');
+    print('Entered PIN: $mpin');
+    print('Stored PIN: $_storedMpin');
+    print('Master PIN: 112233');
+    print('Result: ${isValid ? "SUCCESS - GOING TO DASHBOARD" : "FAILED"}');
+
+    return isValid;
   }
 
   @override
-  Future<Map<String, dynamic>> resetMpin({required String newMpin}) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Set the new MPIN, completing the reset process.
-    _storedMpin = newMpin;
-
-    print('MockService: MPIN successfully reset to: $_storedMpin');
-
-    return {
-      'success': true,
-      'message': 'Your MPIN has been successfully reset. Please login with your new MPIN.',
-    };
+  Future<AuthResponse> verifyIdentityForReset(AuthRequest request) async {
+    await Future.delayed(_delay);
+    if (request.customerId == _validCustId) {
+      return AuthResponse(success: true, otpCode: _mockOtp, sessionId: "RESET_001");
+    }
+    return AuthResponse(success: false, message: "Identity not found");
   }
 
-  // DEBUG/RESET METHOD
-  void resetBinding() {
-    _isDeviceBound = false;
-    print('MockService: Binding has been reset (allowing re-registration).');
+  @override
+  Future<Map<String, dynamic>> resetMpin({required String newMpin, String? sessionId}) async {
+    await Future.delayed(_delay);
+    _storedMpin = newMpin;
+    print('--- MPIN RESET SUCCESSFUL ---');
+    print('New MPIN set to: $_storedMpin');
+    return {'success': true};
   }
 }

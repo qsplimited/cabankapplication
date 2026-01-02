@@ -1,71 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'registration_step4_finalize.dart'; // To navigate to the final step
-// Import the necessary dimension and color constants
 import '../theme/app_dimensions.dart';
 import '../theme/app_colors.dart';
+import 'registration_step4_finalize.dart';
 
 class RegistrationStep3Mpin extends StatefulWidget {
-  final String mobileNumber;
+  final String? sessionId;
 
-  const RegistrationStep3Mpin({super.key, required this.mobileNumber});
+  const RegistrationStep3Mpin({super.key, this.sessionId});
 
   @override
   State<RegistrationStep3Mpin> createState() => _RegistrationStep3MpinState();
 }
 
 class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
-  final _mpinController = TextEditingController();
-  final _confirmMpinController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _mpinController = TextEditingController();
+  final TextEditingController _confirmMpinController = TextEditingController();
+  final FocusNode _mpinFocusNode = FocusNode();
+  final FocusNode _confirmFocusNode = FocusNode();
+
   bool _isLoading = false;
-  bool _isMpinVisible = false;
-  bool _isConfirmMpinVisible = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _mpinController.addListener(() => setState(() {}));
+    _confirmMpinController.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
     _mpinController.dispose();
     _confirmMpinController.dispose();
+    _mpinFocusNode.dispose();
+    _confirmFocusNode.dispose();
     super.dispose();
   }
 
   void _handleMpinSetup() {
-    if (!_formKey.currentState!.validate()) return;
+    setState(() => _errorMessage = null);
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (_mpinController.text.length < 6) {
+      setState(() => _errorMessage = "Please enter a 6-digit MPIN");
+      return;
+    }
+    if (_mpinController.text != _confirmMpinController.text) {
+      setState(() => _errorMessage = "MPINs do not match. Please re-enter.");
+      return;
+    }
 
-    final mpin = _mpinController.text;
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    setState(() => _isLoading = true);
 
-    // Simulating successful MPIN setup locally
-    Future.delayed(const Duration(seconds: 1), () {
+    Future.delayed(const Duration(milliseconds: 1000), () {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: kAccentCyan,
-            // FIX: Removed contentTextStyle and applied style directly to the Text widget.
-            content: Text(
-              'MPIN set successfully! Proceeding to Device Binding.',
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.surface, // Use a light color for text on the accent color
-              ),
-            ),
-          ),
-        );
-
-        // --- NAVIGATION TO STEP 4 (Finalize) ---
+        setState(() => _isLoading = false);
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => RegistrationStep4Finalize(
-              mobileNumber: widget.mobileNumber,
-              mpin: mpin,
+              sessionId: widget.sessionId,
+              mpin: _mpinController.text,
             ),
           ),
         );
@@ -75,154 +69,189 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.background,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        // The title style is derived from the theme, using onSurface/onPrimary
-        title: Text(
-          '3/4: Set MPIN',
-          style: textTheme.titleLarge?.copyWith(
-            color: colorScheme.onPrimary, // Assuming AppBar uses primary color
-          ),
+        title: const Text(
+          'Set MPIN', // Standard standard heading
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: colorScheme.primary,
-        iconTheme: IconThemeData(color: colorScheme.onPrimary),
+        backgroundColor: kAccentOrange,
+        centerTitle: false, // Left aligned title
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        // Replace hardcoded 24.0 with kPaddingLarge
-        padding: const EdgeInsets.all(kPaddingLarge),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text(
-                'Set your secure 6-digit Mobile PIN (MPIN). This will be used for all future logins.',
-                // Use titleMedium for instructional text
-                style: textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onBackground.withOpacity(0.9),
-                ),
-              ),
-              // Replace hardcoded 30 with kPaddingExtraLarge
-              const SizedBox(height: kPaddingExtraLarge),
-
-              // 1. Set MPIN Field
-              TextFormField(
-                controller: _mpinController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                obscureText: !_isMpinVisible,
-                textAlign: TextAlign.center,
-                // Use a large headline style and set letter spacing for MPIN input
-                style: textTheme.headlineMedium?.copyWith(
-                  // Use a spacing constant for letter spacing (24.0)
-                  letterSpacing: kPaddingLarge,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                // InputDecoration inherits most styling from InputDecorationTheme
-                decoration: InputDecoration(
-                  labelText: 'New MPIN',
-                  hintText: '• • • • • •',
-                  counterText: '',
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isMpinVisible ? Icons.visibility : Icons.visibility_off,
-                      // Use colorScheme.primary for the visibility icon
-                      color: colorScheme.primary,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(kPaddingLarge),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    Text(
+                      'Secure Your Account',
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                        letterSpacing: -0.5,
+                      ),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _isMpinVisible = !_isMpinVisible;
-                      });
-                    },
-                  ),
-                ),
-                validator: (value) {
-                  if (value == null || value.length != 6) {
-                    return 'MPIN must be exactly 6 digits.';
-                  }
-                  return null;
-                },
-              ),
-              // Replace hardcoded 25 with a relevant dimension (e.g., kPaddingLarge)
-              const SizedBox(height: kPaddingLarge),
-
-              // 2. Confirm MPIN Field
-              TextFormField(
-                controller: _confirmMpinController,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                obscureText: !_isConfirmMpinVisible,
-                textAlign: TextAlign.center,
-                // Use a large headline style and set letter spacing for MPIN input
-                style: textTheme.headlineMedium?.copyWith(
-                  // Use a spacing constant for letter spacing (24.0)
-                  letterSpacing: kPaddingLarge,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                // InputDecoration inherits most styling from InputDecorationTheme
-                decoration: InputDecoration(
-                  labelText: 'Confirm MPIN',
-                  hintText: '• • • • • •',
-                  counterText: '',
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isConfirmMpinVisible ? Icons.visibility : Icons.visibility_off,
-                      // Use colorScheme.primary for the visibility icon
-                      color: colorScheme.primary,
+                    const SizedBox(height: 8),
+                    Text(
+                      'This PIN will be used for all your future logins and transactions.',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                      ),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _isConfirmMpinVisible = !_isConfirmMpinVisible;
-                      });
-                    },
-                  ),
-                ),
-                validator: (value) {
-                  if (value != _mpinController.text) {
-                    return 'MPINs do not match.';
-                  }
-                  return null;
-                },
-              ),
-              // Replace hardcoded 50 with kPaddingXXL
-              const SizedBox(height: kPaddingXXL),
+                    const SizedBox(height: 40),
 
-              // Set MPIN Button
-              SizedBox(
-                height: kButtonHeight, // Use button height constant
+                    // --- NEW MPIN ---
+                    Text(
+                      'ENTER NEW 6-DIGIT MPIN',
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: kAccentOrange,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildPinInputSection(_mpinController, _mpinFocusNode),
+
+                    const SizedBox(height: 40),
+
+                    // --- CONFIRM MPIN ---
+                    Text(
+                      'CONFIRM NEW MPIN',
+                      style: textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: kAccentOrange,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildPinInputSection(_confirmMpinController, _confirmFocusNode),
+
+                    if (_errorMessage != null)
+                      Container(
+                        margin: const EdgeInsets.only(top: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.redAccent, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+
+            // --- Fixed Bottom Action Button ---
+            Padding(
+              padding: const EdgeInsets.all(kPaddingLarge),
+              child: SizedBox(
+                width: double.infinity,
+                height: kButtonHeight,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _handleMpinSetup,
-                  // Rely on centralized ElevatedButtonThemeData (app_theme.dart)
-                  child: _isLoading
-                      ? SizedBox(
-                    // Replace hardcoded 20 with kIconSizeSmall
-                    width: kIconSizeSmall,
-                    height: kIconSizeSmall,
-                    child: CircularProgressIndicator(
-                      // Progress indicator color should be colorScheme.onPrimary for visibility
-                      color: colorScheme.onPrimary,
-                      strokeWidth: 2,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kAccentOrange,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: kAccentOrange.withOpacity(0.5),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kRadiusSmall),
                     ),
-                  )
-                      : Text(
-                    'SET MPIN & CONTINUE',
-                    // Text style is handled by the theme (labelLarge), override size if needed
-                    style: textTheme.labelLarge?.copyWith(fontSize: 16),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                    'SET MPIN', // Unique and standard button text
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1),
                   ),
                 ),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPinInputSection(TextEditingController controller, FocusNode focusNode) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Opacity(
+          opacity: 0,
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(counterText: ""),
           ),
         ),
+        GestureDetector(
+          onTap: () => focusNode.requestFocus(),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(6, (index) => _buildSingleBox(index, controller, focusNode)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSingleBox(int index, TextEditingController controller, FocusNode focusNode) {
+    final colorScheme = Theme.of(context).colorScheme;
+    bool isFocused = focusNode.hasFocus && controller.text.length == index;
+    bool hasValue = controller.text.length > index;
+
+    return Container(
+      width: 50,
+      height: 60,
+      decoration: BoxDecoration(
+        color: isFocused
+            ? kAccentOrange.withOpacity(0.05)
+            : colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(kRadiusSmall),
+        border: Border.all(
+          color: isFocused ? kAccentOrange : colorScheme.outline.withOpacity(0.2),
+          width: isFocused ? 2 : 1.5,
+        ),
+      ),
+      child: Center(
+        child: hasValue
+            ? Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: colorScheme.onSurface,
+            shape: BoxShape.circle,
+          ),
+        )
+            : isFocused
+            ? Container(width: 2, height: 24, color: kAccentOrange)
+            : null,
       ),
     );
   }

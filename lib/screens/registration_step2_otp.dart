@@ -1,27 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../main.dart'; // Access to globalDeviceService
-// Import the necessary dimension constants
+import '../main.dart';
 import '../theme/app_dimensions.dart';
 import '../theme/app_colors.dart';
 
-
-// CRITICAL FIX: The successRoute must be of type Widget to accept any screen.
-// This is already correct in the user's code, but redefining for clarity.
-typedef SuccessRouteBuilder = Widget;
-
 class RegistrationStep2Otp extends StatefulWidget {
-  final String mobileNumber;
-  // REQUIRED: The actual OTP code expected for verification (used in the mock service)
   final String otpCode;
-  // REQUIRED: The widget (screen) to navigate to after successful OTP verification
-  final SuccessRouteBuilder successRoute;
+  final String? sessionId;
+  final Widget nextScreen;
 
   const RegistrationStep2Otp({
     super.key,
-    required this.mobileNumber,
     required this.otpCode,
-    required this.successRoute,
+    required this.nextScreen,
+    this.sessionId,
   });
 
   @override
@@ -29,188 +21,192 @@ class RegistrationStep2Otp extends StatefulWidget {
 }
 
 class _RegistrationStep2OtpState extends State<RegistrationStep2Otp> {
-  final _formKey = GlobalKey<FormState>();
-  // Pre-populating with mock data for easy testing:
-  final TextEditingController _otpController = TextEditingController(text: '123456');
-
+  final TextEditingController _otpController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   bool _isLoading = false;
-  String _errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // This rebuilds the UI to show digits in boxes as the user types
+    _otpController.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
     _otpController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
-  // --- Handle OTP Verification Logic ---
   void _verifyOtp() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (_otpController.text.length < 6) return;
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
+    setState(() => _isLoading = true);
 
-    try {
-      final String enteredOtp = _otpController.text.trim();
+    final bool success = await globalDeviceService.verifyOtp(
+      otp: _otpController.text.trim(),
+      sessionId: widget.sessionId,
+    );
 
-      // Logic preserved.
-      final bool success = await globalDeviceService.verifyOtp(
-        mobileNumber: widget.mobileNumber,
-        otp: enteredOtp,
-      );
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-
-        if (success) {
-          // SUCCESS PATH: Navigate to the designated success route
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              // Use the provided successRouteBuilder to build the next screen
-              builder: (context) => widget.successRoute,
-            ),
-          );
-        } else {
-          // FAILURE PATH: OTP mismatch
-          setState(() {
-            _errorMessage = 'Invalid OTP. Please check the code and try again.';
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'A network error occurred during OTP verification.';
-        });
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (success) {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => widget.nextScreen),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid OTP. Please check and try again.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        title: const Text('2/4: OTP Verification'),
+        title: const Text(
+          'Verification',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: kAccentOrange,
+        centerTitle: false,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        // Replace hardcoded 24.0 with kPaddingLarge
-        padding: const EdgeInsets.all(kPaddingLarge),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Text(
-                'Enter the 6-digit OTP sent to your mobile number:',
-                style: textTheme.titleMedium,
-              ),
-              // Replace hardcoded 10 with kPaddingTen
-              const SizedBox(height: kPaddingTen),
-              Text(
-                widget.mobileNumber,
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  // Use primary color for the highlighted mobile number
-                  color: colorScheme.primary,
-                ),
-              ),
-              // Replace hardcoded 30 with kSpacingLarge
-              const SizedBox(height: kSpacingLarge),
-
-              // 1. OTP Input Field
-              TextFormField(
-                controller: _otpController,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                maxLength: 6,
-                // Use a large headline style for the OTP digits
-                style: textTheme.headlineMedium,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                // InputDecoration uses InputDecorationTheme from app_theme.dart
-                decoration: const InputDecoration(
-                  labelText: 'Enter OTP',
-                  hintText: '• • • • • •',
-                  counterText: '', // Keep as specific design choice
-                  // Explicit OutlineInputBorder is redundant if defined in theme,
-                  // but kept for specific OTP field styling if needed.
-                  // Removing it to rely on the centralized theme.
-                ),
-                validator: (value) {
-                  if (value == null || value.length != 6) {
-                    return 'Please enter the 6-digit OTP.';
-                  }
-                  return null;
-                },
-              ),
-              // Replace hardcoded 20 with kPaddingLarge - 4
-              const SizedBox(height: 20),
-
-
-              if (_errorMessage.isNotEmpty)
-                Padding(
-                  // Replace hardcoded 20.0 with kPaddingLarge - 4
-                  padding: const EdgeInsets.only(bottom: 20.0),
-                  child: Text(
-                    _errorMessage,
-                    // Use error color from the colorScheme
-                    style: textTheme.bodyMedium?.copyWith(color: colorScheme.error),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-              // Submission Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _verifyOtp,
-                // Rely on centralized ElevatedButtonThemeData (app_theme.dart)
-                child: _isLoading
-                    ? SizedBox(
-                  // Replace hardcoded 20 with kIconSizeSmall
-                  width: kIconSizeSmall,
-                  height: kIconSizeSmall,
-                  child: CircularProgressIndicator(
-                    // Progress indicator color should be colorScheme.onPrimary for visibility
-                    color: colorScheme.onPrimary,
-                    strokeWidth: 2,
-                  ),
-                )
-                    : Text(
-                  'VERIFY OTP',
-                  // Text style is handled by the theme (labelLarge with 16pt font)
-                  style: textTheme.labelLarge?.copyWith(fontSize: 16),
-                ),
-              ),
-
-              // Replace hardcoded 20 with kPaddingLarge - 4
-              const SizedBox(height: 20),
-              TextButton(
-                onPressed: _isLoading ? null : () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      // Use theme colors for SnackBar background/text
-                      backgroundColor: colorScheme.secondary,
-                      content: Text(
-                        'Mock: New OTP sent! (Still ${widget.otpCode})',
-                        style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSecondary // Text color for secondary background
-                        ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(kPaddingLarge),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
+                    // Standard Professional Heading
+                    Text(
+                      'Verify your Number',
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                  );
-                },
-                // TextButton style is handled by the centralized theme
-                child: const Text('Resend OTP'),
+                    const SizedBox(height: 10),
+                    // Professional Sub-text
+                    Text(
+                      'Please enter the 6-digit verification code sent to your registered mobile device.',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                        height: 1.4, // Improved readability
+                      ),
+                    ),
+                    const SizedBox(height: 50),
+
+                    // --- Attractive Box Design for OTP ---
+                    GestureDetector(
+                      onTap: () => _focusNode.requestFocus(),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: List.generate(6, (index) => _buildOtpBox(index)),
+                          ),
+                          // Hidden text field
+                          Opacity(
+                            opacity: 0,
+                            child: TextFormField(
+                              controller: _otpController,
+                              focusNode: _focusNode,
+                              keyboardType: TextInputType.number,
+                              maxLength: 6,
+                              autofocus: true,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              onChanged: (value) {
+                                if (value.length == 6) _verifyOtp(); // Auto-verify on 6th digit
+                              },
+                              decoration: const InputDecoration(counterText: ""),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
+
+            // --- Verify Button ---
+            Padding(
+              padding: const EdgeInsets.all(kPaddingLarge),
+              child: SizedBox(
+                width: double.infinity,
+                height: kButtonHeight,
+                child: ElevatedButton(
+                  onPressed: (_isLoading || _otpController.text.length < 6)
+                      ? null
+                      : _verifyOtp,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kAccentOrange,
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kRadiusSmall),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                  )
+                      : const Text(
+                    'VERIFY OTP',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOtpBox(int index) {
+    final colorScheme = Theme.of(context).colorScheme;
+    bool isFilled = _otpController.text.length > index;
+    bool isFocused = _otpController.text.length == index;
+    String char = isFilled ? _otpController.text[index] : "";
+
+    return Container(
+      width: 48,
+      height: 58,
+      decoration: BoxDecoration(
+        color: isFocused ? kAccentOrange.withOpacity(0.05) : colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(10), // Standard rounded look
+        border: Border.all(
+          color: isFocused ? kAccentOrange : colorScheme.outline.withOpacity(0.2),
+          width: isFocused ? 2 : 1.5,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          char,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
