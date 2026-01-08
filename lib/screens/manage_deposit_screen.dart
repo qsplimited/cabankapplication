@@ -8,7 +8,6 @@ import 'maturity_action_screen.dart';
 import 'edit_nominee_screen.dart';
 
 class ManageDepositScreen extends StatefulWidget {
-  // CRITICAL: We pass the specific deposit selected from the list
   final DepositAccount deposit;
 
   const ManageDepositScreen({Key? key, required this.deposit}) : super(key: key);
@@ -24,20 +23,23 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize with the deposit passed from the list
     _currentDeposit = widget.deposit;
   }
 
   @override
   Widget build(BuildContext context) {
     final df = DateFormat('dd MMM yyyy');
-    // Industry Standard: Differentiate Running vs Matured visually
     final bool isRunning = _currentDeposit.status == DepositStatus.running;
+
+    // 🌟 MASTER LOCK LOGIC: Identify if account actions should be blocked
+    final bool isLienMarked = _currentDeposit.isLienMarked;
 
     return Scaffold(
       backgroundColor: kLightBackground,
       appBar: AppBar(
         title: Text(_currentDeposit.accountType),
-        backgroundColor: isRunning ? kAccentOrange : kAccentOrange,
+        backgroundColor: kAccentOrange,
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -45,24 +47,23 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. High-Level Summary Card
             _buildSummaryCard(_currentDeposit, isRunning),
             const SizedBox(height: kSpacingLarge),
 
-            // 2. Dates & Key Details
+            // 🌟 LIEN WARNING: Appears only if the deposit is pledged for a loan
+            if (isLienMarked) _buildLienWarningBanner(),
+
             _sectionHeader("Tenure Details"),
             _buildInfoGrid(_currentDeposit, df),
             const SizedBox(height: kSpacingLarge),
 
-            // 3. Nominees Section
             _sectionHeader(
               "Legal Nominees",
-              onEdit: () {
+              // 🌟 PRESERVED LOGIC: Edit is disabled (onEdit: null) if Lien is marked
+              onEdit: isLienMarked ? null : () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (c) => EditNomineeScreen(deposit: _currentDeposit),
-                  ),
+                  MaterialPageRoute(builder: (c) => EditNomineeScreen(deposit: _currentDeposit)),
                 );
               },
             ),
@@ -70,33 +71,59 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
 
             const SizedBox(height: kSpacingExtraLarge),
 
-            // 4. DYNAMIC ACTION BUTTON
+            // 🌟 DYNAMIC ACTION BUTTON
             SizedBox(
               width: double.infinity,
               height: kButtonHeight,
               child: ElevatedButton(
-                onPressed: () => Navigator.push(
+                // 🌟 LOCK LOGIC: Disable button (onPressed: null) if Lien is Marked
+                onPressed: isLienMarked
+                    ? null
+                    : () => Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (c) => MaturityActionScreen(deposit: _currentDeposit),
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isRunning ? kAccentOrange : kAccentOrange,
+                  backgroundColor: isLienMarked ? Colors.grey : kAccentOrange,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
                 ),
                 child: Text(
-                  isRunning ? "PREMATURE CLOSURE" : "SETTLE NOW",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.1,
-                  ),
+                  isLienMarked
+                      ? "ACCOUNT LOCKED (LIEN)"
+                      : (isRunning ? "PREMATURE CLOSURE" : "SETTLE NOW"),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // 🌟 LIEN UI COMPONENT: Visual notification for the user
+  Widget _buildLienWarningBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: kSpacingMedium),
+      padding: const EdgeInsets.all(kPaddingSmall),
+      decoration: BoxDecoration(
+        color: kErrorRed.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(kRadiusSmall),
+        border: Border.all(color: kErrorRed.withOpacity(0.3)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.lock_person_outlined, color: kErrorRed, size: 20),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "Lien Marked: This deposit is pledged for an active loan. Instructions are currently restricted.",
+              style: TextStyle(color: kErrorRed, fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -129,7 +156,7 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _stat("Interest Rate", "${d.interestRate}%"),
-              _stat("Accrued Interest", d.accruedInterest.toStringAsFixed(2)),
+              _stat("Lien Status", d.lienStatus), // Displays current status (e.g., Nil or Marked)
             ],
           )
         ],
@@ -140,14 +167,8 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
   Widget _buildStatusBadge(DepositStatus status) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        status.name.toUpperCase(),
-        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-      ),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+      child: Text(status.name.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -162,10 +183,7 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
   Widget _buildInfoGrid(DepositAccount d, DateFormat f) {
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        side: const BorderSide(color: kDividerColor),
-        borderRadius: BorderRadius.circular(kRadiusSmall),
-      ),
+      shape: RoundedRectangleBorder(side: const BorderSide(color: kDividerColor), borderRadius: BorderRadius.circular(kRadiusSmall)),
       child: Padding(
         padding: const EdgeInsets.all(kPaddingMedium),
         child: Column(
@@ -210,8 +228,8 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
         Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: kBrandNavy)),
         if (onEdit != null)
           GestureDetector(
-            onTap: onEdit,
-            child: const Text("Edit Details", style: TextStyle(color: kAccentOrange, fontWeight: FontWeight.bold, fontSize: 13)),
+              onTap: onEdit,
+              child: const Text("Edit Details", style: TextStyle(color: kAccentOrange, fontWeight: FontWeight.bold, fontSize: 13))
           ),
       ],
     ),

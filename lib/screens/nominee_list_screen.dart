@@ -48,11 +48,10 @@ class _NomineeListScreenState extends State<NomineeListScreen> {
     });
   }
 
-  // --- Handlers ---
+
 
   void _handleEdit(NomineeModel nominee) async {
-    // Navigate to a dedicated update screen or show a bottom sheet/dialog
-    // For this example, we'll use a simple dialog to simulate the update flow.
+
     final updatedNominee = await showDialog<NomineeModel>(
       context: context,
       builder: (context) => NomineeUpdateDialog(nominee: nominee),
@@ -63,10 +62,10 @@ class _NomineeListScreenState extends State<NomineeListScreen> {
         _isLoading = true;
       });
       try {
-        // 1. Call the mock API to update the data
+
         final result = await _nomineeService.updateNominee(updatedNominee);
 
-        // 2. Update the local state with the result
+
         final index = _nominees.indexWhere((n) => n.id == result.id);
         if (index != -1) {
           setState(() {
@@ -222,7 +221,7 @@ class NomineeCard extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: kLabelColumnWidth, // Use fixed width for alignment
+            width: kLabelColumnWidth,
             child: Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -301,7 +300,7 @@ class _NomineeUpdateDialogState extends State<NomineeUpdateDialog> {
       sharePercentage: newShare,
     );
 
-    // Return the updated model to the calling screen
+
     Navigator.of(context).pop(updatedNominee);
   }
 
@@ -309,7 +308,7 @@ class _NomineeUpdateDialogState extends State<NomineeUpdateDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Ensure the initial relationship is in the list, or default to 'Other'
+
     if (!_relationships.contains(_selectedRelationship)) {
       _relationships.insert(0, _selectedRelationship);
     }
@@ -381,20 +380,16 @@ class _NomineeUpdateDialogState extends State<NomineeUpdateDialog> {
   }
 }
 
-// --- Example Main Widget (for running the file) ---
-
 class MainAppWrapper extends StatelessWidget {
   const MainAppWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This wrapper is needed to simulate navigation or state management
-    // In a real app, you would pass the current account type (e.g., 'Savings')
-    // from a parent screen.
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Nominee Management',
-      theme: Theme.of(context), // Use the provided theme
+      theme: Theme.of(context),
       home: const NomineeListScreen(accountType: 'Savings'),
     );
   }

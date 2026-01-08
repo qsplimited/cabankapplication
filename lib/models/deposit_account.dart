@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 
-// 🌟 INDUSTRY STANDARD: Distinguish between active and matured accounts
+/// INDUSTRY STANDARD: Distinguish between active, matured, and settled accounts
 enum DepositStatus { running, matured, closed }
 
 class Nominee {
@@ -10,8 +10,13 @@ class Nominee {
   final String relationship;
   final double share;
 
-  Nominee({required this.name, required this.relationship, required this.share});
+  Nominee({
+    required this.name,
+    required this.relationship,
+    required this.share
+  });
 
+  /// Preserves existing logic for editing nominee details
   Nominee copyWith({String? name, String? relationship, double? share}) {
     return Nominee(
       name: name ?? this.name,
@@ -24,7 +29,7 @@ class Nominee {
 class DepositAccount {
   final String id;
   final String accountNumber;
-  final String accountType; // "Fixed Deposit" or "Recurring Deposit"
+  final String accountType; // e.g., "Fixed Deposit" or "Recurring Deposit"
   final double principalAmount;
   final double accruedInterest;
   final double interestRate;
@@ -32,7 +37,11 @@ class DepositAccount {
   final DateTime maturityDate;
   final String linkedAccountNumber;
   final List<Nominee> nominees;
-  final DepositStatus status; // 🌟 NEW CRITICAL FIELD
+  final DepositStatus status;
+
+  /// 🌟 MASTER LOCK FIELD: Used to block actions if a loan is active against this deposit
+  /// Values: "Nil" (Available), "Marked" (Locked/Pledged)
+  final String lienStatus;
 
   DepositAccount({
     required this.id,
@@ -46,14 +55,27 @@ class DepositAccount {
     required this.linkedAccountNumber,
     required this.nominees,
     required this.status,
+    this.lienStatus = "Nil", // Default state is no lien
   });
 
+  /// Total value returned to the user (Principal + Interest)
   double get totalMaturityAmount => principalAmount + accruedInterest;
 
-  // Logic check: Is this deposit past its maturity date?
+  /// System check to see if the deposit term has ended
   bool get hasMatured => DateTime.now().isAfter(maturityDate);
 
-  DepositAccount copyWith({List<Nominee>? nominees, DepositStatus? status}) {
+  /// 🌟 CENTRAL BUSINESS LOGIC:
+  /// Returns true if the deposit is currently blocked (e.g., used for a loan)
+  bool get isLienMarked => lienStatus.toLowerCase() == "marked";
+
+  /// 🌟 PRESERVED LOGIC:
+  /// Allows updating specific fields (like nominees or lien status) while keeping others intact.
+  /// This is essential for both the 'Edit Nominee' flow and 'Apply Loan' updates.
+  DepositAccount copyWith({
+    List<Nominee>? nominees,
+    DepositStatus? status,
+    String? lienStatus
+  }) {
     return DepositAccount(
       id: id,
       accountNumber: accountNumber,
@@ -66,6 +88,7 @@ class DepositAccount {
       linkedAccountNumber: linkedAccountNumber,
       nominees: nominees ?? this.nominees,
       status: status ?? this.status,
+      lienStatus: lienStatus ?? this.lienStatus,
     );
   }
 }

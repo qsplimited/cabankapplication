@@ -1,6 +1,8 @@
 // File: dashboard_screen.dart (Refactored)
 import 'package:flutter/material.dart';
 import '../api/banking_service.dart';
+import '../api/notification_service.dart';
+import '../models/notificationmodel.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 import 'profile_management_screen.dart';
@@ -601,7 +603,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
   @override
   Widget build(BuildContext context) {
-    // 💡 THEME REFERENCES 💡
+
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -672,7 +674,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
 
 
-
             // Refactored ListTiles (using primary color for active icons)
             ListTile(leading: Icon(Icons.dashboard_outlined, color: colorScheme.primary),
                 title: Text('Dashboard', style: textTheme.bodyMedium), onTap: () => Navigator.pop(context)),
@@ -702,11 +703,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ListTile(leading: Icon(Icons.lock_reset_outlined, color: colorScheme.primary),
                 title: Text('T-PIN Management', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(const TpinManagementScreen()); }),
-
-
-
             const Divider(),
-
 
             ListTile(leading: const Icon(Icons.logout, color: kErrorRed), title: Text('Logout', style: textTheme.bodyMedium), onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Logging out user...')));
@@ -733,21 +730,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             SliverToBoxAdapter(
               child: Container(
                 height: 100,
-                padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: kPaddingMedium, right: kPaddingMedium),
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top,
+                  left: 16.0,
+                  right: 16.0,
+                ),
                 decoration: BoxDecoration(
                   color: colorScheme.primary,
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(kPaddingExtraLarge)),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30.0)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 1. Drawer Menu
                     Builder(
                       builder: (context) => IconButton(
                         icon: Icon(Icons.menu, color: colorScheme.onPrimary, size: 28),
                         onPressed: () => Scaffold.of(context).openDrawer(),
                       ),
                     ),
+
+                    // 2. User Welcome Text
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(left: 10, top: 12),
@@ -766,16 +770,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                     ),
+
+                    // 3. Notification Button with RED Badge
                     Row(
                       children: [
-                        IconButton(
-                          icon: Icon(Icons.notifications_none, color: colorScheme.onPrimary, size: 28),
-                          onPressed: () { /* Notifications */ },
+                        FutureBuilder<List<NotificationModel>>(
+                          future: NotificationService.fetchNotifications(),
+                          builder: (context, snapshot) {
+                            final notifications = snapshot.data ?? [];
+                            final unreadCount = notifications.where((n) => !n.isRead).length;
+
+                            return IconButton(
+                              onPressed: () => _showUniqueNotificationPanel(context, notifications),
+                              icon: Badge(
+                                label: Text('$unreadCount', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                                isLabelVisible: unreadCount > 0,
+                                backgroundColor: Colors.red, // Updated to Red as requested
+                                child: Icon(
+                                  Icons.notifications_none_rounded,
+                                  color: colorScheme.onPrimary,
+                                  size: 28,
+                                ),
+                              ),
+                            );
+                          },
                         ),
+
                         Padding(
                           padding: const EdgeInsets.only(left: 4.0, top: 12),
                           child: CircleAvatar(
-                            // Refactored Avatar Colors
                             backgroundColor: colorScheme.onPrimary,
                             radius: 15,
                             child: Text(
@@ -854,4 +877,112 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  void _showUniqueNotificationPanel(BuildContext context, List<NotificationModel> notifications) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: "Notifications",
+      barrierColor: Colors.black.withOpacity(0.4),
+      transitionDuration: const Duration(milliseconds: 350),
+      pageBuilder: (context, anim1, anim2) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Container(
+            // Adjust top margin to fit right under your app bar
+            margin: const EdgeInsets.only(top: 85, left: 16, right: 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                // Max height is 50% of screen to ensure it doesn't cover everything
+                maxHeight: MediaQuery.of(context).size.height * 0.5,
+                maxWidth: 450,
+              ),
+              child: Material(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(24),
+                elevation: 12,
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, // Card shrinks if list is short
+                  children: [
+                    // --- HEADER WITH SMALL BUTTON ---
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 15, 12, 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Notifications",
+                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          // SMALL COMPACT CLEAR BUTTON
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                              minimumSize: const Size(50, 30),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text("Clear All", style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // --- SCROLLABLE LIST ---
+                    Flexible(
+                      child: notifications.isEmpty
+                          ? const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text("No new notifications"),
+                      )
+                          : ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true, // Allows card to wrap around small lists
+                        itemCount: notifications.length,
+                        itemBuilder: (context, index) {
+                          final item = notifications[index];
+                          return Container(
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+                              color: item.isRead ? Colors.transparent : colorScheme.primary.withOpacity(0.03),
+                            ),
+                            child: ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: colorScheme.primary.withOpacity(0.1),
+                                child: Icon(Icons.bolt, size: 16, color: colorScheme.primary),
+                              ),
+                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              subtitle: Text(item.message, style: const TextStyle(fontSize: 12)),
+                              onTap: () => Navigator.pop(context),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      // The "Unique" Slide Down transition
+      transitionBuilder: (context, anim1, anim2, child) {
+        return SlideTransition(
+          position: Tween(begin: const Offset(0, -0.1), end: const Offset(0, 0))
+              .animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic)),
+          child: FadeTransition(opacity: anim1, child: child),
+        );
+      },
+    );
+  }
+
 }

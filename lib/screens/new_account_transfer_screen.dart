@@ -3,11 +3,11 @@ import 'package:flutter/services.dart';
 import '../api/banking_service.dart';
 import '../main.dart'; // Assuming Account model is here
 
-// 💡 IMPORTANT: Import centralized design files
+
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 
-// Enum for the two main stages of this specific transfer flow
+
 enum TransferStage { verification, amountEntry }
 
 class NewAccountTransferScreen extends StatefulWidget {
@@ -37,7 +37,7 @@ class _NewAccountTransferScreenState extends State<NewAccountTransferScreen> {
   String _recipientName = '';
   String _bankName = '';
 
-  // Removed hardcoded color: final Color _primaryColor = const Color(0xFF003366);
+
 
   @override
   void dispose() {
@@ -213,7 +213,7 @@ class _NewAccountTransferScreenState extends State<NewAccountTransferScreen> {
   Widget _buildAmountEntryForm() {
     final textTheme = Theme.of(context).textTheme;
     // TODO: This will be where the user enters the amount, type, narration, and T-PIN.
-    // This part will be fully implemented in a later step.
+
     return Center(
       child: Column(
         children: [
