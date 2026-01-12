@@ -18,6 +18,8 @@ import 'beneficiary_management_screen.dart' as bms;
 import 'services_management_screen.dart';
 import 'deposit_opening_screen.dart';
 
+import 'loan_landing_screen.dart';
+
 import 'chat_bot_screen.dart';
 
 import 'atm_locator_screen.dart';
@@ -316,7 +318,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {'label': 'Quick Transfer', 'icon': Icons.flash_on_outlined, 'color': kAccentOrange, 'screen': const QuickTransferScreen()},
       {'label': 'Standard Transfer', 'icon': Icons.send_outlined, 'color': colorScheme.primary, 'screen': TransferFundsScreen(bankingService: _bankingService)},
       {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': colorScheme.primary, 'screen': const bms.BeneficiaryManagementScreen()},
-      {'label': 'Scan & Pay (UPI)', 'icon': Icons.qr_code_scanner, 'color': colorScheme.primary, 'screen': null},
+      {
+        'label': 'Loan',
+        'icon': Icons.request_quote,
+        'color': colorScheme.primary,
+        'screen': const LoanLandingScreen(), // Change this from TransactionHistory
+      },
       {'label': 'Transaction History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen(bankingService: _bankingService)},
       {'label': 'T-PIN Management', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
       {'label': 'Service Management', 'icon': Icons.design_services, 'color': colorScheme.primary, 'screen': ServicesManagementScreen()},
@@ -779,7 +786,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           builder: (context, snapshot) {
                             final notifications = snapshot.data ?? [];
                             final unreadCount = notifications.where((n) => !n.isRead).length;
-
                             return IconButton(
                               onPressed: () => _showUniqueNotificationPanel(context, notifications),
                               icon: Badge(

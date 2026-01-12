@@ -36,6 +36,10 @@ dependencies:
 
   intl: ^0.20.2
 
+  flutter_bloc: ^8.1.3        # Standard BLoC package
+  equatable: ^2.0.5           # For better state comparison
+  percent_indicator: ^4.2.3
+
   cupertino_icons: ^1.0.8
   device_info_plus: ^10.0.0
 
