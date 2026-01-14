@@ -1,203 +1,88 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../theme/app_dimensions.dart';
-import '../theme/app_colors.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/registration_bloc.dart';
+import '../event/registration_event.dart';
+import '../state/registration_state.dart';
 import 'registration_step4_finalize.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 class RegistrationStep3Mpin extends StatefulWidget {
-  final String? sessionId;
-
-  const RegistrationStep3Mpin({super.key, this.sessionId});
+  const RegistrationStep3Mpin({super.key});
 
   @override
   State<RegistrationStep3Mpin> createState() => _RegistrationStep3MpinState();
 }
 
 class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
-  final TextEditingController _mpinController = TextEditingController();
-  final TextEditingController _confirmMpinController = TextEditingController();
-  final FocusNode _mpinFocusNode = FocusNode();
-  final FocusNode _confirmFocusNode = FocusNode();
-
-  bool _isLoading = false;
-  String? _errorMessage;
+  final _mpinController = TextEditingController();
+  final _confirmController = TextEditingController();
+  final _mpinFocus = FocusNode();
+  final _confirmFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _mpinController.addListener(() => setState(() {}));
-    _confirmMpinController.addListener(() => setState(() {}));
+    _confirmController.addListener(() => setState(() {}));
   }
 
-  @override
-  void dispose() {
-    _mpinController.dispose();
-    _confirmMpinController.dispose();
-    _mpinFocusNode.dispose();
-    _confirmFocusNode.dispose();
-    super.dispose();
-  }
-
-  void _handleMpinSetup() {
-    setState(() => _errorMessage = null);
-
-    if (_mpinController.text.length < 6) {
-      setState(() => _errorMessage = "Please enter a 6-digit MPIN");
-      return;
+  void _onSubmit() {
+    if (_mpinController.text.length == 6 && _mpinController.text == _confirmController.text) {
+      context.read<RegistrationBloc>().add(MpinSetupTriggered(_mpinController.text));
+    } else if (_mpinController.text != _confirmController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("MPINs do not match")));
     }
-    if (_mpinController.text != _confirmMpinController.text) {
-      setState(() => _errorMessage = "MPINs do not match. Please re-enter.");
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => RegistrationStep4Finalize(
-              sessionId: widget.sessionId,
-              mpin: _mpinController.text,
-            ),
-          ),
-        );
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      appBar: AppBar(
-        title: const Text(
-          'Set MPIN', // Standard standard heading
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: kAccentOrange,
-        centerTitle: false, // Left aligned title
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(kPaddingLarge),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 20),
-                    Text(
-                      'Secure Your Account',
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'This PIN will be used for all your future logins and transactions.',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-
-                    // --- NEW MPIN ---
-                    Text(
-                      'ENTER NEW 6-DIGIT MPIN',
-                      style: textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: kAccentOrange,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildPinInputSection(_mpinController, _mpinFocusNode),
-
-                    const SizedBox(height: 40),
-
-                    // --- CONFIRM MPIN ---
-                    Text(
-                      'CONFIRM NEW MPIN',
-                      style: textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: kAccentOrange,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildPinInputSection(_confirmMpinController, _confirmFocusNode),
-
-                    if (_errorMessage != null)
-                      Container(
-                        margin: const EdgeInsets.only(top: 24),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: Colors.redAccent, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            // --- Fixed Bottom Action Button ---
-            Padding(
-              padding: const EdgeInsets.all(kPaddingLarge),
-              child: SizedBox(
+    return BlocListener<RegistrationBloc, RegistrationState>(
+      listener: (context, state) {
+        if (state.currentStep == 3) {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep4Finalize()));
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Secure MPIN'), backgroundColor: kAccentOrange),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(kPaddingLarge),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Create 6-Digit MPIN", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              _buildPinInput(_mpinController, _mpinFocus),
+              const SizedBox(height: 40),
+              const Text("Confirm MPIN", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              _buildPinInput(_confirmController, _confirmFocus),
+              const SizedBox(height: 100),
+              SizedBox(
                 width: double.infinity,
                 height: kButtonHeight,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleMpinSetup,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccentOrange,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: kAccentOrange.withOpacity(0.5),
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kRadiusSmall),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                    'SET MPIN', // Unique and standard button text
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1),
-                  ),
+                child: BlocBuilder<RegistrationBloc, RegistrationState>(
+                  builder: (context, state) {
+                    return ElevatedButton(
+                      onPressed: state.status == RegistrationStatus.loading ? null : _onSubmit,
+                      style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
+                      child: state.status == RegistrationStatus.loading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text("SET MPIN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    );
+                  },
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPinInputSection(TextEditingController controller, FocusNode focusNode) {
+  Widget _buildPinInput(TextEditingController controller, FocusNode focusNode) {
     return Stack(
-      alignment: Alignment.center,
       children: [
         Opacity(
           opacity: 0,
@@ -214,43 +99,26 @@ class _RegistrationStep3MpinState extends State<RegistrationStep3Mpin> {
           onTap: () => focusNode.requestFocus(),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(6, (index) => _buildSingleBox(index, controller, focusNode)),
+            children: List.generate(6, (index) => _buildDotBox(index, controller, focusNode)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSingleBox(int index, TextEditingController controller, FocusNode focusNode) {
-    final colorScheme = Theme.of(context).colorScheme;
-    bool isFocused = focusNode.hasFocus && controller.text.length == index;
+  Widget _buildDotBox(int index, TextEditingController controller, FocusNode focus) {
     bool hasValue = controller.text.length > index;
-
+    bool isFocused = focus.hasFocus && controller.text.length == index;
     return Container(
-      width: 50,
-      height: 60,
+      width: 48, height: 58,
       decoration: BoxDecoration(
-        color: isFocused
-            ? kAccentOrange.withOpacity(0.05)
-            : colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(kRadiusSmall),
-        border: Border.all(
-          color: isFocused ? kAccentOrange : colorScheme.outline.withOpacity(0.2),
-          width: isFocused ? 2 : 1.5,
-        ),
+        color: isFocused ? kAccentOrange.withOpacity(0.05) : Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isFocused ? kAccentOrange : Colors.grey.shade300),
       ),
       child: Center(
         child: hasValue
-            ? Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: colorScheme.onSurface,
-            shape: BoxShape.circle,
-          ),
-        )
-            : isFocused
-            ? Container(width: 2, height: 24, color: kAccentOrange)
+            ? Container(width: 14, height: 14, decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle))
             : null,
       ),
     );

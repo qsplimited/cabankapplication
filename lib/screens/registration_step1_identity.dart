@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../main.dart';
-import '../models/registration_models.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../bloc/registration_bloc.dart';
+import '../event/registration_event.dart';
+import '../state/registration_state.dart';
 import 'registration_step2_otp.dart';
-import 'registration_step3_mpin.dart';
 import '../theme/app_dimensions.dart';
 import '../theme/app_colors.dart';
 
@@ -16,68 +16,41 @@ class RegistrationStep1Identity extends StatefulWidget {
 
 class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
   final _formKey = GlobalKey<FormState>();
-
-  // Controllers for both ID and Password
   final _custIdController = TextEditingController();
   final _passController = TextEditingController();
 
-  bool _isLoading = false;
-
-  void _onVerify() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    final req = AuthRequest(
-      customerId: _custIdController.text.trim(),
-      password: _passController.text.trim(),
-    );
-
-    final res = await globalDeviceService.verifyCredentials(req);
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-
-      if (res.success) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => RegistrationStep2Otp(
-              otpCode: res.otpCode ?? "123456",
-              sessionId: res.sessionId,
-              nextScreen: RegistrationStep3Mpin(sessionId: res.sessionId),
-            ),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(res.message ?? "Authentication Failed"),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
+  void _onVerify() {
+    if (_formKey.currentState!.validate()) {
+      context.read<RegistrationBloc>().add(
+        IdentitySubmitted(_custIdController.text.trim(), _passController.text.trim()),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      appBar: AppBar(
-        title: const Text(
-          'Identity Verification',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    return BlocListener<RegistrationBloc, RegistrationState>(
+      listener: (context, state) {
+        if (state.currentStep == 1) {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()));
+        }
+        if (state.status == RegistrationStatus.failure) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.errorMessage ?? "Error"),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Device Binding', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          backgroundColor: kAccentOrange,
+          centerTitle: true,
+          elevation: 0,
         ),
-        backgroundColor: kAccentOrange,
-        centerTitle: false, // Left aligned title as requested
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: Column(
+        body: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
@@ -88,60 +61,44 @@ class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 20),
-                      Text(
+                      // --- NEW HEADER SECTION ---
+                      const Center(
+                        child: Icon(Icons.phonelink_lock, size: 64, color: kAccentOrange),
+                      ),
+                      const SizedBox(height: 24),
+                      const Text(
                         "Registration",
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
-                        ),
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "Enter your credentials to link your device.",
-                        style: TextStyle(color: colorScheme.onSurface.withOpacity(0.6)),
+                        "Enter your credentials to link your device with your banking account.",
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600], height: 1.4),
                       ),
                       const SizedBox(height: 40),
 
-                      // --- Customer ID (Supports Alphanumeric A0001) ---
-                      const Text("Customer ID", style: TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
+                      // --- FORM FIELDS ---
                       TextFormField(
                         controller: _custIdController,
-                        keyboardType: TextInputType.text, // Changed to text for Alphanumeric
-                        style: TextStyle(color: colorScheme.onSurface),
-                        decoration: InputDecoration(
-                          hintText: 'e.g. A0001',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        decoration: const InputDecoration(
+                          labelText: 'Customer ID',
                           prefixIcon: Icon(Icons.person_outline, color: kAccentOrange),
-                          filled: true,
-                          fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(kRadiusSmall),
-                            borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
-                          ),
+                          border: OutlineInputBorder(),
                         ),
-                        validator: (v) => v!.isEmpty ? 'Please enter your Customer ID' : null,
+                        validator: (v) => v!.isEmpty ? 'Please enter Customer ID' : null,
                       ),
-
                       const SizedBox(height: 24),
-
-                      // --- Password Field ---
-                      const Text("Password", style: TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
                       TextFormField(
                         controller: _passController,
                         obscureText: true,
-                        style: TextStyle(color: colorScheme.onSurface),
-                        decoration: InputDecoration(
-                          hintText: 'Enter your password',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
                           prefixIcon: Icon(Icons.lock_outline, color: kAccentOrange),
-                          filled: true,
-                          fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(kRadiusSmall),
-                            borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.5)),
-                          ),
+                          border: OutlineInputBorder(),
                         ),
-                        validator: (v) => v!.isEmpty ? 'Please enter your password' : null,
+                        validator: (v) => v!.isEmpty ? 'Please enter Password' : null,
                       ),
                     ],
                   ),
@@ -149,29 +106,29 @@ class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
               ),
             ),
 
-            // --- Fixed Bottom Button Section for better visibility ---
+            // --- ACTION BUTTON ---
             Padding(
               padding: const EdgeInsets.all(kPaddingLarge),
               child: SizedBox(
                 width: double.infinity,
                 height: kButtonHeight,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _onVerify,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccentOrange,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: kAccentOrange.withOpacity(0.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kRadiusSmall),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                      'VERIFY IDENTITY',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-                  ),
+                child: BlocBuilder<RegistrationBloc, RegistrationState>(
+                  builder: (context, state) {
+                    return ElevatedButton(
+                      onPressed: state.status == RegistrationStatus.loading ? null : _onVerify,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kAccentOrange,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                        elevation: 2,
+                      ),
+                      child: state.status == RegistrationStatus.loading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                          'VERIFY IDENTITY',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

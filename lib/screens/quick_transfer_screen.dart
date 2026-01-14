@@ -100,9 +100,6 @@ class _QuickTransferScreenState extends State<QuickTransferScreen> {
     }
   }
 
-  /**
-   * Clears all transient state related to OTP and Reference ID.
-   */
   void _resetTransactionState() {
     setState(() {
       _isOtpRequested = false;

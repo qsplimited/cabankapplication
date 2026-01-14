@@ -59,7 +59,7 @@ class _AtmLocatorScreenState extends State<AtmLocatorScreen> {
       userLong: 77.5946,
       typeFilter: _selectedTypeFilter,
 
-      // 🌟 FIX APPLIED HERE: Pass a non-nullable List<String> to the Service.
+
       serviceFilters: _currentServiceFilters.toList(),
       maxDistanceKm: _currentDistanceRadius,
     );

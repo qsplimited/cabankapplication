@@ -161,7 +161,7 @@ class LoanLandingScreen extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(kRadiusMedium),
 
-            // 🔥 PASTE THIS PART:
+
             onTap: () {
               Navigator.push(
                 context,

@@ -1,7 +1,7 @@
 // File: beneficiary_management_screen.dart
 
 import 'package:flutter/material.dart';
-import '../api/banking_service.dart'; //
+import '../api/banking_service.dart';
 import 'add_beneficiary_screen.dart';
 
 class BeneficiaryManagementScreen extends StatefulWidget {
@@ -18,7 +18,7 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
   List<Beneficiary> _beneficiaries = [];
   bool _isLoading = true;
 
-  // Theme Colors based on your provided robust code
+
   final Color _primaryNavyBlue = const Color(0xFF003366);
   final Color _accentGreen = const Color(0xFF4CAF50);
 
