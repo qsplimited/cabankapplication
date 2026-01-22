@@ -1,90 +1,54 @@
+// lib/screens/forgot_mpin_step1_identity.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/registration_bloc.dart';
-import '../event/registration_event.dart';
-import '../state/registration_state.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/registration_provider.dart';
 import 'registration_step2_otp.dart';
-import '../theme/app_dimensions.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
-class ForgotMpinStep1Identity extends StatefulWidget {
+class ForgotMpinStep1Identity extends ConsumerStatefulWidget {
   const ForgotMpinStep1Identity({super.key});
-
   @override
-  State<ForgotMpinStep1Identity> createState() => _ForgotMpinStep1IdentityState();
+  ConsumerState<ForgotMpinStep1Identity> createState() => _ForgotMpinStep1IdentityState();
 }
 
-class _ForgotMpinStep1IdentityState extends State<ForgotMpinStep1Identity> {
-  final _formKey = GlobalKey<FormState>();
-  final _custIdController = TextEditingController();
-  final _passController = TextEditingController();
-
-  void _onContinue() {
-    if (_formKey.currentState!.validate()) {
-      // Dispatch the reset event
-      context.read<RegistrationBloc>().add(
-        ResetIdentitySubmitted(_custIdController.text.trim(), _passController.text.trim()),
-      );
-    }
-  }
+class _ForgotMpinStep1IdentityState extends ConsumerState<ForgotMpinStep1Identity> {
+  final _custId = TextEditingController();
+  final _pass = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<RegistrationBloc, RegistrationState>(
-      listener: (context, state) {
-        if (state.currentStep == 1) {
-          // FIX: No parameters passed here anymore
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()),
-          );
-        } else if (state.status == RegistrationStatus.failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.errorMessage ?? "Verification Failed"), backgroundColor: Colors.redAccent),
-          );
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Forgot MPIN'), backgroundColor: kAccentOrange),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(kPaddingLarge),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                const Text("Verify your identity to reset MPIN", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 30),
-                TextFormField(
-                  controller: _custIdController,
-                  decoration: const InputDecoration(labelText: 'Customer ID', prefixIcon: Icon(Icons.badge_outlined)),
-                  validator: (v) => v!.isEmpty ? 'Enter Customer ID' : null,
-                ),
-                const SizedBox(height: 24),
-                TextFormField(
-                  controller: _passController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock_outline)),
-                  validator: (v) => v!.isEmpty ? 'Enter Password' : null,
-                ),
-                const SizedBox(height: 60),
-                SizedBox(
-                  width: double.infinity,
-                  height: kButtonHeight,
-                  child: BlocBuilder<RegistrationBloc, RegistrationState>(
-                    builder: (context, state) {
-                      return ElevatedButton(
-                        onPressed: state.status == RegistrationStatus.loading ? null : _onContinue,
-                        style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
-                        child: state.status == RegistrationStatus.loading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('VERIFY & SEND OTP', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+    ref.listen(registrationProvider, (prev, next) {
+      if (next.currentStep == 1 && prev?.currentStep == 0) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()));
+      }
+    });
+
+    final state = ref.watch(registrationProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Verify Identity"), backgroundColor: kAccentOrange),
+      body: Padding(
+        padding: const EdgeInsets.all(kPaddingLarge),
+        child: Column(
+          children: [
+            TextField(controller: _custId, decoration: const InputDecoration(labelText: "Customer ID")),
+            const SizedBox(height: 20),
+            TextField(controller: _pass, obscureText: true, decoration: const InputDecoration(labelText: "Password")),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              height: kButtonHeight,
+              child: ElevatedButton(
+                onPressed: state.status == RegistrationStatus.loading ? null : () =>
+                    ref.read(registrationProvider.notifier).submitResetIdentity(_custId.text, _pass.text),
+                style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
+                child: state.status == RegistrationStatus.loading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("VERIFY & SEND OTP", style: TextStyle(color: Colors.white)),
+              ),
+            )
+          ],
         ),
       ),
     );

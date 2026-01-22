@@ -1,213 +1,157 @@
-// File: lib/screens/nominee_list_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/nominee_model.dart';
-import '../api/nominee_service.dart';
-// Assuming these files are in lib/theme/ and are accessible for style constants
-import '../theme/app_colors.dart';
-import '../theme/app_dimensions.dart';
-import '../theme/app_sizes.dart';
+import '../providers/nominee_provider.dart';
+import '../theme/app_colors.dart'; // Ensure kAccentOrange and kLightBackground are here
 
-// --- Main Screen ---
-
-class NomineeListScreen extends StatefulWidget {
-  final String accountType; // e.g., 'Savings', 'Fixed Deposit'
-
+class NomineeListScreen extends ConsumerStatefulWidget {
+  final String accountType;
   const NomineeListScreen({super.key, required this.accountType});
 
   @override
-  State<NomineeListScreen> createState() => _NomineeListScreenState();
+  ConsumerState<NomineeListScreen> createState() => _NomineeListScreenState();
 }
 
-class _NomineeListScreenState extends State<NomineeListScreen> {
-  final NomineeService _nomineeService = NomineeService();
-  late Future<List<NomineeModel>> _nomineesFuture;
-  List<NomineeModel> _nominees = [];
-  bool _isLoading = false;
-
+class _NomineeListScreenState extends ConsumerState<NomineeListScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchNominees();
-  }
-
-  void _fetchNominees() {
-    setState(() {
-      _nomineesFuture = _nomineeService.fetchNomineesByAccountType(widget.accountType);
-      _nomineesFuture.then((data) {
-        setState(() {
-          _nominees = data;
-        });
-      }).catchError((error) {
-        // Show error message (e.g., using a SnackBar)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching nominees: $error')),
-        );
-      });
-    });
-  }
-
-
-
-  void _handleEdit(NomineeModel nominee) async {
-
-    final updatedNominee = await showDialog<NomineeModel>(
-      context: context,
-      builder: (context) => NomineeUpdateDialog(nominee: nominee),
+    Future.microtask(() =>
+        ref.read(nomineeProvider.notifier).fetchNominees(widget.accountType)
     );
-
-    if (updatedNominee != null) {
-      setState(() {
-        _isLoading = true;
-      });
-      try {
-
-        final result = await _nomineeService.updateNominee(updatedNominee);
-
-
-        final index = _nominees.indexWhere((n) => n.id == result.id);
-        if (index != -1) {
-          setState(() {
-            _nominees[index] = result;
-          });
-        }
-
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${result.fullName} updated successfully!'),
-            backgroundColor: kSuccessGreen,
-          ),
-        );
-      } catch (e) {
-        // Show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Update failed: $e'),
-            backgroundColor: kErrorRed,
-          ),
-        );
-      } finally {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final serverState = ref.watch(nomineeProvider);
+    final draftNominees = ref.watch(nomineeDraftProvider);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7F9), // Clean light background
       appBar: AppBar(
-        title: Text('${widget.accountType} Nominee Details'),
-        backgroundColor: theme.colorScheme.surface,
-        elevation: kCardElevation,
+        title: Text('Manage Nominees', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: kAccentOrange,
+        elevation: 0,
+        centerTitle: true,
       ),
-      body: FutureBuilder<List<NomineeModel>>(
-        future: _nomineesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting || _isLoading) {
+      body: serverState.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(child: Text("Unable to load nominees")),
+        data: (nominees) {
+          // Initialize Draft
+          if (draftNominees == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ref.read(nomineeDraftProvider.notifier).state = nominees.map((n) => n.copyWith()).toList();
+            });
             return const Center(child: CircularProgressIndicator());
           }
-          if (snapshot.hasError) {
-            return Center(child: Text('Failed to load data: ${snapshot.error}'));
-          }
-          if (_nominees.isEmpty) {
-            return const Center(child: Text('No nominees are registered for this account.'));
-          }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(kPaddingMedium),
-            itemCount: _nominees.length,
-            itemBuilder: (context, index) {
-              final nominee = _nominees[index];
-              return NomineeCard(
-                nominee: nominee,
-                onEdit: _handleEdit,
-                theme: theme,
-              );
-            },
+          double totalShare = draftNominees.fold(0, (sum, n) => sum + n.sharePercentage);
+          bool isFullyAllocated = totalShare == 100.0;
+
+          return Column(
+            children: [
+              // Header Instruction
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                color: kAccentOrange.withOpacity(0.1),
+                child: Text(
+                  "Total allocation must be exactly 100% to save.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: kAccentOrange, fontWeight: FontWeight.w600),
+                ),
+              ),
+
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: draftNominees.length,
+                  itemBuilder: (context, index) {
+                    final nominee = draftNominees[index];
+                    return _buildNomineeCard(nominee, index);
+                  },
+                ),
+              ),
+
+              // Redesigned Summary and Action Section
+              _buildBottomSummary(totalShare, isFullyAllocated, draftNominees),
+            ],
           );
         },
       ),
     );
   }
-}
 
-// --- Nominee Card Widget ---
-
-class NomineeCard extends StatelessWidget {
-  final NomineeModel nominee;
-  final Function(NomineeModel) onEdit;
-  final ThemeData theme;
-
-  const NomineeCard({
-    super.key,
-    required this.nominee,
-    required this.onEdit,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildNomineeCard(NomineeModel nominee, int index) {
     return Card(
-      color: theme.colorScheme.surface,
-      elevation: kCardElevation,
-      margin: const EdgeInsets.only(bottom: kPaddingSmall),
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(kRadiusMedium),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(kPaddingMedium),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        title: Text(nominee.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text("${nominee.relationship} • ${nominee.sharePercentage.toStringAsFixed(0)}% Share"),
+        ),
+        trailing: Container(
+          decoration: BoxDecoration(color: kAccentOrange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+          child: IconButton(
+            icon: Icon(Icons.edit_outlined, color: kAccentOrange),
+            onPressed: () => _showEditDialog(index),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomSummary(double total, bool isValid, List<NomineeModel> draft) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Header with Name and Edit Button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Text(
-                    nominee.fullName,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                const Text("Current Allocation", style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500)),
+                Text(
+                  "${total.toStringAsFixed(0)}%",
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: isValid ? Colors.green : Colors.red,
                   ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.edit, color: theme.colorScheme.primary, size: kIconSizeSmall),
-                  onPressed: () => onEdit(nominee),
-                  tooltip: 'Edit Nominee Details',
                 ),
               ],
             ),
-            const SizedBox(height: kPaddingSmall),
-            const Divider(height: kDividerHeight, color: kLightDivider),
-            const SizedBox(height: kPaddingSmall),
-
-            // Details Rows
-            _buildDetailRow(
-                context,
-                'Relationship:',
-                nominee.relationship,
-                theme
-            ),
-            _buildDetailRow(
-                context,
-                'Share:',
-                '${nominee.sharePercentage.toStringAsFixed(0)}%',
-                theme
-            ),
-            _buildDetailRow(
-                context,
-                'Account Type:',
-                nominee.accountType,
-                theme
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kAccentOrange,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                onPressed: isValid ? () => _handleConfirm(draft) : null,
+                child: const Text(
+                  "CONFIRM & SAVE",
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1),
+                ),
+              ),
             ),
           ],
         ),
@@ -215,39 +159,40 @@ class NomineeCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(BuildContext context, String label, String value, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: kPaddingExtraSmall),
-      child: Row(
-        children: [
-          SizedBox(
-            width: kLabelColumnWidth,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: kLightTextSecondary,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
+  void _showEditDialog(int index) async {
+    final list = ref.read(nomineeDraftProvider);
+    if (list == null) return;
+
+    final updated = await showDialog<NomineeModel>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => NomineeUpdateDialog(nominee: list[index]),
     );
+
+    if (updated != null) {
+      final newList = List<NomineeModel>.from(list);
+      newList[index] = updated;
+      ref.read(nomineeDraftProvider.notifier).state = newList;
+    }
+  }
+
+  void _handleConfirm(List<NomineeModel> draft) async {
+    final success = await ref.read(nomineeProvider.notifier).commitNomineeUpdates(draft);
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Nominee preferences updated successfully"),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
-// --- Nominee Update Dialog (Simple Form Simulation) ---
 
+// --- Dialog: Tightly Aligned ---
 class NomineeUpdateDialog extends StatefulWidget {
   final NomineeModel nominee;
-
   const NomineeUpdateDialog({super.key, required this.nominee});
 
   @override
@@ -255,142 +200,66 @@ class NomineeUpdateDialog extends StatefulWidget {
 }
 
 class _NomineeUpdateDialogState extends State<NomineeUpdateDialog> {
-  late TextEditingController _nameController;
   late TextEditingController _shareController;
-  late String _selectedRelationship;
-
-  final List<String> _relationships = [
-    'Spouse',
-    'Son',
-    'Daughter',
-    'Parent',
-    'Sibling',
-    'Other'
-  ];
+  late String _relationship;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.nominee.fullName);
     _shareController = TextEditingController(text: widget.nominee.sharePercentage.toStringAsFixed(0));
-    _selectedRelationship = widget.nominee.relationship;
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _shareController.dispose();
-    super.dispose();
-  }
-
-  void _saveChanges() {
-    // Basic validation
-    final newName = _nameController.text.trim();
-    final newShare = double.tryParse(_shareController.text.trim());
-
-    if (newName.isEmpty || newShare == null || newShare < 0 || newShare > 100) {
-      // Show error or disable button
-      return;
-    }
-
-    // Create the updated model
-    final updatedNominee = widget.nominee.copyWith(
-      fullName: newName,
-      relationship: _selectedRelationship,
-      sharePercentage: newShare,
-    );
-
-
-    Navigator.of(context).pop(updatedNominee);
+    _relationship = widget.nominee.relationship;
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-
-    if (!_relationships.contains(_selectedRelationship)) {
-      _relationships.insert(0, _selectedRelationship);
-    }
-
     return AlertDialog(
-      title: Text('Update Nominee: ${widget.nominee.fullName}', style: theme.textTheme.titleMedium),
-      content: SingleChildScrollView(
-        child: ListBody(
-          children: <Widget>[
-            // Nominee Name
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Full Legal Name',
-                prefixIcon: Icon(Icons.person),
-              ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text("Edit ${widget.nominee.fullName}", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min, // 🌟 Fixes alignment
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Relationship", style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            value: _relationship,
+            isExpanded: true,
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            const SizedBox(height: kPaddingMedium),
-
-            // Relationship Dropdown
-            DropdownButtonFormField<String>(
-              value: _selectedRelationship,
-              decoration: const InputDecoration(
-                labelText: 'Relationship',
-                prefixIcon: Icon(Icons.family_restroom),
-              ),
-              items: _relationships.map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
-                );
-              }).toList(),
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _selectedRelationship = newValue;
-                  });
-                }
-              },
+            items: ['Spouse', 'Son', 'Daughter', 'Parent', 'Sibling', 'Other']
+                .map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            onChanged: (v) => setState(() => _relationship = v!),
+          ),
+          const SizedBox(height: 16),
+          const Text("Benefit Share (%)", style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _shareController,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              suffixText: "%",
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            const SizedBox(height: kPaddingMedium),
-
-            // Share Percentage
-            TextFormField(
-              controller: _shareController,
-              decoration: const InputDecoration(
-                labelText: 'Share Percentage (0-100)',
-                suffixText: '%',
-                prefixIcon: Icon(Icons.percent),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
-      actions: <Widget>[
+      actions: [
         TextButton(
-          child: Text('Cancel', style: TextStyle(color: kErrorRed)),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCEL", style: TextStyle(color: Colors.grey))
         ),
         ElevatedButton(
-          onPressed: _saveChanges,
-          child: const Text('Save Changes'),
+          style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+          onPressed: () {
+            final val = double.tryParse(_shareController.text) ?? 0;
+            Navigator.pop(context, widget.nominee.copyWith(relationship: _relationship, sharePercentage: val));
+          },
+          child: const Text("SAVE DRAFT", style: TextStyle(color: Colors.white)),
         ),
       ],
-    );
-  }
-}
-
-class MainAppWrapper extends StatelessWidget {
-  const MainAppWrapper({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Nominee Management',
-      theme: Theme.of(context),
-      home: const NomineeListScreen(accountType: 'Savings'),
     );
   }
 }

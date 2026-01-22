@@ -36,9 +36,9 @@ class FdResultScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text('FD Confirmation Result', style: textTheme.titleLarge?.copyWith(color: kLightSurface)),
         backgroundColor: colorScheme.primary,
-        // 🌟 MODIFIED: Enabled back button
+
         automaticallyImplyLeading: true,
-        // 🌟 MODIFIED: Set custom back button action to navigate to DepositOpeningScreen
+
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: kLightSurface),
           onPressed: () => _navigateToDepositOpeningScreen(context),
@@ -78,8 +78,7 @@ class FdResultScreen extends StatelessWidget {
               ),
               const SizedBox(height: kPaddingLarge),
 
-              // Reference Number (if successful)
-              // 🌟 FIXED: Use response.transactionId instead of response.fdReferenceNumber
+
               if (isSuccess && response.transactionId != null)
                 Card(
                   elevation: kCardElevation,

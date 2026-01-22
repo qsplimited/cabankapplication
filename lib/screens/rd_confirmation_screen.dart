@@ -86,6 +86,8 @@ class RdConfirmationScreen extends StatelessWidget {
       ),
     );
 
+
+
     // 2. Check OTP result
     // The dialog returns the verified OTP string (6 digits) on success, or null on cancel.
     if (otpResult != null && otpResult.length == 6) {

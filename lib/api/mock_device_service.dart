@@ -62,20 +62,39 @@ class MockDeviceService implements IDeviceService {
     return _isBound;
   }
 
+  Future<bool> requestOtp({required String sessionId}) async {
+    // Simulate a network delay of 1 second
+    await Future.delayed(const Duration(seconds: 1));
+
+    // In mock mode, we assume the session is valid and return true
+    if (sessionId.isNotEmpty) {
+      print("MOCK: New OTP sent for session: $sessionId");
+      return true;
+    }
+    return false;
+  }
+
+// Inside MockDeviceService class
+
   @override
-  Future<bool> loginWithMpin({required String mpin}) async {
-    await Future.delayed(_delay);
+  Future<AuthResponse> loginWithMpin({required String mpin}) async {
+    await Future.delayed(const Duration(seconds: 1));
 
-    // LOGIC: Accept the user-set pin OR the master test pin (112233)
-    bool isValid = (mpin == _storedMpin || mpin == "112233");
+    // Logic: Accept master test pin (112233)
+    bool isValid = (mpin == "112233");
 
-    print('--- LOGIN ATTEMPT ---');
-    print('Entered PIN: $mpin');
-    print('Stored PIN: $_storedMpin');
-    print('Master PIN: 112233');
-    print('Result: ${isValid ? "SUCCESS - GOING TO DASHBOARD" : "FAILED"}');
-
-    return isValid;
+    if (isValid) {
+      return AuthResponse(
+        success: true,
+        token: "MOCK_JWT_TOKEN_ABC_123", // Passing a mock token
+        message: "Login Successful",
+      );
+    } else {
+      return AuthResponse(
+        success: false,
+        message: "Invalid MPIN. Please try again.",
+      );
+    }
   }
 
   @override

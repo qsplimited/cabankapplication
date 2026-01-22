@@ -1,138 +1,111 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/registration_bloc.dart';
-import '../event/registration_event.dart';
-import '../state/registration_state.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/registration_provider.dart';
+import '../utils/validators.dart';
 import 'registration_step2_otp.dart';
 import '../theme/app_dimensions.dart';
 import '../theme/app_colors.dart';
 
-class RegistrationStep1Identity extends StatefulWidget {
+class RegistrationStep1Identity extends ConsumerStatefulWidget {
   const RegistrationStep1Identity({super.key});
-
   @override
-  State<RegistrationStep1Identity> createState() => _RegistrationStep1IdentityState();
+  ConsumerState<RegistrationStep1Identity> createState() => _RegistrationStep1IdentityState();
 }
 
-class _RegistrationStep1IdentityState extends State<RegistrationStep1Identity> {
+class _RegistrationStep1IdentityState extends ConsumerState<RegistrationStep1Identity> {
   final _formKey = GlobalKey<FormState>();
   final _custIdController = TextEditingController();
   final _passController = TextEditingController();
 
   void _onVerify() {
     if (_formKey.currentState!.validate()) {
-      context.read<RegistrationBloc>().add(
-        IdentitySubmitted(_custIdController.text.trim(), _passController.text.trim()),
-      );
+      // Stripping spaces before sending to API
+      final cleanId = _custIdController.text.trim().replaceAll(' ', '');
+      ref.read(registrationProvider.notifier).submitIdentity(cleanId, _passController.text);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<RegistrationBloc, RegistrationState>(
-      listener: (context, state) {
-        if (state.currentStep == 1) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()));
-        }
-        if (state.status == RegistrationStatus.failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.errorMessage ?? "Error"),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Device Binding', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-          backgroundColor: kAccentOrange,
-          centerTitle: true,
-          elevation: 0,
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(kPaddingLarge),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 20),
-                      // --- NEW HEADER SECTION ---
-                      const Center(
-                        child: Icon(Icons.phonelink_lock, size: 64, color: kAccentOrange),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        "Registration",
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Enter your credentials to link your device with your banking account.",
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600], height: 1.4),
-                      ),
-                      const SizedBox(height: 40),
+    ref.listen(registrationProvider, (prev, next) {
+      if (next.currentStep == 1 && prev?.currentStep == 0) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()));
+      }
+    });
 
-                      // --- FORM FIELDS ---
-                      TextFormField(
-                        controller: _custIdController,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                        decoration: const InputDecoration(
-                          labelText: 'Customer ID',
-                          prefixIcon: Icon(Icons.person_outline, color: kAccentOrange),
-                          border: OutlineInputBorder(),
+    final regState = ref.watch(registrationProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Identity Verification', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: kAccentOrange,
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: kPaddingLarge),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 40),
+                        const Icon(Icons.verified_user_outlined, size: 80, color: kAccentOrange),
+                        const SizedBox(height: 24),
+                        const Text("Verify your credentials to register", style: TextStyle(color: Colors.grey)),
+                        const SizedBox(height: 40),
+
+                        TextFormField(
+                          controller: _custIdController,
+                          validator: AppValidators.validateCustomerId,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(5),
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')), // Block spaces
+                          ],
+                          decoration: const InputDecoration(
+                            labelText: 'Customer ID (e.g. A0001)',
+                            prefixIcon: Icon(Icons.person_outline),
+                            border: OutlineInputBorder(),
+                          ),
                         ),
-                        validator: (v) => v!.isEmpty ? 'Please enter Customer ID' : null,
-                      ),
-                      const SizedBox(height: 24),
-                      TextFormField(
-                        controller: _passController,
-                        obscureText: true,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outline, color: kAccentOrange),
-                          border: OutlineInputBorder(),
+                        const SizedBox(height: 24),
+                        TextFormField(
+                          controller: _passController,
+                          obscureText: true,
+                          validator: AppValidators.validatePassword,
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                            prefixIcon: Icon(Icons.lock_outline),
+                            border: OutlineInputBorder(),
+                          ),
                         ),
-                        validator: (v) => v!.isEmpty ? 'Please enter Password' : null,
-                      ),
-                    ],
+
+                        const Spacer(), // Pushes button down, but allows scroll if space is tight
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: kButtonHeight,
+                          child: ElevatedButton(
+                            onPressed: regState.status == RegistrationStatus.loading ? null : _onVerify,
+                            style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
+                            child: regState.status == RegistrationStatus.loading
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : const Text('VERIFY IDENTITY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(height: 30), // Professional bottom spacing
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-
-            // --- ACTION BUTTON ---
-            Padding(
-              padding: const EdgeInsets.all(kPaddingLarge),
-              child: SizedBox(
-                width: double.infinity,
-                height: kButtonHeight,
-                child: BlocBuilder<RegistrationBloc, RegistrationState>(
-                  builder: (context, state) {
-                    return ElevatedButton(
-                      onPressed: state.status == RegistrationStatus.loading ? null : _onVerify,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAccentOrange,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
-                        elevation: 2,
-                      ),
-                      child: state.status == RegistrationStatus.loading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                          'VERIFY IDENTITY',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

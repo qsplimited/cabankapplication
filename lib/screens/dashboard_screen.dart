@@ -1,5 +1,6 @@
 // File: dashboard_screen.dart (Refactored)
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/banking_service.dart';
 import '../api/notification_service.dart';
 import '../models/notificationmodel.dart';
@@ -26,12 +27,14 @@ import 'atm_locator_screen.dart';
 
 final BankingService _bankingService = BankingService();
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget { // Changed to ConsumerStatefulWidget
   const DashboardScreen({super.key});
+
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState(); // Changed return type
 }
-class _DashboardScreenState extends State<DashboardScreen> {
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // Data State
   UserProfile? _userProfile;
   List<Account> _allAccounts = [];
@@ -164,7 +167,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return GestureDetector(
       onTap: () {
-        _navigateTo(DetailedAccountViewScreen(account: account));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailedAccountViewScreen(accountId: account.accountId),
+          ),
+        );
       },
       child: Card(
         // Refactored Color & Elevation/Shape
@@ -201,15 +209,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Flexible(
-                            child: Text(
-                              '${account.accountType.name.toUpperCase()} ACCOUNT',
-                              // Refactored Text Style (using onSurface for secondary text)
-                              style: textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.onSurface.withOpacity(0.7),
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.8
+                            child:
+                            Text(
+                              account.accountType == AccountType.recurringDeposit
+                                  ? "RD ACCOUNT"
+                                  : "${account.accountType.name.toUpperCase()} ACCOUNT",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Colors.black87,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           // Balance Visibility Toggle Icon
@@ -324,7 +333,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'color': colorScheme.primary,
         'screen': const LoanLandingScreen(), // Change this from TransactionHistory
       },
-      {'label': 'Transaction History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen(bankingService: _bankingService)},
+      {'label': 'Transaction History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen()},
       {'label': 'T-PIN Management', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
       {'label': 'Service Management', 'icon': Icons.design_services, 'color': colorScheme.primary, 'screen': ServicesManagementScreen()},
       {'label': 'Deposit Management',
@@ -647,8 +656,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final String userFirstName = userFullName.split(' ').first;
     final String userInitial = userFullName.split(' ').first.substring(0, 1).toUpperCase();
 
-
-
     return Scaffold(
       backgroundColor: colorScheme.background,
       // --- DRAWER (Menu Bar) ---
@@ -706,7 +713,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }),
             ListTile(leading: Icon(Icons.history_toggle_off_outlined, color: kSavingsCardColor),
                 title: Text('Transaction History', style: textTheme.bodyMedium),
-                onTap: () { Navigator.pop(context); _navigateTo(ths.TransactionHistoryScreen(bankingService: _bankingService)); }),
+                onTap: () { Navigator.pop(context); _navigateTo(ths.TransactionHistoryScreen()); }),
+
+
             ListTile(leading: Icon(Icons.lock_reset_outlined, color: colorScheme.primary),
                 title: Text('T-PIN Management', style: textTheme.bodyMedium),
                 onTap: () { Navigator.pop(context); _navigateTo(const TpinManagementScreen()); }),

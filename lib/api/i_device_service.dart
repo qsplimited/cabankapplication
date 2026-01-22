@@ -16,7 +16,7 @@ abstract class IDeviceService {
     String? sessionId,
   });
 
-  Future<bool> loginWithMpin({required String mpin});
+  Future<AuthResponse> loginWithMpin({required String mpin});
 
   Future<AuthResponse> verifyIdentityForReset(AuthRequest request);
 
@@ -25,4 +25,6 @@ abstract class IDeviceService {
     required String newMpin,
     String? sessionId
   });
+
+
 }

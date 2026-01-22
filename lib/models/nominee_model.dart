@@ -1,12 +1,10 @@
-// File: lib/models/nominee_model.dart
-
-/// Represents a single nominee associated with an account.
+// lib/models/nominee_model.dart
 class NomineeModel {
   final String id;
   final String fullName;
   final String relationship;
   final double sharePercentage;
-  final String accountType; // e.g., 'Savings', 'Fixed Deposit'
+  final String accountType;
 
   NomineeModel({
     required this.id,
@@ -16,29 +14,6 @@ class NomineeModel {
     required this.accountType,
   });
 
-  /// Factory constructor to create a NomineeModel from a JSON map (e.g., from an API response).
-  factory NomineeModel.fromJson(Map<String, dynamic> json) {
-    return NomineeModel(
-      id: json['id'] as String,
-      fullName: json['fullName'] as String,
-      relationship: json['relationship'] as String,
-      sharePercentage: (json['sharePercentage'] as num).toDouble(),
-      accountType: json['accountType'] as String,
-    );
-  }
-
-  /// Converts the NomineeModel instance to a JSON map.
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'fullName': fullName,
-      'relationship': relationship,
-      'sharePercentage': sharePercentage,
-      'accountType': accountType,
-    };
-  }
-
-  /// Creates a copy of the model, optionally with updated values.
   NomineeModel copyWith({
     String? id,
     String? fullName,

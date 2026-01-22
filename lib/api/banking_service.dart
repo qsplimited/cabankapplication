@@ -257,10 +257,10 @@ class BankingService {
     Account(
       accountId: 'ACC003',
       accountNumber: '555544443333',
-      accountType: AccountType.fixedDeposit,
+      accountType: AccountType.recurringDeposit,
       balance: 300000.00,
       availableBalance: 0.00, // FD accounts usually have 0 available balance
-      nickname: 'Emergency Fund',
+      nickname: 'RD Account',
       ifscCode: '${_mockBankIfscPrefix}0001001',
       branchAddress: 'CA Bank, Main Branch, HSR Layout, Bangalore',
       nominee: Nominee(

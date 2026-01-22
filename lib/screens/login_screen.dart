@@ -1,26 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../main.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/registration_provider.dart'; // Import your provider
 import 'forgot_mpin_step1_identity.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final FocusNode _mpinFocusNode = FocusNode();
   final TextEditingController _mpinController = TextEditingController();
-  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Ensure keyboard opens and focus is set on load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _mpinFocusNode.requestFocus();
     });
@@ -33,28 +32,10 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() async {
-    if (_mpinController.text.length < 6) return;
-
-    setState(() => _isLoading = true);
-
-    // Using your global service for login
-    bool success = await globalDeviceService.loginWithMpin(mpin: _mpinController.text);
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (success) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid MPIN. Please try again.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        _mpinController.clear();
-        _mpinFocusNode.requestFocus();
-      }
+  void _handleLogin() {
+    if (_mpinController.text.length == 6) {
+      // Use Riverpod to handle login logic
+      ref.read(registrationProvider.notifier).login(_mpinController.text);
     }
   }
 
@@ -62,11 +43,30 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Watch the global state for loading and error handling
+    final authState = ref.watch(registrationProvider);
+
+    // Listen for state changes (Success or Failure)
+    ref.listen(registrationProvider, (previous, next) {
+      if (next.status == RegistrationStatus.success) {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else if (next.status == RegistrationStatus.failure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage ?? 'Invalid MPIN'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        _mpinController.clear();
+        _mpinFocusNode.requestFocus();
+      }
+    });
+
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: const Text('Login', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: kAccentOrange, // Brand Orange AppBar
+        backgroundColor: kAccentOrange,
         centerTitle: true,
         elevation: 0,
       ),
@@ -76,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             children: [
               const SizedBox(height: 40),
-              Icon(Icons.security, size: 80, color: kAccentOrange),
+              const Icon(Icons.security, size: 80, color: kAccentOrange),
               const SizedBox(height: 24),
               const Text(
                 "Enter 6-Digit MPIN",
@@ -84,37 +84,30 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 40),
 
-              // PIN INPUT AREA
+              // PIN INPUT AREA (The 6 boxes)
+
               GestureDetector(
                 onTap: () => _mpinFocusNode.requestFocus(),
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Visual Boxes
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: List.generate(6, (index) => _buildPinBox(index)),
                     ),
-                    // Invisible TextField that captures input
                     Opacity(
                       opacity: 0,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: TextField(
-                          controller: _mpinController,
-                          focusNode: _mpinFocusNode,
-                          keyboardType: TextInputType.number,
-                          maxLength: 6,
-                          autofocus: true,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                          onChanged: (value) {
-                            setState(() {}); // Updates the dots
-                            if (value.length == 6) {
-                              _handleLogin(); // Auto-login on 6th digit
-                            }
-                          },
-                          decoration: const InputDecoration(counterText: ""),
-                        ),
+                      child: TextField(
+                        controller: _mpinController,
+                        focusNode: _mpinFocusNode,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        onChanged: (value) {
+                          setState(() {});
+                          if (value.length == 6) _handleLogin();
+                        },
+                        decoration: const InputDecoration(counterText: ""),
                       ),
                     ),
                   ],
@@ -128,15 +121,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: kButtonHeight,
                 child: ElevatedButton(
-                  onPressed: (_isLoading || _mpinController.text.length < 6)
+                  onPressed: (authState.status == RegistrationStatus.loading || _mpinController.text.length < 6)
                       ? null
                       : _handleLogin,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: kAccentOrange, // Brand Orange Button
+                    backgroundColor: kAccentOrange,
                     disabledBackgroundColor: kAccentOrange.withOpacity(0.5),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
                   ),
-                  child: _isLoading
+                  child: authState.status == RegistrationStatus.loading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
                       "LOGIN",
@@ -147,7 +140,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 20),
 
-              // FORGOT MPIN
               TextButton(
                 onPressed: () => Navigator.push(
                     context,
@@ -183,9 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       child: Center(
         child: isFilled
-            ? const Icon(Icons.circle, size: 16, color: Colors.black87) // Clearly visible dots
-            : isFocused
-            ? Container(width: 2, height: 24, color: kAccentOrange) // Blinking cursor effect
+            ? const Icon(Icons.circle, size: 16, color: Colors.black87)
             : null,
       ),
     );

@@ -1,125 +1,115 @@
+// lib/screens/forgot_mpin_step2_new_mpin.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/registration_bloc.dart';
-import '../event/registration_event.dart';
-import '../state/registration_state.dart';
-import '../theme/app_dimensions.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/registration_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
-class ForgotMpinStep2NewMpin extends StatefulWidget {
-  const ForgotMpinStep2NewMpin({super.key}); // SessionId now comes from BLoC state
-
+class ForgotMpinStep2NewMpin extends ConsumerStatefulWidget {
+  const ForgotMpinStep2NewMpin({super.key});
   @override
-  State<ForgotMpinStep2NewMpin> createState() => _ForgotMpinStep2NewMpinState();
+  ConsumerState<ForgotMpinStep2NewMpin> createState() => _ForgotMpinStep2NewMpinState();
 }
 
-class _ForgotMpinStep2NewMpinState extends State<ForgotMpinStep2NewMpin> {
-  final _newMpinController = TextEditingController();
-  final _confirmMpinController = TextEditingController();
-  final _newFocusNode = FocusNode();
-  final _confirmFocusNode = FocusNode();
+class _ForgotMpinStep2NewMpinState extends ConsumerState<ForgotMpinStep2NewMpin> {
+  final _mpin = TextEditingController();
+  final _confirm = TextEditingController();
+  final _f1 = FocusNode();
+  final _f2 = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _newMpinController.addListener(() => setState(() {}));
-    _confirmMpinController.addListener(() => setState(() {}));
+    // Re-render UI as user types to fill the boxes
+    _mpin.addListener(() => setState(() {}));
+    _confirm.addListener(() => setState(() {}));
   }
 
-  void _onReset() {
-    if (_newMpinController.text.length < 6) return;
-    if (_newMpinController.text != _confirmMpinController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("MPINs do not match")));
-      return;
+  void _onUpdate() {
+    if (_mpin.text.length == 6 && _mpin.text == _confirm.text) {
+      ref.read(registrationProvider.notifier).finalizeRegistration(_mpin.text);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("MPINs do not match or are incomplete"))
+      );
     }
-
-    // Trigger BLoC event
-    context.read<RegistrationBloc>().add(MpinSetupTriggered(_newMpinController.text));
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<RegistrationBloc, RegistrationState>(
-      listener: (context, state) {
-        if (state.status == RegistrationStatus.success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("MPIN Reset Successful!")));
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Create New MPIN'), backgroundColor: kAccentOrange),
-        body: Padding(
-          padding: const EdgeInsets.all(kPaddingLarge),
-          child: Column(
-            children: [
-              const Text("Enter 6-digit New MPIN"),
-              _buildPinField(_newMpinController, _newFocusNode),
-              const SizedBox(height: 30),
-              const Text("Confirm New MPIN"),
-              _buildPinField(_confirmMpinController, _confirmFocusNode),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                height: kButtonHeight,
-                child: BlocBuilder<RegistrationBloc, RegistrationState>(
-                  builder: (context, state) {
-                    return ElevatedButton(
-                      onPressed: state.status == RegistrationStatus.loading ? null : _onReset,
-                      style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
-                      child: state.status == RegistrationStatus.loading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('RESET MPIN', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                    );
-                  },
-                ),
+    // Listen for success to return to landing page (Test Mode)
+    ref.listen(registrationProvider, (prev, next) {
+      if (next.status == RegistrationStatus.success) {
+        ref.read(registrationProvider.notifier).reset(); // Reset for next test
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      }
+    });
+
+    final state = ref.watch(registrationProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Reset MPIN"), backgroundColor: kAccentOrange),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(kPaddingLarge),
+        child: Column(
+          children: [
+            const Text("Enter New 6-Digit MPIN", style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            _buildPinRow(_mpin, _f1),
+            const SizedBox(height: 40),
+            const Text("Confirm New MPIN", style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            _buildPinRow(_confirm, _f2),
+            const SizedBox(height: 60),
+            SizedBox(
+              width: double.infinity,
+              height: kButtonHeight,
+              child: ElevatedButton(
+                onPressed: state.status == RegistrationStatus.loading ? null : _onUpdate,
+                style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
+                child: state.status == RegistrationStatus.loading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("UPDATE MPIN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildPinField(TextEditingController controller, FocusNode focusNode) {
+  Widget _buildPinRow(TextEditingController controller, FocusNode node) {
     return Stack(
       children: [
+        // Hidden TextField to capture input
         Opacity(
-          opacity: 0,
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          ),
+            opacity: 0,
+            child: TextField(
+              controller: controller,
+              focusNode: node,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            )
         ),
+        // Visual Boxes
         GestureDetector(
-          onTap: () => focusNode.requestFocus(),
+          onTap: () => node.requestFocus(),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(6, (index) => _buildSingleBox(index, controller, focusNode)),
+            children: List.generate(6, (i) => Container(
+              width: 48, height: 58,
+              decoration: BoxDecoration(
+                  color: node.hasFocus && controller.text.length == i ? kAccentOrange.withOpacity(0.1) : Colors.grey.shade100,
+                  border: Border.all(color: node.hasFocus && controller.text.length == i ? kAccentOrange : Colors.grey.shade400, width: 2),
+                  borderRadius: BorderRadius.circular(8)
+              ),
+              child: Center(child: controller.text.length > i ? const Icon(Icons.circle, size: 14, color: Colors.black87) : null),
+            )),
           ),
-        ),
+        )
       ],
-    );
-  }
-
-  Widget _buildSingleBox(int index, TextEditingController controller, FocusNode focus) {
-    bool isFocused = focus.hasFocus && controller.text.length == index;
-    bool hasVal = controller.text.length > index;
-    return Container(
-      width: 48, height: 58,
-      decoration: BoxDecoration(
-        color: isFocused ? kAccentOrange.withOpacity(0.05) : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isFocused ? kAccentOrange : Colors.grey.shade400, width: isFocused ? 2 : 1),
-      ),
-      child: Center(
-        child: hasVal
-            ? Container(width: 12, height: 12, decoration: const BoxDecoration(color: Colors.black87, shape: BoxShape.circle))
-            : null,
-      ),
     );
   }
 }
