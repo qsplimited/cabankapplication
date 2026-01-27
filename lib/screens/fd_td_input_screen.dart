@@ -1,326 +1,184 @@
-// File: lib/screens/fd_td_input_screen.dart (Final Code with All Design Fixes and Nominee Flow)
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // For TextInputFormatter
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/fd_api_service.dart';
 import '../models/fd_models.dart';
+import '../models/nominee_model.dart';
+import '../providers/nominee_provider.dart';
+import '../providers/fd_opening_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
-import 'fd_confirmation_screen.dart'; // Import confirmation screen
-import 'nominee_list_screen.dart'; // 🌟 NEW: Import the external nominee list screen
+import 'fd_confirmation_screen.dart';
+import 'add_nominee_screen.dart';
 
-// Utility extension for title casing scheme names
-extension StringExtension on String {
-  String titleCase() {
-    if (isEmpty) return this;
-    return split(' ').map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
-  }
-}
-
-class FdTdInputScreen extends StatefulWidget {
+class FdTdInputScreen extends ConsumerStatefulWidget {
   final FdApiService apiService;
-
   const FdTdInputScreen({super.key, required this.apiService});
 
   @override
-  State<FdTdInputScreen> createState() => _FdTdInputScreenState();
+  ConsumerState<FdTdInputScreen> createState() => _FdTdInputScreenState();
 }
 
-class _FdTdInputScreenState extends State<FdTdInputScreen> {
+class _FdTdInputScreenState extends ConsumerState<FdTdInputScreen> {
   late Future<SourceAccount> _accountFuture;
   late Future<List<DepositScheme>> _schemesFuture;
+
   DepositScheme? _selectedScheme;
-  String? _selectedNominee;
-  bool _isTermsAccepted = false;
-  bool _isLoading = false;
-
   final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _tenureYearsController = TextEditingController();
-  final TextEditingController _tenureMonthsController = TextEditingController();
-  final TextEditingController _tenureDaysController = TextEditingController();
-
-  int _tenureYears = 0;
-  int _tenureMonths = 0;
-  int _tenureDays = 0;
+  final TextEditingController _yearsController = TextEditingController();
+  final TextEditingController _monthsController = TextEditingController();
+  final TextEditingController _daysController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _accountFuture = widget.apiService.fetchSourceAccount();
     _schemesFuture = widget.apiService.fetchDepositSchemes();
-
-    _accountFuture.then((account) {
-      if (account.nomineeNames.isNotEmpty) {
-        setState(() {
-          _selectedNominee = account.nomineeNames.first;
-        });
-      }
-    });
-
-    _tenureYearsController.text = '';
-    _tenureYears = 0;
+    Future.microtask(() => ref.read(nomineeProvider.notifier).fetchNominees('Savings'));
   }
 
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _tenureYearsController.dispose();
-    _tenureMonthsController.dispose();
-    _tenureDaysController.dispose();
-    super.dispose();
-  }
-
-  TextInputFormatter _numericFormatter() => FilteringTextInputFormatter.digitsOnly;
-
-  Future<void> _handleProceed(SourceAccount account) async {
-    if (_selectedScheme == null || _selectedNominee == null) {
-      _showErrorSnackbar('Please select a scheme and a nominee.');
-      return;
-    }
+  // --- RESTORED PROCEED LOGIC ---
+  Future<void> _handleProceed(SourceAccount account, NomineeModel nominee) async {
     final amount = double.tryParse(_amountController.text) ?? 0.0;
-    if (amount < 100 || amount > account.availableBalance) {
-      _showErrorSnackbar('Amount must be between ₹100 and your available balance.');
-      return;
-    }
+    final yy = int.tryParse(_yearsController.text) ?? 0;
+    final mm = int.tryParse(_monthsController.text) ?? 0;
+    final dd = int.tryParse(_daysController.text) ?? 0;
 
-    if (_tenureYears + _tenureMonths + _tenureDays == 0) {
-      _showErrorSnackbar('Deposit tenure must be at least 1 day.');
-      return;
-    }
+    if (amount <= 0) return _showMsg("Please enter a valid amount");
+    if (yy == 0 && mm == 0 && dd == 0) return _showMsg("Please enter tenure");
+    if (mm > 11) return _showMsg("Months must be 0-11");
+    if (dd > 30) return _showMsg("Days must be 0-30");
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      final maturityDetails = await widget.apiService.calculateMaturity(
+      final maturity = await widget.apiService.calculateMaturity(
         amount: amount,
         schemeId: _selectedScheme!.id,
-        tenureYears: _tenureYears,
-        tenureMonths: _tenureMonths,
-        tenureDays: _tenureDays,
-        nomineeName: _selectedNominee!,
+        tenureYears: yy,
+        tenureMonths: mm,
+        tenureDays: dd,
+        nomineeName: nominee.fullName,
         sourceAccountId: account.accountNumber,
       );
 
-      final inputData = FdInputData(
-        amount: amount,
-        sourceAccount: account,
-        selectedScheme: _selectedScheme!,
-        selectedNominee: _selectedNominee!,
-        tenureYears: _tenureYears,
-        tenureMonths: _tenureMonths,
-        tenureDays: _tenureDays,
-      );
-
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => FdConfirmationScreen(
-            apiService: widget.apiService,
-            inputData: inputData,
-            maturityDetails: maturityDetails,
-          ),
-        ),
-      );
-
-    } catch (e) {
-      _showErrorSnackbar('Failed to calculate maturity. Please try again.');
-    } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  void _showErrorSnackbar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-    }
-  }
-
-  Widget _buildSchemeDropdown(List<DepositScheme> schemes, TextTheme textTheme, ColorScheme colorScheme) {
-    return DropdownButtonFormField<DepositScheme>(
-      decoration: const InputDecoration(labelText: 'Select Deposit Scheme', border: OutlineInputBorder()),
-      value: _selectedScheme,
-      hint: const Text('Choose a scheme'),
-      items: schemes.map((scheme) {
-        return DropdownMenuItem(
-          value: scheme,
-          child: Text(
-            '${StringExtension(scheme.name).titleCase()} (${scheme.interestRate.toStringAsFixed(2)}% p.a.)',
-            style: textTheme.bodyMedium,
-            overflow: TextOverflow.ellipsis, // Ensure long scheme names don't overflow
-          ),
-        );
-      }).toList(),
-      onChanged: (scheme) {
-        setState(() {
-          _selectedScheme = scheme;
-        });
-      },
-    );
-  }
-
-  Widget _buildTenureInput(TextEditingController controller, String label, Function(String) onChanged, TextTheme textTheme) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: kPaddingExtraSmall),
-        child: TextFormField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            inputFormatters: [_numericFormatter()],
-            decoration: InputDecoration(
-              labelText: label,
-              isDense: true,
-              hintText: '0',
-              contentPadding: const EdgeInsets.symmetric(vertical: kPaddingMedium, horizontal: kPaddingSmall),
-              border: const OutlineInputBorder(),
-            ),
-            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-            onChanged: (val) {
-              if (label == 'Months' && (int.tryParse(val) ?? 0) > 11) {
-                controller.text = '11';
-              }
-              if (label == 'Days' && (int.tryParse(val) ?? 0) > 30) {
-                controller.text = '30';
-              }
-              onChanged(controller.text);
-            }
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNominationSection(BuildContext context, SourceAccount account) {
-    final textTheme = Theme.of(context).textTheme;
-
-    final updateNomineeAction = TextButton(
-      style: TextButton.styleFrom(
-        foregroundColor: Colors.amber[700],
-        padding: const EdgeInsets.symmetric(horizontal: kPaddingSmall, vertical: kPaddingExtraSmall),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-      onPressed: () {
-        // Navigating to the imported NomineeListScreen
-        Navigator.of(context).push(
+        Navigator.push(
+          context,
           MaterialPageRoute(
-            builder: (context) => const NomineeListScreen(accountType: '',),
-          ),
-        );
-      },
-      child: const Text('Update Nominee List'),
-    );
-
-    if (account.nomineeNames.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: kPaddingMedium),
-        child: SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.person_add_alt_1),
-            label: const Text('ADD NOMINEE'),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const NomineeListScreen(accountType: '',),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Select Nominee', border: OutlineInputBorder()),
-                value: _selectedNominee,
-                hint: const Text('Choose a nominee'),
-                isExpanded: true, // 🌟 IMPORTANT: This ensures the dropdown items (long names) fit
-                items: account.nomineeNames.map((name) {
-                  return DropdownMenuItem(
-                    value: name,
-                    child: Text(
-                      name,
-                      style: textTheme.bodyMedium,
-                      overflow: TextOverflow.ellipsis, // Ensures long names are truncated with '...'
-                    ),
-                  );
-                }).toList(),
-                onChanged: (name) {
-                  setState(() {
-                    _selectedNominee = name;
-                  });
-                },
+            builder: (context) => FdConfirmationScreen(
+              apiService: widget.apiService,
+              maturityDetails: maturity,
+              inputData: FdInputData(
+                amount: amount,
+                sourceAccount: account,
+                selectedScheme: _selectedScheme!,
+                selectedNominee: nominee.fullName,
+                tenureYears: yy,
+                tenureMonths: mm,
+                tenureDays: dd,
               ),
             ),
-            const SizedBox(width: kPaddingSmall),
-            // FIX: Wrap TextButton in Flexible to solve the RenderFlex overflow
-            Flexible(
-              child: updateNomineeAction,
-            ),
-          ],
-        ),
-        const SizedBox(height: kPaddingMedium),
-      ],
-    );
+          ),
+        );
+      }
+    } catch (e) {
+      _showMsg("Calculation Error: ${e.toString()}");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
+  void _showMsg(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _showNomineeOptions() {
+    final fdNotifier = ref.read(fdOpeningProvider.notifier);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(kRadiusLarge)),
+      ),
+      builder: (context) => Consumer(builder: (context, ref, _) {
+        final nomineeState = ref.watch(nomineeProvider);
+
+        return Container(
+          padding: const EdgeInsets.all(kPaddingLarge),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Nominee Selection",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: kPaddingMedium),
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1, color: kAccentOrange),
+                title: const Text("Add New Nominee",
+                    style: TextStyle(color: kAccentOrange, fontWeight: FontWeight.bold)),
+                onTap: () async {
+                  Navigator.pop(context); // Close sheet
+                  final result = await Navigator.push(
+                    this.context,
+                    MaterialPageRoute(builder: (_) => const AddNomineeScreen()),
+                  );
+
+                  if (result != null && result is NomineeModel) {
+                    fdNotifier.selectNominee(result);
+                  }
+                },
+              ),
+              const Divider(),
+              Expanded(
+                child: nomineeState.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, _) => Center(child: Text("Error: $err")),
+                  data: (list) => ListView.builder(
+                    itemCount: list.length,
+                    itemBuilder: (context, i) => ListTile(
+                      title: Text(list[i].fullName,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(list[i].relationship),
+                      onTap: () {
+                        fdNotifier.selectNominee(list[i]);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final fdState = ref.watch(fdOpeningProvider);
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('New Fixed Deposit', style: textTheme.titleLarge?.copyWith(color: kLightSurface)),
-        backgroundColor: colorScheme.primary,
-        iconTheme: const IconThemeData(color: kLightSurface),
+        title: const Text('Open Fixed Deposit'),
+        backgroundColor: kAccentOrange,
       ),
       body: FutureBuilder(
         future: Future.wait([_accountFuture, _schemesFuture]),
         builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final SourceAccount account = snapshot.data![0];
-          final List<DepositScheme> schemes = snapshot.data![1];
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_selectedScheme == null && schemes.isNotEmpty) {
-              setState(() {
-                _selectedScheme = schemes.first;
-              });
-            }
-          });
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final account = snapshot.data![0] as SourceAccount;
+          final schemes = snapshot.data![1] as List<DepositScheme>;
 
           return ListView(
             padding: const EdgeInsets.all(kPaddingMedium),
             children: [
-              // 1. Source Account Balance Card
               Card(
                 elevation: kCardElevation,
                 color: kInfoBlue.withOpacity(0.1),
@@ -329,124 +187,136 @@ class _FdTdInputScreenState extends State<FdTdInputScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Source Account', style: textTheme.bodySmall?.copyWith(color: kInfoBlue)),
-                      const SizedBox(height: kPaddingExtraSmall),
-                      Text(
-                        account.accountNumber,
-                        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: kBrandNavy),
-                      ),
-                      const SizedBox(height: kPaddingSmall),
-                      Text(
-                        'Available Balance: ₹${account.availableBalance.toStringAsFixed(2)}',
-                        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                      ),
+                      Text('Source Account',
+                          style: textTheme.bodySmall?.copyWith(color: kInfoBlue)),
+                      Text(account.accountNumber,
+                          style: textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text('Balance: ₹${account.availableBalance.toStringAsFixed(2)}',
+                          style: textTheme.bodyLarge),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: kPaddingSmall),
-              // Daily Limit as separate text
               Padding(
-                padding: const EdgeInsets.only(left: kPaddingSmall),
-                child: Text(
-                  'Daily Limit: ₹${account.dailyLimit.toStringAsFixed(2)}',
-                  style: textTheme.bodySmall,
-                ),
+                padding: const EdgeInsets.only(left: 8, top: 4),
+                child: Text('Daily Limit: ₹${account.dailyLimit.toStringAsFixed(2)}',
+                    style: textTheme.bodySmall),
               ),
               const SizedBox(height: kPaddingLarge),
-
-              // 2. Deposit Scheme Dropdown
-              _buildSchemeDropdown(schemes, textTheme, colorScheme),
-              const SizedBox(height: kPaddingLarge),
-
-              // 3. Deposit Amount Input
+              DropdownButtonFormField<DepositScheme>(
+                decoration: const InputDecoration(
+                    labelText: 'Scheme', border: OutlineInputBorder()),
+                value: _selectedScheme,
+                items: schemes
+                    .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
+                    .toList(),
+                onChanged: (val) => setState(() => _selectedScheme = val),
+              ),
+              const SizedBox(height: kPaddingMedium),
               TextFormField(
                 controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                ],
                 decoration: const InputDecoration(
-                  labelText: 'Deposit Amount (Min ₹100)',
-                  hintText: 'Enter Amount',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(),
-                ),
-                style: textTheme.titleLarge?.copyWith(color: kFixedDepositCardColor),
+                    labelText: 'Amount', prefixText: '₹ ', border: OutlineInputBorder()),
+                keyboardType: TextInputType.number,
               ),
               const SizedBox(height: kPaddingLarge),
-
-              // 4. Tenure Input Fields
-              Text('Tenure (Duration of Deposit)', style: textTheme.titleSmall),
-              const SizedBox(height: kPaddingSmall),
+              Text('Tenure',
+                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
               Row(
                 children: [
-                  _buildTenureInput(_tenureYearsController, 'Years', (val) {
-                    setState(() => _tenureYears = int.tryParse(val) ?? 0);
-                  }, textTheme),
-                  _buildTenureInput(_tenureMonthsController, 'Months', (val) {
-                    setState(() => _tenureMonths = int.tryParse(val) ?? 0);
-                  }, textTheme),
-                  _buildTenureInput(_tenureDaysController, 'Days', (val) {
-                    setState(() => _tenureDays = int.tryParse(val) ?? 0);
-                  }, textTheme),
+                  _buildTenureBox(_yearsController, 'YY'),
+                  _buildTenureBox(_monthsController, 'MM'),
+                  _buildTenureBox(_daysController, 'DD'),
                 ],
               ),
               const SizedBox(height: kPaddingLarge),
-
-              // 5. Nomination Field & Flow
-              _buildNominationSection(context, account),
-              const Divider(height: kDividerHeight),
-              const SizedBox(height: kPaddingMedium),
-
-              // 6. Terms & Conditions Checkbox
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Checkbox(
-                    value: _isTermsAccepted,
-                    onChanged: (bool? newValue) => setState(() => _isTermsAccepted = newValue ?? false),
-                    activeColor: colorScheme.primary,
+              Text('Nominee Details',
+                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: _showNomineeOptions,
+                child: Container(
+                  padding: const EdgeInsets.all(kPaddingMedium),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(kRadiusSmall),
+                    border: Border.all(color: Colors.grey.shade400),
                   ),
-                  Flexible(
-                    child: InkWell(
-                      onTap: () {
-                        setState(() => _isTermsAccepted = !_isTermsAccepted);
-                      },
-                      child: Text(
-                        'I accept the terms & conditions',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurface,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.person_pin, color: kAccentOrange),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fdState.selectedNominee?.fullName ?? "Select or Add Nominee",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: fdState.selectedNominee == null
+                                      ? Colors.grey
+                                      : Colors.black),
+                            ),
+                            if (fdState.selectedNominee != null)
+                              Text(
+                                  "${fdState.selectedNominee!.relationship} | Share: 100%",
+                                  style: const TextStyle(fontSize: 12)),
+                          ],
                         ),
                       ),
-                    ),
+                      const Icon(Icons.arrow_drop_down),
+                    ],
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: kPaddingXXL),
-
-              // 7. Action Buttons
+              const SizedBox(height: 50),
               Row(
                 children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: (_isTermsAccepted && !_isLoading && _selectedScheme != null && _selectedNominee != null) ? () => _handleProceed(account) : null,
-                      child: Text(_isLoading ? 'Calculating...' : 'PROCEED'),
-                    ),
-                  ),
-                  const SizedBox(width: kPaddingMedium),
-                  Expanded(
-                    child: OutlinedButton(
-                        onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                        child: const Text('CANCEL')
-                    ),
-                  ),
+                  Checkbox(
+                      value: fdState.isTermsAccepted,
+                      activeColor: kAccentOrange,
+                      onChanged: (v) =>
+                          ref.read(fdOpeningProvider.notifier).setTerms(v!)),
+                  const Text('I accept the terms & conditions'),
                 ],
               ),
-              const SizedBox(height: kPaddingMedium),
+              const SizedBox(height: kPaddingLarge),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: (fdState.isTermsAccepted &&
+                      _selectedScheme != null &&
+                      fdState.selectedNominee != null &&
+                      !_isLoading)
+                      ? () => _handleProceed(account, fdState.selectedNominee!)
+                      : null,
+                  child: Text(_isLoading ? 'CALCULATING...' : 'PROCEED'),
+                ),
+              ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildTenureBox(TextEditingController controller, String hint) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: TextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+              labelText: hint, hintText: hint, border: const OutlineInputBorder()),
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(2)
+          ],
+        ),
       ),
     );
   }

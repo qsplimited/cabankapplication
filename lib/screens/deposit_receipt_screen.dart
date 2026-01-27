@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,29 +9,25 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/receipt_models.dart';
 import '../theme/app_colors.dart';
+import '../providers/receipt_provider.dart';
 
-class DepositReceiptScreen extends StatefulWidget {
-  final DepositReceipt receipt;
-  const DepositReceiptScreen({super.key, required this.receipt});
+class DepositReceiptScreen extends ConsumerStatefulWidget {
+  const DepositReceiptScreen({super.key});
 
   @override
-  State<DepositReceiptScreen> createState() => _DepositReceiptScreenState();
+  ConsumerState<DepositReceiptScreen> createState() => _DepositReceiptScreenState();
 }
 
-class _DepositReceiptScreenState extends State<DepositReceiptScreen> {
+class _DepositReceiptScreenState extends ConsumerState<DepositReceiptScreen> {
   bool _isProcessing = false;
   final fmt = NumberFormat('#,##0.00');
   final dateFmt = DateFormat('dd-MMM-yyyy');
 
-  // --- COMPLETE FILE LOGIC (SHARE & DOWNLOAD) ---
-  Future<void> _handleFileAction({required bool isShare}) async {
+  // --- PDF & FILE LOGIC RETAINED ---
+  Future<void> _handleFileAction({required bool isShare, required DepositReceipt r}) async {
     setState(() => _isProcessing = true);
-    final r = widget.receipt;
-
     try {
       final pdf = pw.Document();
-
-      // Generate the PDF content
       pdf.addPage(pw.Page(
         pageFormat: PdfPageFormat.a4,
         build: (pw.Context context) => pw.Padding(
@@ -96,27 +93,20 @@ class _DepositReceiptScreenState extends State<DepositReceiptScreen> {
         ),
       ));
 
-      // Save the file to temporary storage
       final dir = await getTemporaryDirectory();
       final String fileName = "Receipt_${r.transactionId}_${DateTime.now().millisecondsSinceEpoch}.pdf";
       final file = File("${dir.path}/$fileName");
       await file.writeAsBytes(await pdf.save());
 
       if (isShare) {
-        // Trigger Share UI
         await Share.shareXFiles([XFile(file.path)], text: 'My CA Bank Deposit Receipt');
       } else {
-        // Handle Download (In a real app, you might move this to the Downloads folder)
-        // For this demo, we show a success snackbar with the path
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text("PDF Saved: ${file.path.split('/').last}"),
               backgroundColor: kSuccessGreen,
               behavior: SnackBarBehavior.floating,
-              action: SnackBarAction(label: "VIEW", textColor: Colors.white, onPressed: () {
-                // You could add a PDF viewer logic here
-              }),
             ),
           );
         }
@@ -143,35 +133,44 @@ class _DepositReceiptScreenState extends State<DepositReceiptScreen> {
     ),
   );
 
-  // --- UI BUILDING BLOCKS ---
   @override
   Widget build(BuildContext context) {
-    final r = widget.receipt;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text("Transaction Advice"),
-        backgroundColor: kAccentOrange,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(children: [
-                _buildStatusBanner(r),
-                const SizedBox(height: 16),
-                _buildReceiptCard(r),
-              ]),
-            ),
+    // Watch provider to get current receipt data
+    final receiptState = ref.watch(receiptProvider);
+
+    return receiptState.when(
+      data: (r) {
+        if (r == null) return const Scaffold(body: Center(child: Text("No data")));
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          appBar: AppBar(
+            title: const Text("Transaction Advice"),
+            backgroundColor: kAccentOrange,
+            elevation: 0,
           ),
-          _buildActionPanel(),
-        ],
-      ),
+          body: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(children: [
+                    _buildStatusBanner(r),
+                    const SizedBox(height: 16),
+                    _buildReceiptCard(r),
+                  ]),
+                ),
+              ),
+              _buildActionPanel(r),
+            ],
+          ),
+        );
+      },
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator(color: kAccentOrange))),
+      error: (err, stack) => Scaffold(body: Center(child: Text("Error: $err"))),
     );
   }
 
+  // --- UI BUILDING BLOCKS RETAINED ---
   Widget _buildStatusBanner(DepositReceipt r) {
     bool isNeg = r.receiptType == ReceiptType.closure;
     return Container(
@@ -259,7 +258,7 @@ class _DepositReceiptScreenState extends State<DepositReceiptScreen> {
     ]),
   );
 
-  Widget _buildActionPanel() {
+  Widget _buildActionPanel(DepositReceipt r) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
       decoration: BoxDecoration(
@@ -269,16 +268,16 @@ class _DepositReceiptScreenState extends State<DepositReceiptScreen> {
       child: Row(children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: _isProcessing ? null : () => _handleFileAction(isShare: true),
+            onPressed: _isProcessing ? null : () => _handleFileAction(isShare: true, r: r),
             icon: _isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.share_outlined),
             label: const Text("SHARE"),
-            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15), side: BorderSide(color: kAccentOrange)),
+            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15), side: const BorderSide(color: kAccentOrange)),
           ),
         ),
         const SizedBox(width: 15),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: _isProcessing ? null : () => _handleFileAction(isShare: false),
+            onPressed: _isProcessing ? null : () => _handleFileAction(isShare: false, r: r),
             icon: const Icon(Icons.file_download_outlined),
             label: const Text("DOWNLOAD"),
             style: ElevatedButton.styleFrom(

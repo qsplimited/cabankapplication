@@ -1,69 +1,103 @@
+// lib/presentation/loan_landing_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 
 // Importing your theme files
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 import '../theme/app_sizes.dart';
-import '../bloc/loan_bloc.dart';
+
 import '../api/loan_repository.dart';
 import '../models/loan_model.dart';
 import 'loan_calculator_screen.dart';
 
-class LoanLandingScreen extends StatelessWidget {
+class LoanLandingScreen extends StatefulWidget {
   const LoanLandingScreen({super.key});
+
+  @override
+  State<LoanLandingScreen> createState() => _LoanLandingScreenState();
+}
+
+class _LoanLandingScreenState extends State<LoanLandingScreen> {
+  final LoanRepository _repository = LoanRepository();
+
+  bool _isLoading = true;
+  List<ActiveLoan> _activeLoans = [];
+  List<LoanProduct> _products = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  // --- REPLACED BLOC LOGIC WITH DIRECT DATA FETCH ---
+  Future<void> _loadData() async {
+    try {
+      // Assuming your repository has a method to fetch all data at once
+      // If they are separate, you can use await Future.wait([...])
+      final activeLoans = await _repository.fetchActiveLoans();
+      final products = await _repository.fetchLoanProducts();
+
+      if (mounted) {
+        setState(() {
+          _activeLoans = activeLoans;
+          _products = products;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to load loan data")),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return BlocProvider(
-      create: (context) => LoanBloc(LoanRepository())..add(FetchLoanData()),
-      child: Scaffold(
-        backgroundColor: kLightBackground, // Using your theme background
-        appBar: AppBar(
-          title: Text("Loan Management", style: textTheme.titleLarge?.copyWith(color: Colors.white)),
-          centerTitle: true,
-          elevation: kCardElevation,
-          backgroundColor: kAccentOrange, // As requested: kAccentOrange for AppBar
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
-        body: BlocBuilder<LoanBloc, LoanState>(
-          builder: (context, state) {
-            if (state is LoanLoading) {
-              return const Center(child: CircularProgressIndicator(color: kBrandNavy));
-            } else if (state is LoanLoaded) {
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(kPaddingMedium), // Reusing app_dimensions
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- SECTION: ACTIVE LOANS ---
-                    Text("Active Loans", style: textTheme.titleMedium),
-                    const SizedBox(height: kSpacingSmall),
-                    _buildActiveLoanList(state.activeLoans, textTheme),
+    return Scaffold(
+      backgroundColor: kLightBackground, // Using your theme background
+      appBar: AppBar(
+        title: Text("Loan Management",
+            style: textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        elevation: kCardElevation,
+        backgroundColor: kAccentOrange, // As requested: kAccentOrange for AppBar
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: kBrandNavy))
+          : RefreshIndicator(
+        onRefresh: _loadData,
+        color: kAccentOrange,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(kPaddingMedium),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- SECTION: ACTIVE LOANS ---
+              Text("Active Loans", style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: kSpacingSmall),
+              _buildActiveLoanList(_activeLoans, textTheme),
 
-                    const SizedBox(height: kSpacingLarge),
+              const SizedBox(height: kSpacingLarge),
 
-                    // --- SECTION: NEW LOAN PRODUCTS ---
-                    Text("Quick Application", style: textTheme.titleMedium),
-                    Text(
-                      "Choose a loan type to start your application",
-                      style: textTheme.labelSmall?.copyWith(color: kLightTextSecondary),
-                    ),
-                    const SizedBox(height: kSpacingMedium),
-                    _buildProductGrid(state.products, textTheme),
-
-
-                  ],
-                ),
-              );
-            } else {
-              return const Center(child: Text("Something went wrong"));
-            }
-          },
+              // --- SECTION: NEW LOAN PRODUCTS ---
+              Text("Quick Application", style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                "Choose a loan type to start your application",
+                style: textTheme.labelSmall?.copyWith(color: kLightTextSecondary),
+              ),
+              const SizedBox(height: kSpacingMedium),
+              _buildProductGrid(_products, textTheme),
+            ],
+          ),
         ),
       ),
     );
@@ -73,6 +107,9 @@ class LoanLandingScreen extends StatelessWidget {
   Widget _buildActiveLoanList(List<ActiveLoan> loans, TextTheme textTheme) {
     if (loans.isEmpty) {
       return Card(
+        elevation: 0,
+        color: kBrandLightBlue.withOpacity(0.05),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
         child: Padding(
           padding: const EdgeInsets.all(kPaddingLarge),
           child: Center(child: Text("No active loans found.", style: textTheme.bodyMedium)),
@@ -81,7 +118,7 @@ class LoanLandingScreen extends StatelessWidget {
     }
 
     return SizedBox(
-      height: AppSizes.cardHeight, // Reusing AppSizes constant
+      height: 190.0, // Fixed height for the horizontal cards
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: loans.length,
@@ -112,7 +149,7 @@ class LoanLandingScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(loan.type, style: textTheme.titleMedium?.copyWith(color: Colors.white)),
+                    Text(loan.type, style: textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
                     const Icon(Icons.info_outline, color: Colors.white70, size: kIconSizeSmall),
                   ],
                 ),
@@ -120,7 +157,11 @@ class LoanLandingScreen extends StatelessWidget {
                 Text("Balance Remaining", style: textTheme.labelSmall?.copyWith(color: Colors.white70)),
                 Text(
                   "\$${loan.balance.toStringAsFixed(2)}",
-                  style: textTheme.displayLarge?.copyWith(color: Colors.white, fontSize: kCustomBalanceFontSize),
+                  style: textTheme.headlineMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 28, // Using a specific size if kCustomBalanceFontSize is missing
+                  ),
                 ),
                 const SizedBox(height: kPaddingMedium),
                 LinearPercentIndicator(
@@ -150,7 +191,7 @@ class LoanLandingScreen extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: kPaddingSmall,
         mainAxisSpacing: kPaddingSmall,
-        childAspectRatio: 0.85,
+        childAspectRatio: 0.82,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
@@ -160,8 +201,6 @@ class LoanLandingScreen extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
           child: InkWell(
             borderRadius: BorderRadius.circular(kRadiusMedium),
-
-
             onTap: () {
               Navigator.push(
                 context,
@@ -170,36 +209,41 @@ class LoanLandingScreen extends StatelessWidget {
                 ),
               );
             },
-
             child: Padding(
               padding: const EdgeInsets.all(kPaddingSmall),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    height: 48.0, // kCardIconBackgroundSize
-                    width: 48.0,
+                    height: 52.0,
+                    width: 52.0,
                     decoration: BoxDecoration(
                       color: kBrandLightBlue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(kRadiusSmall),
                     ),
-                    child: Icon(product.icon, color: kBrandNavy, size: kIconSize),
+                    child: Icon(product.icon, color: kBrandNavy, size: 28),
                   ),
                   const SizedBox(height: kPaddingSmall),
-                  Text(product.title, style: textTheme.titleSmall, textAlign: TextAlign.center),
+                  Text(product.title,
+                      style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center),
                   const SizedBox(height: kPaddingExtraSmall),
                   Text("ROI: ${product.interestRate}",
                       style: textTheme.labelSmall?.copyWith(color: kSuccessGreen, fontWeight: FontWeight.bold)),
                   const SizedBox(height: kPaddingSmall),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: kAccentOrange.withOpacity(0.15),
+                      color: kAccentOrange.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(kRadiusExtraSmall),
                     ),
                     child: Text(
                       product.tag,
-                      style: textTheme.labelSmall?.copyWith(color: kAccentOrange, fontWeight: FontWeight.bold, fontSize: 10),
+                      style: textTheme.labelSmall?.copyWith(
+                          color: kAccentOrange,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10
+                      ),
                     ),
                   )
                 ],

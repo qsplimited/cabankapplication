@@ -91,18 +91,34 @@ class _NomineeListScreenState extends ConsumerState<NomineeListScreen> {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.grey.shade300),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        title: Text(nominee.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4.0),
-          child: Text("${nominee.relationship} • ${nominee.sharePercentage.toStringAsFixed(0)}% Share"),
-        ),
-        trailing: Container(
-          decoration: BoxDecoration(color: kAccentOrange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: IconButton(
-            icon: Icon(Icons.edit_outlined, color: kAccentOrange),
-            onPressed: () => _showEditDialog(index),
+      // 1. Wrap the child with InkWell to make it clickable
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          // 2. THIS IS WHERE YOU PASTE THE CODE
+          // It sends the selected nominee back to the FD Input Screen
+          Navigator.pop(context, nominee);
+        },
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          title: Text(
+              nominee.fullName,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text("${nominee.relationship} • ${nominee.sharePercentage.toStringAsFixed(0)}% Share"),
+          ),
+          // Keep your edit button as is for actual editing
+          trailing: Container(
+            decoration: BoxDecoration(
+                color: kAccentOrange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8)
+            ),
+            child: IconButton(
+              icon: Icon(Icons.edit_outlined, color: kAccentOrange),
+              onPressed: () => _showEditDialog(index),
+            ),
           ),
         ),
       ),

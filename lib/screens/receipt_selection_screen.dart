@@ -1,58 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
-import '../api/mock_fd_api_service.dart';
-import '../api/mock_rd_api_service.dart';
-import '../models/receipt_models.dart';
+import '../providers/receipt_provider.dart';
 import 'deposit_receipt_screen.dart';
 
-class ReceiptSelectionScreen extends StatefulWidget {
+class ReceiptSelectionScreen extends ConsumerStatefulWidget {
   const ReceiptSelectionScreen({super.key});
 
   @override
-  State<ReceiptSelectionScreen> createState() => _ReceiptSelectionScreenState();
+  ConsumerState<ReceiptSelectionScreen> createState() => _ReceiptSelectionScreenState();
 }
 
-class _ReceiptSelectionScreenState extends State<ReceiptSelectionScreen> {
-  final fdService = MockFdApiService();
-  bool _isLoading = false;
+class _ReceiptSelectionScreenState extends ConsumerState<ReceiptSelectionScreen> {
 
-  // --- CORE NAVIGATION LOGIC ---
-  // This method fetches the data first to ensure the Receipt Screen has everything it needs.
-  Future<void> _handleNavigation(BuildContext context, String type) async {
-    setState(() => _isLoading = true);
+  // --- CORE NAVIGATION LOGIC WITH RIVERPOD ---
+  Future<void> _handleNavigation(String type) async {
+    // Fetches data via the StateNotifierProvider
+    await ref.read(receiptProvider.notifier).fetchReceipt(type);
 
-    try {
-      // 1. Generate a mock ID based on the selection
-      final String mockId = 'TXN-$type-${DateTime.now().millisecondsSinceEpoch}';
+    final state = ref.read(receiptProvider);
 
-      // 2. Fetch the full data object (This triggers the logic for Renewal/Closure/New)
-      final DepositReceipt receiptData = await fdService.fetchDepositReceipt(mockId);
-
-      // 3. Navigate and pass only the 'receipt' object
-      if (context.mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => DepositReceiptScreen(
-              receipt: receiptData, // ✅ Fixed: Matches the required constructor
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error fetching receipt: $e")),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    if (state.hasValue && state.value != null && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const DepositReceiptScreen(),
+        ),
+      );
+    } else if (state.hasError && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error fetching receipt: ${state.error}")),
+      );
     }
+
+
+
   }
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final receiptState = ref.watch(receiptProvider);
+    final isLoading = receiptState.isLoading;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F9),
@@ -80,7 +68,7 @@ class _ReceiptSelectionScreenState extends State<ReceiptSelectionScreen> {
                 subtitle: "View the official receipt for your recently opened FD/RD.",
                 icon: Icons.add_circle_outline_rounded,
                 color: kSuccessGreen,
-                onTap: () => _handleNavigation(context, 'NEW'),
+                onTap: () => _handleNavigation('NEW'),
               ),
 
               _buildSelectionCard(
@@ -89,7 +77,7 @@ class _ReceiptSelectionScreenState extends State<ReceiptSelectionScreen> {
                 subtitle: "View details of your renewed deposit and linked history.",
                 icon: Icons.history_rounded,
                 color: kBrandPurple,
-                onTap: () => _handleNavigation(context, 'RENEWAL'),
+                onTap: () => _handleNavigation('RENEWAL'),
               ),
 
               _buildSelectionCard(
@@ -98,13 +86,13 @@ class _ReceiptSelectionScreenState extends State<ReceiptSelectionScreen> {
                 subtitle: "View final settlement, interest earned, and payout tax.",
                 icon: Icons.account_balance_wallet_outlined,
                 color: kErrorRed,
-                onTap: () => _handleNavigation(context, 'CLOSE'),
+                onTap: () => _handleNavigation('CLOSE'),
               ),
             ],
           ),
 
-          // Loading Overlay
-          if (_isLoading)
+          // Loading Overlay matches your original design
+          if (isLoading)
             Container(
               color: Colors.black26,
               child: const Center(

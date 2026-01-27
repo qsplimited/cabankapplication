@@ -7,15 +7,15 @@ import '../theme/app_dimensions.dart';
 import '../providers/otp_provider.dart';
 
 class OtpVerificationDialog extends ConsumerStatefulWidget {
-  final OtpService otpService; // RESTORED: Existing screens need this
+  final OtpService otpService;
   final String mobileNumber;
-  final String screenId; // ADDED: For Riverpod state separation
+  final String screenId;
 
   const OtpVerificationDialog({
     super.key,
-    required this.otpService, // Keeps RD/FD screens happy
+    required this.otpService,
     required this.mobileNumber,
-    this.screenId = "GENERIC_OTP", // Default value so it's not required
+    this.screenId = "GENERIC_OTP",
   });
 
   @override
@@ -29,7 +29,6 @@ class _OtpVerificationDialogState extends ConsumerState<OtpVerificationDialog> {
   @override
   void initState() {
     super.initState();
-    // Use the provider's timer instead of local timer
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(otpProvider(widget.screenId).notifier).startTimer();
     });
@@ -41,61 +40,97 @@ class _OtpVerificationDialogState extends ConsumerState<OtpVerificationDialog> {
   Widget build(BuildContext context) {
     final otpState = ref.watch(otpProvider(widget.screenId));
     final otpNotifier = ref.read(otpProvider(widget.screenId).notifier);
-    final textTheme = Theme.of(context).textTheme;
 
     return AlertDialog(
-      title: Text('OTP Verification Required', style: textTheme.titleLarge?.copyWith(color: kBrandNavy)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Sent to ****${widget.mobileNumber.substring(widget.mobileNumber.length - 4)}'),
-          const SizedBox(height: kPaddingMedium),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(6, (index) => _buildOtpBox(index)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
+      content: SizedBox(
+        width: double.maxFinite,
+        // FIX: ScrollView prevents the RenderFlex error when keyboard appears
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.security, size: 48, color: kAccentOrange),
+              const SizedBox(height: kPaddingMedium),
+              const Text('OTP Verification', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: kPaddingSmall),
+              Text('Sent to ****${widget.mobileNumber.substring(widget.mobileNumber.length > 4 ? widget.mobileNumber.length - 4 : 0)}',
+                  textAlign: TextAlign.center),
+              const SizedBox(height: kPaddingLarge),
+
+              // OTP BOXES ROW
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(6, (index) => _buildOtpBox(index)),
+              ),
+
+              if (otpState.errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(otpState.errorMessage!, style: const TextStyle(color: kErrorRed, fontSize: 12)),
+                ),
+
+              const SizedBox(height: kPaddingMedium),
+
+              otpState.resendSeconds > 0
+                  ? Text('Resend in ${otpState.resendSeconds}s', style: const TextStyle(color: Colors.grey))
+                  : TextButton(onPressed: otpNotifier.startTimer, child: const Text('RESEND OTP')),
+
+              const SizedBox(height: kPaddingLarge),
+
+              // VERIFY BUTTON
+              SizedBox(
+                width: double.infinity,
+                height: kButtonHeight,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
+                  onPressed: otpState.isVerifying ? null : () async {
+                    bool success = await otpNotifier.verify(widget.mobileNumber, _currentOtp);
+                    if (success && mounted) {
+                      Navigator.of(context).pop(_currentOtp);
+                    }
+                  },
+                  child: otpState.isVerifying
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('VERIFY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              TextButton(
+                  onPressed: () => Navigator.of(context).pop(null),
+                  child: const Text('CANCEL', style: TextStyle(color: kErrorRed))
+              ),
+            ],
           ),
-          if (otpState.errorMessage != null)
-            Text(otpState.errorMessage!, style: const TextStyle(color: kErrorRed, fontSize: 12)),
-          const SizedBox(height: kPaddingSmall),
-          otpState.resendSeconds > 0
-              ? Text('Resend in ${otpState.resendSeconds}s')
-              : TextButton(onPressed: otpNotifier.startTimer, child: const Text('RESEND OTP')),
-          const SizedBox(height: kPaddingLarge),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
-              onPressed: otpState.isVerifying ? null : () async {
-                bool success = await otpNotifier.verify(widget.mobileNumber, _currentOtp);
-                if (success && mounted) {
-                  Navigator.of(context).pop(_currentOtp);
-                }
-              },
-              child: otpState.isVerifying ? const CircularProgressIndicator(color: Colors.white) : const Text('VERIFY', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
+        ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(null), child: const Text('CANCEL', style: TextStyle(color: kErrorRed))),
-      ],
     );
   }
 
   Widget _buildOtpBox(int index) {
-    return SizedBox(
-      width: 38, height: 45,
-      child: TextFormField(
-        controller: _otpControllers[index],
-        focusNode: _focusNodes[index],
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        maxLength: 1,
-        decoration: InputDecoration(counterText: '', filled: true, fillColor: kInputBackgroundColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSmall))),
-        onChanged: (value) {
-          if (value.length == 1 && index < 5) _focusNodes[index + 1].requestFocus();
-          if (value.isEmpty && index > 0) _focusNodes[index - 1].requestFocus();
-        },
+    // Flexible handles the "6.7 pixel" horizontal overflow by resizing based on screen width
+    return Flexible(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        height: 50,
+        child: TextFormField(
+          controller: _otpControllers[index],
+          focusNode: _focusNodes[index],
+          textAlign: TextAlign.center,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          maxLength: 1,
+          decoration: InputDecoration(
+              counterText: '',
+              filled: true,
+              fillColor: Colors.grey[200],
+              contentPadding: EdgeInsets.zero,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusSmall), borderSide: BorderSide.none)
+          ),
+          onChanged: (value) {
+            if (value.length == 1 && index < 5) _focusNodes[index + 1].requestFocus();
+            if (value.isEmpty && index > 0) _focusNodes[index - 1].requestFocus();
+          },
+        ),
       ),
     );
   }

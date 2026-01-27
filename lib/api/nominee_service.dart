@@ -64,4 +64,13 @@ class NomineeService {
       throw Exception('Nominee with ID ${updatedNominee.id} not found for update.');
     }
   }
+
+  Future<void> addNominee(NomineeModel nominee) async {
+    // This adds the data to your static list so it persists while the app is open
+    _mockNominees.add(nominee);
+    debugPrint("Nominee added to Mock DB: ${nominee.fullName}");
+
+    // Simulate a network delay
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
 }

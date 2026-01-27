@@ -1,46 +1,31 @@
 // lib/screens/chat_bot_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/chat_provider.dart';
 import '../theme/app_colors.dart'; // Ensure kAccentOrange is here
-import '../api/chat_repository.dart';
 
-class ChatBotScreen extends StatefulWidget {
+class ChatBotScreen extends ConsumerStatefulWidget {
   const ChatBotScreen({super.key});
+
   @override
-  State<ChatBotScreen> createState() => _ChatBotScreenState();
+  ConsumerState<ChatBotScreen> createState() => _ChatBotScreenState();
 }
 
-class _ChatBotScreenState extends State<ChatBotScreen> {
-  final ChatRepository _repository = ChatRepository();
+class _ChatBotScreenState extends ConsumerState<ChatBotScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<Map<String, dynamic>> _messages = [
-    {"text": "Namaste! I am your Bank Assistant. How can I help you today?", "isUser": false},
-  ];
-  bool _isTyping = false;
 
-  void _handleSend() async {
+  void _handleSend() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
     _controller.clear();
-    setState(() {
-      _messages.add({"text": text, "isUser": true});
-      _isTyping = true;
-    });
-    _scrollToBottom();
-
-    // Call Repository logic
-    final response = await _repository.getBotResponse(text);
-
-    setState(() {
-      _isTyping = false;
-      _messages.add({"text": response, "isUser": false});
-    });
+    ref.read(chatProvider.notifier).sendMessage(text, ref);
     _scrollToBottom();
   }
 
   void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -52,61 +37,69 @@ class _ChatBotScreenState extends State<ChatBotScreen> {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final messages = ref.watch(chatProvider);
+    final isTyping = ref.watch(isBotTypingProvider);
+
+    // Auto-scroll when new messages arrive
+    ref.listen(chatProvider, (prev, next) => _scrollToBottom());
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Bank Assistant", style: TextStyle(color: Colors.white)),
+        title: const Text("Assistant", style: TextStyle(color: Colors.white)),
         backgroundColor: kAccentOrange,
-        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 20),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                return _ChatBubble(text: msg['text'], isUser: msg['isUser']);
-              },
+              padding: const EdgeInsets.all(16),
+              itemCount: messages.length,
+              itemBuilder: (context, index) => _ChatBubble(message: messages[index]),
             ),
           ),
-          if (_isTyping) _buildTypingIndicator(),
-          _buildInputArea(),
+          if (isTyping) _buildTypingIndicator(),
+          _buildInputBar(),
         ],
       ),
     );
   }
 
   Widget _buildTypingIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      alignment: Alignment.centerLeft,
-      child: const Text("Assistant is thinking...", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+    return const Padding(
+      padding: EdgeInsets.all(12.0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text("Thinking...", style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+      ),
     );
   }
 
-  Widget _buildInputArea() {
+  Widget _buildInputBar() {
     return Container(
       padding: EdgeInsets.only(
-        left: 16, right: 16, top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 10,
+          left: 10, right: 10, top: 10,
+          bottom: MediaQuery.of(context).padding.bottom + 10
       ),
-      decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.black12))),
+      decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade200))),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: _controller,
-              decoration: const InputDecoration(hintText: "Ask about Transfer, Nominee, FD...", border: InputBorder.none),
+              decoration: const InputDecoration(hintText: "Ask about your profile, FD, or transfers...", border: InputBorder.none),
               onSubmitted: (_) => _handleSend(),
             ),
           ),
-          CircleAvatar(
-            backgroundColor: kAccentOrange,
-            child: IconButton(icon: const Icon(Icons.send, color: Colors.white, size: 20), onPressed: _handleSend),
-          ),
+          IconButton(icon: const Icon(Icons.send, color: kAccentOrange), onPressed: _handleSend),
         ],
       ),
     );
@@ -114,24 +107,22 @@ class _ChatBotScreenState extends State<ChatBotScreen> {
 }
 
 class _ChatBubble extends StatelessWidget {
-  final String text;
-  final bool isUser;
-  const _ChatBubble({required this.text, required this.isUser});
+  final dynamic message;
+  const _ChatBubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(14),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
-          color: isUser ? Colors.blue[50] : Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: isUser ? Colors.blue.withOpacity(0.2) : kAccentOrange.withOpacity(0.2)),
+          color: message.isUser ? Colors.orange.shade50 : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kAccentOrange.withOpacity(0.2)),
         ),
-        child: Text(text, style: const TextStyle(fontSize: 15)),
+        child: Text(message.text),
       ),
     );
   }

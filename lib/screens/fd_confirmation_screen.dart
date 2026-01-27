@@ -1,25 +1,21 @@
+// lib/screens/fd_confirmation_screen.dart
 
-import 'package:cabankapplication/screens/success_screen.dart';
+import 'package:cabankapplication/screens/success_screen.dart'; // Shared generic screen
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../api/fd_api_service.dart';
-import '../api/mock_rd_api_service.dart';
 import '../models/fd_models.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart' hide kSpacingMedium;
-
 import '../api/mock_otp_service.dart';
-
 import 'otp_verification_dialog.dart';
-
 
 // Mock service initialization constants
 final OtpService _otpService = MockOtpService();
 const String mockRegisteredMobile = '9876543210';
 
-// Constants
+// Local Constants
 const double kSpacingMedium = 12.0;
-
 
 extension StringExtension on String {
   String titleCase() {
@@ -30,10 +26,6 @@ extension StringExtension on String {
     }).join(' ');
   }
 }
-
-String _formatCurrency(double amount) => '₹${NumberFormat('#,##0.00').format(amount)}';
-
-
 
 class FdConfirmationScreen extends StatefulWidget {
   final FdApiService apiService;
@@ -54,6 +46,8 @@ class FdConfirmationScreen extends StatefulWidget {
 class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
   bool _isConfirming = false;
 
+  String _formatCurrency(double amount) => '₹${NumberFormat('#,##0.00').format(amount)}';
+
   // Helper widget to display a single detail row
   Widget _buildDetailRow(
       BuildContext context,
@@ -69,10 +63,12 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: textTheme.bodyMedium?.copyWith(color: kLightTextSecondary)),
+          const SizedBox(width: 30),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.right,
+              softWrap: true,
               style: valueStyle ?? textTheme.bodyMedium?.copyWith(
                 color: valueColor,
                 fontWeight: FontWeight.w600,
@@ -84,7 +80,7 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
     );
   }
 
-  // --- Core Confirmation Logic (Now uses the verified OTP) ---
+  // --- Core Confirmation Logic ---
   Future<void> _confirmDeposit(BuildContext context) async {
     if (_isConfirming) return;
 
@@ -110,18 +106,9 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
     // 3. OTP successful, proceed with final API call
     setState(() => _isConfirming = true);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('OTP verified. Finalizing Fixed Deposit...'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-      ),
-    );
-
     try {
-      final String confirmedOtp = otpResult;
-
       final response = await widget.apiService.confirmDeposit(
-        otp: confirmedOtp,
+        otp: otpResult,
         amount: widget.inputData.amount,
         accountId: widget.inputData.sourceAccount.accountNumber,
       );
@@ -129,23 +116,22 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
       if (!context.mounted) return;
 
       if (response.success && response.transactionId != null) {
-        // 4. SUCCESS: Navigate to the generic SuccessScreen
+        // 4. SUCCESS: Use Shared SuccessScreen and clear stack back to Dashboard
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => const SuccessScreen(
               title: 'Fixed Deposit Confirmed!',
               message: 'Your Fixed Deposit has been successfully created and the amount has been debited from your account.',
             ),
+            settings: const RouteSettings(name: '/success'),
           ),
-              (Route<dynamic> route) => route.isFirst, // Clear all routes and go to Home
+              (Route<dynamic> route) => route.settings.name == '/dashboard',
         );
       } else {
-        // 4. FAILURE: Show error result
         _showErrorDialog(context, response.message);
       }
     } catch (e) {
       if (!context.mounted) return;
-      // Handle general error (e.g., network failure)
       _showErrorDialog(context, 'Transaction failed due to an unexpected error: $e');
     } finally {
       if(context.mounted) setState(() => _isConfirming = false);
@@ -153,7 +139,6 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
   }
 
   void _showErrorDialog(BuildContext context, String message) {
-    // Hide any previous snackbars (like the "Finalizing" message)
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     showDialog(
       context: context,
@@ -170,7 +155,6 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
     );
   }
 
-  // --- Build Method ---
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -198,17 +182,14 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // FIX: Changed to Row layout for single straight line display of amount
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center, // Vertically center the text
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // FD Amount Label (Left aligned)
                         Text(
                           'FD Amount',
                           style: textTheme.bodyLarge?.copyWith(color: kLightTextSecondary),
                         ),
-                        // The Actual Amount (Right aligned and prominent)
                         Text(
                           _formatCurrency(data.amount),
                           style: textTheme.headlineMedium?.copyWith(
@@ -218,7 +199,6 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
                         ),
                       ],
                     ),
-
                     const Divider(height: kSpacingMedium),
                     _buildDetailRow(context, 'Scheme:', data.selectedScheme.name.titleCase()),
                     _buildDetailRow(context, 'Rate:', '${data.selectedScheme.interestRate}% p.a.'),
@@ -265,7 +245,6 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: kPaddingSmall),
               child: Text(
-                // FIX: Removed the double asterisks (**)
                 'By confirming, you authorize the debit of ${_formatCurrency(data.amount)} from your account and agree to the FD terms and conditions. OTP verification is required.',
                 style: textTheme.bodySmall?.copyWith(color: kErrorRed),
                 textAlign: TextAlign.center,
@@ -276,57 +255,33 @@ class _FdConfirmationScreenState extends State<FdConfirmationScreen> {
             // 4. Action Buttons
             Row(
               children: [
-                // 1. Cancel/Go Back Button
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _isConfirming ? null : () => Navigator.of(context).pop(),
-                    child: const Text('GO BACK'),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(double.infinity, kButtonHeight),
                       side: const BorderSide(color: kBrandLightBlue, width: 2),
                       foregroundColor: kBrandLightBlue,
-                      textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
+                    child: const Text('GO BACK'),
                   ),
                 ),
                 const SizedBox(width: kPaddingMedium),
-
-                // 2. Confirm Deposit Button (Elevated/Primary Action)
                 Expanded(
-                  child: ElevatedButton( // Changed from ElevatedButton.icon to standard ElevatedButton
+                  child: ElevatedButton(
                     onPressed: _isConfirming ? null : () => _confirmDeposit(context),
-                    // Removed the icon property entirely
-
-                    child: _isConfirming
-                        ? Row( // Use a Row to center the loading indicator and text
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Loading Indicator replaces the icon
-                        const SizedBox(
-                          width: kIconSizeSmall,
-                          height: kIconSizeSmall,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(kLightSurface),
-                          ),
-                        ),
-                        const SizedBox(width: kPaddingSmall), // Add spacing between indicator and text
-                        // Text remains
-                        Text('CONFIRMING...', style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
-                      ],
-                    )
-                        : Text(
-                      'CONFIRM & PAY',
-                      style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-
                     style: ElevatedButton.styleFrom(
                       backgroundColor: kSuccessGreen,
                       foregroundColor: kLightSurface,
                       minimumSize: const Size(double.infinity, kButtonHeight),
-                      // Text style is handled in the child widget for the loading state consistency
-                      elevation: kCardElevation,
                     ),
+                    child: _isConfirming
+                        ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                        : const Text('CONFIRM & PAY'),
                   ),
                 ),
               ],

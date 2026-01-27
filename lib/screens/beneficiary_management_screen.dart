@@ -18,7 +18,6 @@ class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScree
   List<Beneficiary> _beneficiaries = [];
   bool _isLoading = true;
 
-
   final Color _primaryNavyBlue = const Color(0xFF003366);
   final Color _accentGreen = const Color(0xFF4CAF50);
 

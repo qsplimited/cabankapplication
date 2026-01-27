@@ -88,4 +88,8 @@ class LoanRepository {
       ]
     };
   }
+
+  Future fetchActiveLoans() async {}
+
+  Future fetchLoanProducts() async {}
 }

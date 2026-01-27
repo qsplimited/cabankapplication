@@ -8,107 +8,97 @@ class FdResultScreen extends StatelessWidget {
 
   const FdResultScreen({super.key, required this.response});
 
-  // Helper method for navigation logic: navigates back to the DepositOpeningScreen.
-  void _navigateToDepositOpeningScreen(BuildContext context) {
-    // We assume the flow was:
-    // 1. DepositOpeningScreen
-    // 2. FdTdInputScreen
-    // 3. FdConfirmationScreen (The screen that pushed this ResultScreen)
-    // To get back to the DepositOpeningScreen, we need to pop three times.
-    int count = 0;
-    Navigator.of(context).popUntil((route) {
-      // route.isFirst is too far back. We use a counter.
-      return count++ == 3;
-    });
+  // FINAL BACK BUTTON LOGIC:
+  // This jumps straight to the Dashboard and deletes the rest of the history.
+  void _backToDashboard(BuildContext context) {
+    // This removes everything (the OTP dialog, the input screen, etc.)
+    // and takes you straight to the Dashboard defined in main.dart
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      '/dashboard',
+          (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
     final bool isSuccess = response.success;
-    final Color iconColor = isSuccess ? kSuccessGreen : kErrorRed;
-    final String title = isSuccess ? 'Deposit Successful!' : 'Deposit Failed!';
-    final IconData icon = isSuccess ? Icons.check_circle_outline : Icons.error_outline;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('FD Confirmation Result', style: textTheme.titleLarge?.copyWith(color: kLightSurface)),
-        backgroundColor: colorScheme.primary,
-
-        automaticallyImplyLeading: true,
-
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: kLightSurface),
-          onPressed: () => _navigateToDepositOpeningScreen(context),
-        ),
+        title: const Text('Transaction Status', style: TextStyle(color: Colors.white)),
+        backgroundColor: isSuccess ? kSuccessGreen : kErrorRed,
+        automaticallyImplyLeading: false, // Prevents manual back navigation
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(kPaddingLarge),
-        child: Center(
+      // SafeArea + SingleChildScrollView is the double-shield against overflows
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(kPaddingLarge),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Status Icon
+              const SizedBox(height: 40),
               Icon(
-                icon,
-                size: kIconSizeXXL,
-                color: iconColor,
+                isSuccess ? Icons.check_circle_outline : Icons.error_outline,
+                size: 100,
+                color: isSuccess ? kSuccessGreen : kErrorRed,
               ),
               const SizedBox(height: kPaddingLarge),
-
-              // Title
               Text(
-                title,
-                textAlign: TextAlign.center,
-                style: textTheme.headlineMedium?.copyWith(
-                  color: iconColor,
-                  fontWeight: FontWeight.bold,
-                ),
+                isSuccess ? 'Success!' : 'Failed!',
+                style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: kPaddingMedium),
 
-              // Message
-              Text(
-                response.message,
-                textAlign: TextAlign.center,
-                style: textTheme.bodyLarge,
-              ),
-              const SizedBox(height: kPaddingLarge),
-
-
-              if (isSuccess && response.transactionId != null)
-                Card(
-                  elevation: kCardElevation,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(kPaddingMedium),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Transaction ID:', // Changed label for consistency
-                          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.7)),
-                        ),
-                        const SizedBox(height: kPaddingSmall),
-                        Text(
-                          response.transactionId!, // FIXED: Use transactionId
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
+              // Ensure the message never overflows horizontally
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  response.message,
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyLarge,
                 ),
+              ),
+
               const SizedBox(height: kPaddingXXL),
 
-              // Action Button (Back to Deposit Opening Screen)
+              if (isSuccess && response.transactionId != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(kPaddingMedium),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(kRadiusMedium),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('Transaction ID', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      // Flexible/SelectableText prevents long ID strings from overflowing
+                      SelectableText(
+                        response.transactionId!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 60),
+
+              // ACTION BUTTON
               SizedBox(
                 width: double.infinity,
                 height: kButtonHeight,
                 child: ElevatedButton(
-                  onPressed: () => _navigateToDepositOpeningScreen(context),
-                  child: const Text('BACK TO HOME'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kBrandNavy,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
+                  ),
+                  onPressed: () => _backToDashboard(context),
+                  child: const Text('BACK TO DASHBOARD',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

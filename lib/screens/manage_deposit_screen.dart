@@ -32,7 +32,7 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
     final df = DateFormat('dd MMM yyyy');
     final bool isRunning = _currentDeposit.status == DepositStatus.running;
 
-    // 🌟 MASTER LOCK LOGIC: Identify if account actions should be blocked
+
     final bool isLienMarked = _currentDeposit.isLienMarked;
 
     return Scaffold(
@@ -50,7 +50,7 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
             _buildSummaryCard(_currentDeposit, isRunning),
             const SizedBox(height: kSpacingLarge),
 
-            // 🌟 LIEN WARNING: Appears only if the deposit is pledged for a loan
+
             if (isLienMarked) _buildLienWarningBanner(),
 
             _sectionHeader("Tenure Details"),
@@ -59,7 +59,7 @@ class _ManageDepositScreenState extends State<ManageDepositScreen> {
 
             _sectionHeader(
               "Legal Nominees",
-              // 🌟 PRESERVED LOGIC: Edit is disabled (onEdit: null) if Lien is marked
+
               onEdit: isLienMarked ? null : () {
                 Navigator.push(
                   context,
