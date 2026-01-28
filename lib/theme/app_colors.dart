@@ -20,6 +20,12 @@ const Color kWarningYellow = Color(0xFFFFC107);
 const Color kErrorRed = Color(0xFFD32F2F);
 const Color kInfoBlue = Color(0xFF2196F3);
 
+const Color primaryNavy = Color(0xFF003366);
+const Color accentGreen = Color(0xFF4CAF50);
+const Color errorRed = Color(0xFFD32F2F);
+const Color lightGrey = Color(0xFFF5F5F5);
+
+
 // 4. Specialized Account/Widget Colors (For visual distinction)
 const Color kSavingsCardColor = Color(0xFF004D40); // Dark Teal
 const Color kCurrentCardColor = Color(0xFF311B92); // Deep Purple

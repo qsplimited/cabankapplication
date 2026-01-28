@@ -1,159 +1,61 @@
-// File: beneficiary_management_screen.dart
-
 import 'package:flutter/material.dart';
-import '../api/banking_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
+import '../providers/beneficiary_provider.dart';
 import 'add_beneficiary_screen.dart';
 
-class BeneficiaryManagementScreen extends StatefulWidget {
-  static const String routeName = '/manageBeneficiaries';
-
+class BeneficiaryManagementScreen extends ConsumerWidget {
   const BeneficiaryManagementScreen({super.key});
 
   @override
-  State<BeneficiaryManagementScreen> createState() => _BeneficiaryManagementScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(beneficiaryListProvider);
+    final api = ref.read(apiProvider); // Logic preserved
 
-class _BeneficiaryManagementScreenState extends State<BeneficiaryManagementScreen> {
-  final BankingService _bankingService = BankingService(); //
-  List<Beneficiary> _beneficiaries = [];
-  bool _isLoading = true;
-
-  final Color _primaryNavyBlue = const Color(0xFF003366);
-  final Color _accentGreen = const Color(0xFF4CAF50);
-
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-    // Listen for changes from the mock service to refresh UI automatically
-    _bankingService.onDataUpdate.listen((_) {
-      if (mounted) _loadData();
-    });
-  }
-
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    try {
-      final data = await _bankingService.fetchBeneficiaries(); //
-      if (mounted) {
-        setState(() {
-          _beneficiaries = data;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // Handle Navigation to Add/Edit Screen
-  void _navigateToAddEdit({Beneficiary? beneficiary}) async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AddBeneficiaryScreen(existingBeneficiary: beneficiary),
-      ),
-    );
-    if (result == true) _loadData();
-  }
-
-  // Delete Logic with Confirmation Dialog
-  Future<void> _deletePayee(Beneficiary payee) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Payee', style: TextStyle(color: Colors.red)),
-        content: Text('Remove "${payee.nickname}" from your list?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('DELETE', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await _bankingService.deleteBeneficiary(payee.beneficiaryId); //
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payee deleted successfully')),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manage Payees', style: TextStyle(color: Colors.white)),
-        backgroundColor: _primaryNavyBlue,
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Manage Payees'),
+        backgroundColor: kAccentOrange, // UPDATED COLOR
+        foregroundColor: Colors.white,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-        onRefresh: _loadData,
-        child: _beneficiaries.isEmpty
-            ? _buildEmptyState()
-            : ListView.builder(
-          itemCount: _beneficiaries.length,
-          padding: const EdgeInsets.only(bottom: 80),
-          itemBuilder: (context, index) {
-            final payee = _beneficiaries[index];
-            return _buildPayeeCard(payee);
-          },
+      body: state.when(
+        data: (list) => ListView.builder(
+          padding: const EdgeInsets.all(kPaddingMedium),
+          itemCount: list.length,
+          itemBuilder: (context, i) => Card(
+            margin: const EdgeInsets.only(bottom: kPaddingSmall),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: kAccentOrange.withOpacity(0.1),
+                child: const Icon(Icons.person, color: kAccentOrange),
+              ),
+              title: Text(list[i].nickname, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${api.maskAccountNumber(list[i].accountNumber)}\n${list[i].bankName}'),
+              trailing: PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'edit') {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => AddBeneficiaryScreen(existingBeneficiary: list[i])));
+                  } else {
+                    ref.read(beneficiaryListProvider.notifier).removeBeneficiary(list[i].beneficiaryId);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: kErrorRed))),
+                ],
+              ),
+            ),
+          ),
         ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _navigateToAddEdit(),
-        backgroundColor: _accentGreen,
-        icon: const Icon(Icons.person_add, color: Colors.white),
-        label: const Text('Add New Payee', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people_outline, size: 80, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          const Text('No Payees Added', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const Text('Tap "Add New Payee" to get started.', style: TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPayeeCard(Beneficiary payee) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: _primaryNavyBlue.withOpacity(0.1),
-          child: Icon(Icons.account_balance, color: _primaryNavyBlue),
-        ),
-        title: Text(payee.nickname, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(
-          'A/c: ${_bankingService.maskAccountNumber(payee.accountNumber)}\n${payee.bankName}', //
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'edit') _navigateToAddEdit(beneficiary: payee);
-            if (value == 'delete') _deletePayee(payee);
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: 'edit', child: Text('Edit Nickname')),
-            const PopupMenuItem(value: 'delete', child: Text('Delete Payee', style: TextStyle(color: Colors.red))),
-          ],
-        ),
+        backgroundColor: kAccentOrange, // UPDATED COLOR
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddBeneficiaryScreen())),
+        label: const Text('ADD PAYEE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        icon: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
