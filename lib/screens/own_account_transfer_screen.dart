@@ -486,8 +486,6 @@ class _OwnAccountTransferScreenState extends State<OwnAccountTransferScreen> {
     }
   }
 
-
-
   /// Step 2: Calls API to verify OTP and execute the transfer
   Future<void> _verifyAndExecuteTransfer(double amount, String otp, String ref) async {
     setState(() {
