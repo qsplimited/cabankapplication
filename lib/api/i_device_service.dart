@@ -26,5 +26,4 @@ abstract class IDeviceService {
     String? sessionId
   });
 
-
 }

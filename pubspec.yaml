@@ -44,6 +44,7 @@ dependencies:
   device_info_plus: ^10.0.0
 
   flutter_riverpod: ^2.5.1
+
   # Use the latest stable version
   pdf: ^3.10.0              # Creates the PDF
   path_provider: ^2.1.0     # Finds the saving location
@@ -52,6 +53,8 @@ dependencies:
   dio: ^5.4.0 # Check for the latest stable version
   flutter_secure_storage: ^9.0.0 # Check for the latest stable version
   json_annotation: ^4.8.1 # Check for the latest stable version
+
+
 
 
 
