@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/registration_provider.dart'; // Import your provider
-import 'forgot_mpin_step1_identity.dart';
+import '../providers/registration_provider.dart';
+import 'forgot_mpin_identity.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 
@@ -20,6 +20,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // Auto-focus the keyboard so the user can type immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _mpinFocusNode.requestFocus();
     });
@@ -34,7 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _handleLogin() {
     if (_mpinController.text.length == 6) {
-      // Use Riverpod to handle login logic
+      // This calls the GET /customer/login/bympin endpoint in your RealDeviceService
       ref.read(registrationProvider.notifier).login(_mpinController.text);
     }
   }
@@ -42,15 +43,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    // Watch the global state for loading and error handling
     final authState = ref.watch(registrationProvider);
 
-    // Listen for state changes (Success or Failure)
+    // Navigation and Error Listener
     ref.listen(registrationProvider, (previous, next) {
       if (next.status == RegistrationStatus.success) {
+        // Successful login! Send to Dashboard
         Navigator.pushReplacementNamed(context, '/dashboard');
       } else if (next.status == RegistrationStatus.failure) {
+        // Show error from backend (e.g., "Invalid MPIN")
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.errorMessage ?? 'Invalid MPIN'),
@@ -82,10 +83,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 "Enter 6-Digit MPIN",
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 10),
+              const Text("Secure Login for your device", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 50),
 
-              // PIN INPUT AREA (The 6 boxes)
-
+              // Visual PIN Boxes
               GestureDetector(
                 onTap: () => _mpinFocusNode.requestFocus(),
                 child: Stack(
@@ -95,6 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: List.generate(6, (index) => _buildPinBox(index)),
                     ),
+                    // Hidden input field
                     Opacity(
                       opacity: 0,
                       child: TextField(
@@ -140,15 +143,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
               const SizedBox(height: 20),
 
+// Inside LoginScreen
               TextButton(
-                onPressed: () => Navigator.push(
+                onPressed: () {
+                  // This looks at the provider state. If the user just registered,
+                  // the ID will be here.
+                  final idToPass = ref.read(registrationProvider).customerId;
+
+                  Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const ForgotMpinStep1Identity())
-                ),
-                child: const Text(
-                  "Forgot MPIN?",
-                  style: TextStyle(color: kAccentOrange, fontWeight: FontWeight.bold),
-                ),
+                    MaterialPageRoute(
+                      builder: (context) => ForgotMpinIdentity(autoCustomerId: idToPass),
+                    ),
+                  );
+                },
+                child: const Text("Forgot MPIN?"),
               ),
             ],
           ),
@@ -159,7 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildPinBox(int index) {
     bool isFilled = _mpinController.text.length > index;
-    bool isFocused = _mpinController.text.length == index;
+    bool isFocused = _mpinController.text.length == index && _mpinFocusNode.hasFocus;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(

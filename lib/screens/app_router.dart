@@ -1,25 +1,19 @@
-
+// lib/screens/app_router.dart
 import 'package:flutter/material.dart';
-import '../utils/device_id_util.dart';
+import '../utils/device_id_util.dart'; // Ensure this utility is imported
 import '../main.dart';
-
 import 'login_screen.dart';
 import 'registration_landing_screen.dart';
-import 'dashboard_screen.dart';
 
 class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
-
   @override
   State<AppRouter> createState() => _AppRouterState();
 }
 
 class _AppRouterState extends State<AppRouter> {
-  // -------------------------------------------------------------------
-  // <<< MODIFICATION 1: ADDED DEBUG TOGGLE FLAG >>>
-  // Set to TRUE to force the app to always show the Registration flow for demos.
-  static const bool _forceRegistrationDemo = true;
-  // -------------------------------------------------------------------
+  // Set to FALSE when you want to test the actual logic from the database
+  static const bool _forceRegistrationDemo = false;
 
   bool? _isDeviceBound;
 
@@ -31,13 +25,12 @@ class _AppRouterState extends State<AppRouter> {
 
   Future<void> _checkBindingStatus() async {
     try {
+      // FIX: Get the ACTUAL device ID, not the mock one
+      final String deviceId = await getUniqueDeviceId();
+      print('Router: Real Device ID: $deviceId');
 
-      const String deviceId = 'mock_unique_device_id_123';
-      print('Router: Retrieved Device ID: $deviceId');
-
-
+      // This calls your RealDeviceService via globalDeviceService
       final bool isBound = await globalDeviceService.checkDeviceBinding(deviceId);
-
 
       if (mounted) {
         setState(() {
@@ -45,11 +38,9 @@ class _AppRouterState extends State<AppRouter> {
         });
       }
     } catch (e) {
-      print('Router Error: Failed to check device status: $e');
+      debugPrint('Router Error: $e');
       if (mounted) {
-        setState(() {
-          _isDeviceBound = false;
-        });
+        setState(() { _isDeviceBound = false; });
       }
     }
   }
@@ -60,18 +51,11 @@ class _AppRouterState extends State<AppRouter> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    // Since this is TRUE now, Path B is always chosen for testing.
+    // Toggle this based on your testing needs
     if (_forceRegistrationDemo) {
       return const RegistrationLandingScreen();
     }
 
-    // (This part will be used only when you are ready to ship with Real API)
-    if (_isDeviceBound == true) {
-      return const LoginScreen();
-    } else {
-      return const RegistrationLandingScreen();
-    }
+    return _isDeviceBound! ? const LoginScreen() : const RegistrationLandingScreen();
   }
 }
-
-

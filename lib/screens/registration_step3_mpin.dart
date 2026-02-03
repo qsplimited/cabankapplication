@@ -22,7 +22,7 @@ class _RegistrationStep3MpinState extends ConsumerState<RegistrationStep3Mpin> {
   @override
   void initState() {
     super.initState();
-    // Rebuild UI when typing to show/hide dots
+    // Rebuild UI when typing to show/hide dots visually
     _mpinController.addListener(() => setState(() {}));
     _confirmController.addListener(() => setState(() {}));
   }
@@ -37,45 +37,73 @@ class _RegistrationStep3MpinState extends ConsumerState<RegistrationStep3Mpin> {
   }
 
   void _onContinue() {
-    if (_mpinController.text.length == 6 && _mpinController.text == _confirmController.text) {
-      // This calls the provider method that triggers Step 4
-      ref.read(registrationProvider.notifier).setupMpin(_mpinController.text);
-    } else if (_mpinController.text != _confirmController.text) {
+    final mpin = _mpinController.text;
+    final confirm = _confirmController.text;
+
+    // 1. Check if both fields have 6 digits
+    if (mpin.length != 6 || confirm.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter 6 digits for both fields"), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    // 2. Check if both fields match (CRITICAL for security)
+    if (mpin != confirm) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("MPINs do not match!"), backgroundColor: Colors.red),
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter 6 digits"), backgroundColor: Colors.orange),
-      );
+      return;
     }
+
+    // 3. Trigger the API: POST http://192.168.0.102:8088/customer/set/mpin
+    ref.read(registrationProvider.notifier).finalizeRegistration(mpin);
   }
 
   @override
   Widget build(BuildContext context) {
     final regState = ref.watch(registrationProvider);
 
-    // Navigation Listener
+    // NAVIGATION LISTENER: Moves to the Final Success screen upon value: true from server
     ref.listen(registrationProvider, (previous, next) {
-      if (next.currentStep == 4) {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep4Finalize()));
+      if (next.status == RegistrationStatus.success && next.currentStep == 4) {
+        Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const RegistrationStep4Finalize())
+        );
+      }
+
+      if (next.status == RegistrationStatus.failure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(next.errorMessage ?? "Failed to set MPIN"),
+              backgroundColor: Colors.red
+          ),
+        );
       }
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Set Secure MPIN"), backgroundColor: kAccentOrange),
+      appBar: AppBar(
+        title: const Text("Set Secure MPIN", style: TextStyle(color: Colors.white)),
+        backgroundColor: kAccentOrange,
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(kPaddingLarge),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Create New MPIN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 20),
+            const Text("Create New 6-Digit MPIN",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
             const SizedBox(height: 12),
             _buildPinRow(_mpinController, _f1),
 
             const SizedBox(height: 40),
 
-            const Text("Confirm New MPIN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text("Confirm New MPIN",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
             const SizedBox(height: 12),
             _buildPinRow(_confirmController, _f2),
 
@@ -93,9 +121,9 @@ class _RegistrationStep3MpinState extends ConsumerState<RegistrationStep3Mpin> {
                 child: regState.status == RegistrationStatus.loading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text("SET MPIN & BIND DEVICE",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -105,7 +133,7 @@ class _RegistrationStep3MpinState extends ConsumerState<RegistrationStep3Mpin> {
   Widget _buildPinRow(TextEditingController controller, FocusNode node) {
     return Stack(
       children: [
-        // HIDDEN INPUT: Handles the keyboard and character logic
+        // Hidden input for keyboard capture
         Opacity(
           opacity: 0,
           child: SizedBox(
@@ -119,13 +147,13 @@ class _RegistrationStep3MpinState extends ConsumerState<RegistrationStep3Mpin> {
               decoration: const InputDecoration(counterText: ""),
               onChanged: (val) {
                 if (val.length == 6 && node == _f1) {
-                  _f2.requestFocus(); // Auto-focus confirm field after 6 digits
+                  _f2.requestFocus(); // Auto-focus confirm field
                 }
               },
             ),
           ),
         ),
-        // VISUAL DOTS: Users see this and tap this
+        // Visual dots row
         GestureDetector(
           onTap: () => node.requestFocus(),
           child: Row(

@@ -29,8 +29,11 @@ class _RegistrationStep1IdentityState extends ConsumerState<RegistrationStep1Ide
   @override
   Widget build(BuildContext context) {
     ref.listen(registrationProvider, (prev, next) {
-      if (next.currentStep == 1 && prev?.currentStep == 0) {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()));
+      if (next.currentStep == 1 && prev?.currentStep != 1) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()),
+        );
       }
     });
 
@@ -64,13 +67,16 @@ class _RegistrationStep1IdentityState extends ConsumerState<RegistrationStep1Ide
                           controller: _custIdController,
                           validator: AppValidators.validateCustomerId,
                           inputFormatters: [
-                            LengthLimitingTextInputFormatter(5),
+                            // CHANGE THIS FROM 5 TO 6
+                            LengthLimitingTextInputFormatter(6),
                             FilteringTextInputFormatter.deny(RegExp(r'\s')), // Block spaces
                           ],
                           decoration: const InputDecoration(
-                            labelText: 'Customer ID (e.g. A0001)',
+                            // Update hint to show the dash format B-0026
+                            labelText: 'Customer ID (e.g. B-0026)',
                             prefixIcon: Icon(Icons.person_outline),
                             border: OutlineInputBorder(),
+                            counterText: "", // Hides the character counter
                           ),
                         ),
                         const SizedBox(height: 24),

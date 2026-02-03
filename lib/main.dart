@@ -1,29 +1,37 @@
-import 'package:cabankapplication/screens/fd_td_input_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cabankapplication/api/i_device_service.dart';
-import 'package:cabankapplication/api/mock_device_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-// Import your actual API implementation
-import 'api/fd_api_service.dart'; // Ensure this contains the Mock class
+// Import the real service we just fixed
+import 'package:cabankapplication/api/real_device_service.dart';
+import 'package:cabankapplication/api/i_device_service.dart';
 
+// Existing imports
+import 'api/fd_api_service.dart';
 import 'api/mock_fd_api_service.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/fd_td_input_screen.dart';
 
-// 1. API PROVIDER FIX
-// If FdApiService is abstract, return your Mock version here
+import 'screens/login_screen.dart';
+// 1. Fixed FD API Provider
 final fdApiServiceProvider = Provider<FdApiService>((ref) {
-  return MockFdApiService(); // Change this to your concrete class name
+  return MockFdApiService();
 });
 
-final IDeviceService globalDeviceService = MockDeviceService();
+// 2. IMPORTANT: Switch to RealDeviceService for your Registration Flow
+// This ensures your registration/login uses the real API we fixed.
+final IDeviceService globalDeviceService = RealDeviceService();
+
+final deviceServiceProvider = Provider<IDeviceService>((ref) {
+  return globalDeviceService;
+});
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
+    // Attempt to load env, but don't crash if missing
     await dotenv.load(fileName: ".env");
   } catch (e) {
     debugPrint("Dotenv load failed: $e");
@@ -44,9 +52,12 @@ class MyApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
 
-      // onGenerateRoute handles the 'apiService' injection safely
+      // --- Navigation Management ---
+// inside MyApp class in main.dart
       onGenerateRoute: (settings) {
         switch (settings.name) {
+          case '/login':
+            return MaterialPageRoute(builder: (_) => const LoginScreen());
           case '/dashboard':
             return MaterialPageRoute(builder: (_) => const DashboardScreen());
           case '/fd_input':
@@ -58,6 +69,7 @@ class MyApp extends ConsumerWidget {
             return null;
         }
       },
+      // Splash screen will decide if we go to Registration or Login
       home: const SplashScreen(),
     );
   }

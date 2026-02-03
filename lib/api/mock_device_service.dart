@@ -1,3 +1,4 @@
+/*
 // lib/api/mock_device_service.dart
 
 import 'dart:async';
@@ -114,4 +115,4 @@ class MockDeviceService implements IDeviceService {
     print('New MPIN set to: $_storedMpin');
     return {'success': true};
   }
-}
+}*/

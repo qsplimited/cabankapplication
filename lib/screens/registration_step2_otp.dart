@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/registration_provider.dart';
 import 'registration_step3_mpin.dart';
-import 'forgot_mpin_step2_new_mpin.dart';
+// import 'forgot_mpin_step2_new_mpin.dart'; // PAUSED: Not needed for registration flow
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 
@@ -19,64 +19,32 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
   final TextEditingController _otpController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
-  Timer? _timer;
-  int _secondsRemaining = 30;
-  bool _canResend = false;
-
   @override
   void initState() {
     super.initState();
-    _startTimer();
-    // Rebuild UI as user types to fill boxes
     _otpController.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     _otpController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  void _startTimer() {
-    setState(() {
-      _canResend = false;
-      _secondsRemaining = 30;
-    });
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsRemaining == 0) {
-        setState(() => _canResend = true);
-        timer.cancel();
-      } else {
-        setState(() => _secondsRemaining--);
-      }
-    });
-  }
-
-  void _handleResend() {
-    if (_canResend) {
-      _otpController.clear();
-      _startTimer();
-
-      // Trigger API
-      ref.read(registrationProvider.notifier).resendOtp();
-
-      // IMPORTANT: Request focus AFTER a frame is drawn to ensure keyboard pops up
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _focusNode.requestFocus();
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("A new OTP has been sent.")),
-      );
-    }
-  }
+  // --- RESEND LOGIC COMMENTED OUT AS REQUESTED ---
+  /*
+  Timer? _timer;
+  int _secondsRemaining = 30;
+  bool _canResend = false;
+  ... (timer methods)
+  */
 
   void _handleVerify() {
-    if (_otpController.text.length == 6) {
-      ref.read(registrationProvider.notifier).verifyOtp(_otpController.text.trim());
+    final otp = _otpController.text.trim();
+    if (otp.length == 6) {
+      // Calls: GET /customer/otp/validate
+      ref.read(registrationProvider.notifier).verifyOtp(otp);
     }
   }
 
@@ -84,18 +52,33 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
   Widget build(BuildContext context) {
     final regState = ref.watch(registrationProvider);
 
-    // Navigation Listener
+    // NAVIGATION LISTENER
     ref.listen(registrationProvider, (previous, next) {
       if (next.currentStep == 2 && previous?.currentStep != 2) {
+
+        // --- FORGOT FLOW NAVIGATION COMMENTED OUT ---
+        /*
         if (next.isResetFlow) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ForgotMpinStep2NewMpin()));
-        } else {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const RegistrationStep3Mpin()));
-        }
+          Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ForgotMpinStep2NewMpin())
+          );
+        } else { ... }
+        */
+
+        // ALWAYS move to Step 3 for now to keep the flow simple
+        Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const RegistrationStep3Mpin())
+        );
       }
-      if (next.status == RegistrationStatus.failure) {
+
+      if (next.status == RegistrationStatus.failure && previous?.status != RegistrationStatus.failure) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.errorMessage ?? "Invalid OTP"), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text(next.errorMessage ?? "Invalid OTP"),
+              backgroundColor: Colors.red
+          ),
         );
       }
     });
@@ -115,17 +98,16 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
             const SizedBox(height: 20),
             const Text("Enter 6-Digit OTP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            const Text("Code sent to your mobile number", style: TextStyle(color: Colors.grey)),
+            const Text("A code has been sent to your mobile", style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 50),
 
-            // FIXED INPUT AREA
+            // OTP INPUT BOXES
             GestureDetector(
               onTap: () => _focusNode.requestFocus(),
               behavior: HitTestBehavior.opaque,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Hidden TextField
                   SizedBox(
                     height: 58,
                     child: Opacity(
@@ -143,7 +125,6 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
                       ),
                     ),
                   ),
-                  // Visual Boxes - IgnorePointer ensures taps go TO the TextField
                   IgnorePointer(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -152,26 +133,6 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 40),
-
-            // Resend Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text("Didn't receive code? "),
-                TextButton(
-                  onPressed: _canResend ? _handleResend : null,
-                  child: Text(
-                    _canResend ? "Resend OTP" : "Resend in ${_secondsRemaining}s",
-                    style: TextStyle(
-                        color: _canResend ? kAccentOrange : Colors.grey,
-                        fontWeight: FontWeight.bold
-                    ),
-                  ),
-                ),
-              ],
             ),
 
             const SizedBox(height: 60),
@@ -200,7 +161,6 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
 
   Widget _buildOtpBox(int index) {
     bool isFilled = _otpController.text.length > index;
-    // Box is highlighted if it's the current active index
     bool isFocused = _focusNode.hasFocus && _otpController.text.length == index;
 
     return Container(

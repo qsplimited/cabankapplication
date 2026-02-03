@@ -8,43 +8,77 @@ class RegistrationStep4Finalize extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the state to react to success/failure/loading
     final state = ref.watch(registrationProvider);
 
     return Scaffold(
-      body: Center(
+      backgroundColor: Colors.white,
+      body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (state.status == RegistrationStatus.loading) ...[
-                const CircularProgressIndicator(color: kAccentOrange),
-                const SizedBox(height: 20),
-                const Text("Finalizing Device Binding..."),
-              ],
-              if (state.status == RegistrationStatus.success) ...[
-                const Icon(Icons.check_circle, color: Colors.green, size: 100),
-                const SizedBox(height: 20),
-                const Text("Device Bound Successfully!", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      ref.read(registrationProvider.notifier).reset(); // Clear state for next test
-                      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.black),
-                    child: const Text("GO TO LANDING PAGE", style: TextStyle(color: Colors.white)),
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 1. LOADING STATE
+                if (state.status == RegistrationStatus.loading) ...[
+                  const CircularProgressIndicator(color: kAccentOrange),
+                  const SizedBox(height: 20),
+                  const Text("Securing your account...",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                ],
+
+                // 2. SUCCESS STATE (Matching value: true from Swagger)
+                if (state.status == RegistrationStatus.success) ...[
+                  const Icon(Icons.phonelink_lock, color: Colors.green, size: 100),
+                  const SizedBox(height: 24),
+                  const Text(
+                    "Device Linked Successfully!",
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "Your MPIN is set. Please login to verify your device binding.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                  const SizedBox(height: 48),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        ref.read(registrationProvider.notifier).reset();
+                        // Go to Login to perform the final GET bympin check
+                        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
+                      child: const Text("PROCEED TO LOGIN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+
+                // 3. FAILURE STATE
+                if (state.status == RegistrationStatus.failure) ...[
+                  const Icon(Icons.error_outline, color: Colors.red, size: 80),
+                  const SizedBox(height: 16),
+                  const Text("Finalization Failed",
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.errorMessage ?? "An unexpected error occurred",
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 16, color: Colors.redAccent),
+                  ),
+                  const SizedBox(height: 32),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("TRY AGAIN",
+                        style: TextStyle(color: kAccentOrange, fontWeight: FontWeight.bold)),
+                  ),
+                ]
               ],
-              if (state.status == RegistrationStatus.failure) ...[
-                const Icon(Icons.error, color: Colors.red, size: 80),
-                Text(state.errorMessage ?? "Error occurred"),
-                ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text("TRY AGAIN")),
-              ]
-            ],
+            ),
           ),
         ),
       ),

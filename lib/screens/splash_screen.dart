@@ -111,7 +111,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 child: Column(
                   children: [
                     const Text(
-                      'ನೆರಳಕಟ್ಟೆ ಪ್ರಾಥಮಿಕ ಕೃಷಿ ಪತ್ತಿನ',
+                      'ನೇರಳಕಟ್ಟೆ ಪ್ರಾಥಮಿಕ ಕೃಷಿ ಪತ್ತಿನ',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 22,
@@ -121,7 +121,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ),
                     ),
                     const Text(
-                      'ಸಹಕಾರ ಸಂಘ (ನಿ.) ಸಂ.೨೬೯೪',
+                      'ಸಹಕಾರ ಸಂಘ (ನಿ.) ನಂ.೨೬೯೪',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 18,
