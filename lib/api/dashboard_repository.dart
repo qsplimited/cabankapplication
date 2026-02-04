@@ -1,18 +1,17 @@
-import '../api/banking_service.dart' as service;
+/*
+import '../api/banking_service.dart';
+import '../models/customer_account_model.dart';
 
 class DashboardRepository {
-  final service.BankingService _service;
+  final BankingService _service;
   DashboardRepository(this._service);
 
-  Future<service.UserProfile> getProfile() => _service.fetchUserProfile();
+  // Requirement: Fetch accounts only for the specific logged-in customer
+  Future<List<CustomerAccount>> getDashboardAccounts(String customerId) async {
+    // In your Real API, this will be:
+    // final response = await _dio.get('/customer/accounts/$customerId');
+    final List<dynamic> data = await _service.fetchRawAccounts(customerId);
 
-  Future<List<service.Account>> getDashboardAccounts() async {
-    final all = await _service.fetchUserAccounts();
-    // Filters only Savings, Current, and RD for the UI
-    return all.where((acc) =>
-    acc.accountType == service.AccountType.savings ||
-        acc.accountType == service.AccountType.current ||
-        acc.accountType == service.AccountType.recurringDeposit
-    ).toList();
+    return data.map((json) => CustomerAccount.fromJson(json)).toList();
   }
-}
+}*/

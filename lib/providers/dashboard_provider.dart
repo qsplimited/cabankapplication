@@ -1,28 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../api/banking_service.dart' as service;
-import '../api/dashboard_repository.dart'; // Ensure correct path
+import 'registration_provider.dart'; // Ensure this contains your logged-in customerId
+import '../api/dashboard_api_service.dart';
+import '../models/customer_account_model.dart';
 
-// 1. Repository instance provider
-final dashboardRepoProvider = Provider((ref) => DashboardRepository(service.BankingService()));
+// 1. Instance of the Real API Service
+final dashboardApiServiceProvider = Provider((ref) => DashboardApiService());
 
-// 2. Fetches the list for the Dashboard slider
-final dashboardAccountsProvider = FutureProvider<List<service.Account>>((ref) {
-  return ref.watch(dashboardRepoProvider).getDashboardAccounts();
+// 2. Main Account Provider
+// This watches the registration state. If customerId changes, it re-fetches.
+final dashboardAccountProvider = FutureProvider<CustomerAccount>((ref) async {
+  // Pull the real ID (e.g., "A-0046") from your login state
+  final authState = ref.watch(registrationProvider);
+  final customerId = authState.customerId;
+
+  if (customerId == null) {
+    throw Exception("No User Session Found. Please Login.");
+  }
+
+  // Fetch from the real API using the ID
+  return ref.read(dashboardApiServiceProvider).fetchAccountDetails(customerId);
 });
 
-// 3. NEW: Fetches specific details for the Detail Screen
-// Pass the accountId to this provider to get one specific account
-final accountDetailProvider = FutureProvider.family<service.Account, String>((ref, accountId) async {
-  // We reuse the list already loaded in dashboardAccountsProvider
-  final allAccounts = await ref.watch(dashboardAccountsProvider.future);
-
-  return allAccounts.firstWhere(
-        (acc) => acc.accountId == accountId,
-    orElse: () => throw Exception('Account with ID $accountId not found'),
-  );
-});
-
-// 4. Fetches User Profile (Arjun Reddy)
-final userProfileProvider = FutureProvider<service.UserProfile>((ref) {
-  return ref.watch(dashboardRepoProvider).getProfile();
+// 3. Detail Provider for the Detailed Screen
+// We use a family provider so we can pass the customerId from the UI
+final accountDetailProvider = FutureProvider.family<CustomerAccount, String>((ref, id) async {
+  // Simply returns the data already fetched in the main provider
+  return await ref.watch(dashboardAccountProvider.future);
 });

@@ -44,7 +44,7 @@ class QuickTransferNotifier extends StateNotifier<QuickTransferState> {
     final amount = double.tryParse(amountStr) ?? 0;
     final balance = state.selectedAccount?.balance ?? 0;
 
-    // YOUR CONDITION: Fail if balance is insufficient ghgvnhgit
+    // YOUR CONDITION: Fail if balance is insufficient
     if (amount > balance) {
       state = state.copyWith(errorMessage: "Transfer amount exceeds available balance (₹${balance.toStringAsFixed(2)})");
       return null;

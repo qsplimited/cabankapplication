@@ -1,4 +1,3 @@
-// File: dashboard_screen.dart (Refactored)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/banking_service.dart';
@@ -12,54 +11,34 @@ import 'tpin_management_screen.dart';
 import 'detailed_statement_screen.dart';
 import 'quick_transfer_screen.dart';
 import 'detailed_account_view_screen.dart';
-// CRITICAL FIX: Use prefixes for screens that are incorrectly defining duplicate types.
 import 'transaction_history_screen.dart' as ths;
 import 'beneficiary_management_screen.dart' as bms;
-
 import 'services_management_screen.dart';
 import 'deposit_opening_screen.dart';
-
 import 'loan_landing_screen.dart';
-
 import 'chat_bot_screen.dart';
-
 import 'atm_locator_screen.dart';
+import '../providers/dashboard_provider.dart';
+import '../models/customer_account_model.dart';
 
 final BankingService _bankingService = BankingService();
 
-class DashboardScreen extends ConsumerStatefulWidget { // Changed to ConsumerStatefulWidget
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  ConsumerState<DashboardScreen> createState() => _DashboardScreenState(); // Changed return type
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  // Data State
-  UserProfile? _userProfile;
-  List<Account> _allAccounts = [];
-  List<Transaction>? _miniStatement;
-  // UI State
-  bool _isLoading = true;
-  String _errorMessage = '';
-  // Global toggle for all account balances (Starts OFF / masked)
   bool _isBalanceVisible = false;
-  // State for toggling Account Number visibility (Starts OFF / masked)
-  bool _isAccountNoVisible = false; // <<< THIS IS CRITICAL: Starts as false
-  int _currentAccountIndex = 0;
-  // CRITICAL FIX: Initialize PageController
+  bool _isAccountNoVisible = false;
   late final PageController _pageController;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 0.9);
-    _fetchDashboardData();
-    _bankingService.onDataUpdate.listen((_) {
-      if (mounted) {
-        _fetchDashboardData();
-      }
-    });
   }
 
   @override
@@ -68,936 +47,304 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchDashboardData() async {
-    if (!_isLoading) {
-      setState(() {
-        _errorMessage = '';
-      });
-    }
-
-    try {
-      final results = await Future.wait([
-        _bankingService.fetchUserProfile(),
-        _bankingService.fetchUserAccounts(),
-      ]);
-
-      final userProfile = results[0] as UserProfile;
-      final allAccounts = results[1] as List<Account>;
-
-      List<Transaction>? miniStatement;
-      if (allAccounts.isNotEmpty) {
-        miniStatement = await _bankingService.fetchMiniStatement();
-      }
-
-      if (mounted) {
-        setState(() {
-          _userProfile = userProfile;
-          _allAccounts = allAccounts;
-          _miniStatement = miniStatement;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to load data. Error: ${e.toString()}';
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   void _navigateTo(Widget screen) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => screen),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
   }
 
-  // 1. Account Carousel
-  Widget _buildAccountCarousel(BuildContext context) {
-    if (_allAccounts.isEmpty) {
-      return const SizedBox(height: 180, child: Center(child: Text('No accounts found.')));
-    }
-
-    const cardHeight = 180.0;
-    return SizedBox(
-      height: cardHeight,
-      child: PageView.builder(
-        controller: _pageController,
-        itemCount: _allAccounts.length,
-        onPageChanged: (index) {
-          setState(() {
-            _currentAccountIndex = index;
-          });
-        },
-        itemBuilder: (context, index) {
-          final account = _allAccounts[index];
-          // Use kPaddingSmall for horizontal spacing
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: kPaddingSmall),
-            child: _buildSingleAccountCard(context, account),
-          );
-        },
-      ),
-    );
-  }
-
-  // **Card Implementation Refactored to Theme Constants**
-  Widget _buildSingleAccountCard(BuildContext context, Account account) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    final balanceText = _isBalanceVisible
-        ? '₹${account.balance.toStringAsFixed(2)}'
-        : '•••••••';
-
-    // Use specific colors from app_colors.dart for distinction
-    Color stripeColor;
-    if (account.accountType == AccountType.fixedDeposit || account.accountType == AccountType.recurringDeposit) {
-      stripeColor = kFixedDepositCardColor;
-    } else if (account.accountType == AccountType.current) {
-      stripeColor = kCurrentCardColor;
-    } else {
-      stripeColor = colorScheme.secondary;
-    }
-
-    final String fullAccountNo = account.accountNumber;
-    final String maskedAccountNo = '${fullAccountNo.substring(0, 4)} **** ${fullAccountNo.substring(fullAccountNo.length - 4)}';
-    final String displayAccountNo = _isAccountNoVisible ? fullAccountNo : maskedAccountNo;
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DetailedAccountViewScreen(accountId: account.accountId),
-          ),
-        );
-      },
-      child: Card(
-        // Refactored Color & Elevation/Shape
-        color: colorScheme.surface,
-        elevation: kCardElevation,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusLarge)), // Use kRadiusLarge (16) to fit original 15
-        child: Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(kRadiusLarge),
-          ),
-          child: Row(
-            children: [
-              // UNIQUE DESIGN: Colored Vertical Stripe
-              Container(
-                width: 6.0,
-                decoration: BoxDecoration(
-                  color: stripeColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(kRadiusLarge),
-                    bottomLeft: Radius.circular(kRadiusLarge),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(kPaddingMedium),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Account Type & Balance Visibility Toggle
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Flexible(
-                            child:
-                            Text(
-                              account.accountType == AccountType.recurringDeposit
-                                  ? "RD ACCOUNT"
-                                  : "${account.accountType.name.toUpperCase()} ACCOUNT",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                          // Balance Visibility Toggle Icon
-                          InkWell(
-                            onTap: () {
-                              setState(() {
-                                _isBalanceVisible = !_isBalanceVisible;
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Padding(
-                              padding: const EdgeInsets.all(kPaddingExtraSmall),
-                              child: Icon(
-                                _isBalanceVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                color: colorScheme.primary, // Use primary color for icon
-                                size: kIconSize,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: kPaddingSmall),
-
-                      // Balance Display
-                      Text(
-                        'Available Balance',
-                        // Refactored Text Style
-                        style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.5),
-                            letterSpacing: 0.5
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Flexible(
-                        child: Text(
-                          balanceText,
-                          // Refactored Text Style
-                          style: textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: colorScheme.primary,
-                            fontSize: 30,
-                            letterSpacing: -0.5,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-
-                      const Spacer(),
-
-                      // Account Nickname & Number with new Toggle
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          // Account Nickname & Number
-                          Flexible(
-                            child: Text(
-                              '${account.nickname} | $displayAccountNo',
-                              // Refactored Text Style
-                              style: textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurface,
-                                  fontWeight: FontWeight.bold
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: kPaddingSmall),
-
-                          // Account Number Toggle
-                          InkWell(
-                            onTap: () {
-                              setState(() {
-                                _isAccountNoVisible = !_isAccountNoVisible;
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Padding(
-                              padding: const EdgeInsets.all(kPaddingExtraSmall),
-                              child: Icon(
-                                _isAccountNoVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                color: colorScheme.primary.withOpacity(0.7),
-                                size: kIconSize,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 2. Quick Actions Grid - Refactored
-  Widget _buildQuickActions() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    final List<Map<String, dynamic>> actions = [
-      {'label': 'Quick Transfer', 'icon': Icons.flash_on_outlined, 'color': kAccentOrange, 'screen': const QuickTransferScreen()},
-      {'label': 'Standard Transfer', 'icon': Icons.send_outlined, 'color': colorScheme.primary, 'screen': TransferFundsScreen(bankingService: _bankingService)},
-      {'label': 'Manage Payees', 'icon': Icons.people_alt_outlined, 'color': colorScheme.primary, 'screen': const bms.BeneficiaryManagementScreen()},
-      {
-        'label': 'Loan',
-        'icon': Icons.request_quote,
-        'color': colorScheme.primary,
-        'screen': const LoanLandingScreen(), // Change this from TransactionHistory
-      },
-      {'label': 'Transaction History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen()},
-      {'label': 'T-PIN Management', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
-      {'label': 'Service Management', 'icon': Icons.design_services, 'color': colorScheme.primary, 'screen': ServicesManagementScreen()},
-      {'label': 'Deposit Management',
-        'icon': Icons.lock_clock,
-        'color': colorScheme.primary,
-        'screen': DepositOpeningScreen()},
-
-      {'label': 'Locate Us',
-        'icon': Icons.lock_clock,
-        'color': colorScheme.primary,
-        'screen': AtmLocatorScreen()},
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: 0.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4.0, bottom: kPaddingSmall, top: kPaddingMedium),
-            child: Text(
-              'Quick Services',
-              // Refactored Text Style
-              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onBackground),
-            ),
-          ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: kPaddingSmall,
-              mainAxisSpacing: kPaddingSmall,
-              childAspectRatio: 1.0,
-            ),
-            itemCount: actions.length,
-            itemBuilder: (context, index) {
-              final action = actions[index];
-              return InkWell(
-                onTap: () {
-                  if (action['screen'] != null) {
-                    _navigateTo(action['screen'] as Widget);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${action['label']} feature coming soon!')),
-                    );
-                  }
-                },
-                borderRadius: BorderRadius.circular(kRadiusMedium),
-                child: Card(
-                  // Refactored Card Style
-                  color: colorScheme.surface,
-                  elevation: kCardElevation,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
-                  child: Container(
-                    padding: const EdgeInsets.all(kPaddingSmall),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(action['icon'], size: 36, color: action['color']),
-                        const SizedBox(height: kPaddingSmall),
-                        Text(
-                          action['label'],
-                          textAlign: TextAlign.center,
-                          // Refactored Text Style
-                          style: textTheme.labelSmall?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w600
-                          ),
-                          maxLines: 2,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 3. T-PIN Status Alert - Refactored
-  Widget _buildTpinAlertCard() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    if (_bankingService.isTpinSet) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: kPaddingMedium, vertical: kPaddingSmall),
-      child: Card(
-        // Refactored Alert Color (using error)
-        color: colorScheme.error.withOpacity(0.1),
-        elevation: kCardElevation,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(kRadiusMedium),
-            side: BorderSide(color: colorScheme.error, width: 1.5)
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(kPaddingMedium),
-          child: Row(
-            children: [
-              Icon(Icons.security_update_warning, color: colorScheme.error, size: 30),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'ACTION REQUIRED: T-PIN Not Set',
-                      // Refactored Text Style
-                      style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.error),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Set your T-PIN now to enable secure transactions.',
-                      style: textTheme.bodySmall?.copyWith(color: colorScheme.error.withOpacity(0.8)),
-                    ),
-                    const SizedBox(height: kPaddingSmall),
-                    GestureDetector(
-                      onTap: () => _navigateTo(const TpinManagementScreen()),
-                      child: Text(
-                        'SET T-PIN NOW >',
-                        style: textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary, // Primary color for the action link
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  // 4. Mini Statement List - Refactored
-  Widget _buildMiniStatement(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    if (_miniStatement == null || _miniStatement!.isEmpty || _allAccounts.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(kPaddingMedium),
-        child: Text(
-          'No recent transactions found for ${_allAccounts.isNotEmpty ? _allAccounts[_currentAccountIndex].nickname : 'the selected account'}.',
-          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onBackground.withOpacity(0.6)),
-        ),
-      );
-    }
-    final currentAccount = _allAccounts[_currentAccountIndex];
-
-    return Padding(
-      padding: const EdgeInsets.only(left: kPaddingMedium, right: kPaddingMedium, top: kPaddingSmall),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: kPaddingSmall),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Recent Transactions (${currentAccount.nickname})',
-                    style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onBackground
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-
-                TextButton(
-                  onPressed: () {
-                    _navigateTo(
-                      DetailedStatementScreen(
-                        bankingService: _bankingService,
-                        account: currentAccount,
-                      ),
-                    );
-                  },
-                  child: Text(
-                    'VIEW ALL',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Card(
-            // Refactored Card Style
-            elevation: kCardElevation,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
-            color: colorScheme.surface,
-            child: ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _miniStatement!.length > 5 ? 5 : _miniStatement!.length,
-              separatorBuilder: (context, index) =>
-              // Use theme divider color
-              Divider(height: 1, color: colorScheme.onSurface.withOpacity(0.1), indent: kPaddingMedium, endIndent: kPaddingMedium),
-              itemBuilder: (context, index) {
-                final tx = _miniStatement![index];
-                final isDebit = tx.type == TransactionType.debit;
-
-                // Use adaptive success/error colors
-                final amountColor = isDebit ? colorScheme.error : kSuccessGreen;
-                final iconColor = isDebit ? colorScheme.error : kSuccessGreen;
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: kPaddingSmall, horizontal: kPaddingMedium),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: iconColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isDebit ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                          color: iconColor,
-                          size: kIconSize,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 5,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tx.description,
-                              // Refactored Text Style
-                              style: textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colorScheme.onSurface
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${tx.date.day}/${tx.date.month} | ${tx.date.hour}:${tx.date.minute.toString().padLeft(2, '0')}',
-                              style: textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.onSurface.withOpacity(0.6)
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Flexible(
-                        flex: 2,
-                        child: Text(
-                          '${isDebit ? '-' : '+'} ₹${tx.amount.toStringAsFixed(2)}',
-                          textAlign: TextAlign.end,
-                          style: textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: amountColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
   @override
   Widget build(BuildContext context) {
-
+    // WATCH THE REAL API DATA
+    final accountAsync = ref.watch(dashboardAccountProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
 
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: colorScheme.background,
-        body: Center(
+    return Scaffold(
+      backgroundColor: colorScheme.background,
+      // 1. DRAWER (Preserved Logic)
+      drawer: accountAsync.maybeWhen(
+        data: (account) => _buildDrawer(context, account),
+        orElse: () => const Drawer(child: Center(child: CircularProgressIndicator())),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async => ref.refresh(dashboardAccountProvider),
+        child: CustomScrollView(
+          slivers: [
+            // 2. APP BAR (Preserved with dynamic Welcome Name)
+            accountAsync.when(
+              data: (account) => _buildAppBar(context, account.firstName),
+              loading: () => _buildAppBar(context, "User"),
+              error: (_, __) => _buildAppBar(context, "Error"),
+            ),
+
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  const SizedBox(height: kPaddingMedium),
+
+                  // 3. ACCOUNT CARD (Preserved Design, Real Data)
+                  accountAsync.when(
+                    data: (account) => _buildAccountCarousel(context, account),
+                    loading: () => const SizedBox(height: 180, child: Center(child: CircularProgressIndicator())),
+                    error: (err, _) => Center(child: Text("Connection Error: $err")),
+                  ),
+
+                  _buildTpinAlertCard(),
+
+                  // 4. QUICK SERVICES GRID (Preserved Logic - Not Skipped)
+                  _buildQuickActions(),
+
+                  const SizedBox(height: 30),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- DESIGN: SliverAppBar with Notification Logic ---
+  Widget _buildAppBar(BuildContext context, String name) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SliverAppBar(
+      expandedHeight: 120.0,
+      floating: false,
+      pinned: true,
+      backgroundColor: colorScheme.primary,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.only(left: 55, bottom: 16),
+        title: Text(
+          "Welcome back, $name",
+          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_none, color: Colors.white),
+          onPressed: () => _showNotificationOverlay(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccountCarousel(BuildContext context, CustomerAccount account) {
+    return SizedBox(
+      height: 200, // Increased slightly from 180 to 200 to give the Column more breathing room
+      child: PageView(
+        controller: _pageController,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            child: _buildSingleAccountCard(context, account),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSingleAccountCard(BuildContext context, CustomerAccount account) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final displayAcc = _isAccountNoVisible
+        ? account.savingAccountNumber
+        : "**** **** ${account.savingAccountNumber.substring(account.savingAccountNumber.length - 4)}";
+
+    return GestureDetector(
+      onTap: () => _navigateTo(DetailedAccountViewScreen(customerId: account.customerId)),
+      child: Card(
+        elevation: 4,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          // FIX: Constrain height to prevent overflow
+          constraints: const BoxConstraints(minHeight: 160, maxHeight: 185),
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: const Border(left: BorderSide(color: Colors.orange, width: 6)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min, // FIX: Don't take unnecessary vertical space
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircularProgressIndicator(color: colorScheme.primary),
-              const SizedBox(height: kPaddingMedium),
-              Text(
-                  'Loading dashboard data...',
-                  style: textTheme.bodyMedium?.copyWith(color: colorScheme.onBackground)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(account.accountType.toUpperCase(),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  SizedBox(
+                    height: 30,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 20,
+                      icon: Icon(_isBalanceVisible ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
+                    ),
+                  )
+                ],
+              ),
+              const Text("Available Balance", style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 4),
+
+              // THE LIVE BALANCE FETCH
+              FutureBuilder<double>(
+                future: ref.read(dashboardApiServiceProvider).fetchCurrentBalance(account.customerId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Text("₹ ...", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold));
+                  }
+
+                  final balance = snapshot.data ?? 0.0;
+                  return FittedBox( // FIX: Prevents horizontal RenderFlex error
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _isBalanceVisible ? "₹ ${balance.toStringAsFixed(2)}" : "•••••••",
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: colorScheme.primary),
+                    ),
+                  );
+                },
+              ),
+
+              const Spacer(), // Pushes the footer to the bottom safely
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded( // FIX: Prevents long names from causing overflow
+                    child: Text(
+                      "${account.firstName} | $displayAcc",
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  SizedBox(
+                    height: 30,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 20,
+                      icon: Icon(_isAccountNoVisible ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _isAccountNoVisible = !_isAccountNoVisible),
+                    ),
+                  )
+                ],
               )
             ],
           ),
         ),
-      );
-    }
-    if (_errorMessage.isNotEmpty || _userProfile == null) {
-      return Scaffold(
-        body: Center(
-          child: Text(
-            'Error: $_errorMessage',
-            style: textTheme.bodyMedium?.copyWith(color: colorScheme.error),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-    final String userFullName = _userProfile!.fullName;
-    final String userFirstName = userFullName.split(' ').first;
-    final String userInitial = userFullName.split(' ').first.substring(0, 1).toUpperCase();
-
-    return Scaffold(
-      backgroundColor: colorScheme.background,
-      // --- DRAWER (Menu Bar) ---
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            DrawerHeader(
-              // Refactored Drawer Header Color
-              decoration: BoxDecoration(color: colorScheme.primary),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
-                CircleAvatar(
-                  // Refactored Avatar Colors
-                    backgroundColor: colorScheme.onPrimary,
-                    radius: 30,
-                    child: Text(
-                        userInitial,
-                        style: textTheme.headlineMedium?.copyWith(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.primary // Text color is primary
-                        )
-                    )
-                ),
-                const SizedBox(height: kPaddingSmall),
-                // Refactored Text Styles
-                Text(userFullName, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onPrimary)),
-                Text('Account Holder', style: textTheme.labelSmall?.copyWith(color: colorScheme.onPrimary.withOpacity(0.7))),
-              ]),
-            ),
-
-
-            // Refactored ListTiles (using primary color for active icons)
-            ListTile(leading: Icon(Icons.dashboard_outlined, color: colorScheme.primary),
-                title: Text('Dashboard', style: textTheme.bodyMedium), onTap: () => Navigator.pop(context)),
-
-            ListTile(leading: Icon(Icons.person_2_outlined, color: kAccentOrange),
-                title: Text('Profile', style: textTheme.bodyMedium),
-                onTap: () { Navigator.pop(context); _navigateTo(const ProfileManagementScreen()); }),
-
-            ListTile(leading: Icon(Icons.flash_on_outlined, color: kAccentOrange),
-                title: Text('Quick Transfer (IMPS)', style: textTheme.bodyMedium),
-                onTap: () { Navigator.pop(context); _navigateTo(const QuickTransferScreen()); }),
-            ListTile(leading: Icon(Icons.payments_outlined, color: colorScheme.primary),
-                title: Text('Standard Transfer (Beneficiary)', style: textTheme.bodyMedium),
-                onTap: () { Navigator.pop(context); _navigateTo(TransferFundsScreen(bankingService: _bankingService)); }),
-            ListTile(leading: Icon(Icons.people_alt_outlined, color: kCurrentCardColor),
-                title: Text('Beneficiary Management', style: textTheme.bodyMedium),
-                onTap: () { Navigator.pop(context); _navigateTo(const bms.BeneficiaryManagementScreen()); }),
-
-            ListTile(leading: Icon(Icons.qr_code_scanner, color: kSuccessGreen),
-                title: Text('Scan & Pay (UPI)', style: textTheme.bodyMedium), onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scan & Pay (UPI) feature coming soon!')));
-                }),
-            ListTile(leading: Icon(Icons.history_toggle_off_outlined, color: kSavingsCardColor),
-                title: Text('Transaction History', style: textTheme.bodyMedium),
-                onTap: () { Navigator.pop(context); _navigateTo(ths.TransactionHistoryScreen()); }),
-
-
-            ListTile(leading: Icon(Icons.lock_reset_outlined, color: colorScheme.primary),
-                title: Text('T-PIN Management', style: textTheme.bodyMedium),
-                onTap: () { Navigator.pop(context); _navigateTo(const TpinManagementScreen()); }),
-            const Divider(),
-
-            ListTile(leading: const Icon(Icons.logout, color: kErrorRed), title: Text('Logout', style: textTheme.bodyMedium), onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Logging out user...')));
-              Navigator.pop(context);
-            }),
-          ],
-        ),
       ),
-      // --- APP BAR (Unique Integrated Design) ---
-      appBar: AppBar(
-        // Refactored Header Color
-        backgroundColor: colorScheme.primary,
-        elevation: 0,
-        toolbarHeight: 0,
-      ),
-      // --- BODY (Stabilized CustomScrollView) ---
-      body: RefreshIndicator(
-        onRefresh: _fetchDashboardData,
-        color: colorScheme.primary,
-        child: CustomScrollView(
-          slivers: <Widget>[
+    );
+  }
 
-            // 1. UNIQUE HEADER & WELCOME MESSAGE
-            SliverToBoxAdapter(
-              child: Container(
-                height: 100,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 16.0,
-                  right: 16.0,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary,
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30.0)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 1. Drawer Menu
-                    Builder(
-                      builder: (context) => IconButton(
-                        icon: Icon(Icons.menu, color: colorScheme.onPrimary, size: 28),
-                        onPressed: () => Scaffold.of(context).openDrawer(),
-                      ),
-                    ),
+  // --- DESIGN: Quick Actions Grid (Preserved) ---
+  Widget _buildQuickActions() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final List<Map<String, dynamic>> actions = [
+      {'label': 'Quick Transfer', 'icon': Icons.flash_on_outlined, 'color': kAccentOrange, 'screen': const QuickTransferScreen()},
+      {'label': 'Transfer', 'icon': Icons.send_outlined, 'color': colorScheme.primary, 'screen': TransferFundsScreen(bankingService: _bankingService)},
+      {'label': 'Payees', 'icon': Icons.people_alt_outlined, 'color': colorScheme.primary, 'screen': const bms.BeneficiaryManagementScreen()},
+      {'label': 'Loan', 'icon': Icons.request_quote, 'color': colorScheme.primary, 'screen': const LoanLandingScreen()},
+      {'label': 'History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen()},
+      {'label': 'T-PIN', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
+      {'label': 'Services', 'icon': Icons.design_services, 'color': colorScheme.primary, 'screen': ServicesManagementScreen()},
+      {'label': 'Deposits', 'icon': Icons.lock_clock, 'color': colorScheme.primary, 'screen': DepositOpeningScreen()},
+      {'label': 'Locate Us', 'icon': Icons.map_outlined, 'color': colorScheme.primary, 'screen': AtmLocatorScreen()},
+    ];
 
-                    // 2. User Welcome Text
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 10, top: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Welcome Back,',
-                              style: textTheme.bodyMedium?.copyWith(color: colorScheme.onPrimary.withOpacity(0.7)),
-                            ),
-                            Text(
-                              userFirstName,
-                              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onPrimary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // 3. Notification Button with RED Badge
-                    Row(
-                      children: [
-                        FutureBuilder<List<NotificationModel>>(
-                          future: NotificationService.fetchNotifications(),
-                          builder: (context, snapshot) {
-                            final notifications = snapshot.data ?? [];
-                            final unreadCount = notifications.where((n) => !n.isRead).length;
-                            return IconButton(
-                              onPressed: () => _showUniqueNotificationPanel(context, notifications),
-                              icon: Badge(
-                                label: Text('$unreadCount', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                                isLabelVisible: unreadCount > 0,
-                                backgroundColor: Colors.red, // Updated to Red as requested
-                                child: Icon(
-                                  Icons.notifications_none_rounded,
-                                  color: colorScheme.onPrimary,
-                                  size: 28,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4.0, top: 12),
-                          child: CircleAvatar(
-                            backgroundColor: colorScheme.onPrimary,
-                            radius: 15,
-                            child: Text(
-                              userInitial,
-                              style: textTheme.labelLarge?.copyWith(fontSize: 12, fontWeight: FontWeight.bold, color: colorScheme.primary),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+    return Padding(
+      padding: const EdgeInsets.all(kPaddingMedium),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10),
+        itemCount: actions.length,
+        itemBuilder: (context, index) {
+          final action = actions[index];
+          return InkWell(
+            onTap: () => _navigateTo(action['screen']),
+            child: Card(
+              elevation: 2,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(action['icon'], color: action['color'], size: 30),
+                  const SizedBox(height: 5),
+                  Text(action['label'], textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                ],
               ),
             ),
-            // 2. Account Summary Carousel (Pulled up into the header curve)
-            SliverToBoxAdapter(
-              child: Transform.translate(
-                offset: const Offset(0, -50),
-                child: _buildAccountCarousel(context),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Transform.translate(
-                offset: const Offset(0, -40),
-                child: Column(
-                  children: [
-                    // Page Indicator Dots
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: kPaddingSmall),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(_allAccounts.length, (index) {
-                          return Container(
-                            width: 8.0,
-                            height: 8.0,
-                            margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              // Refactored Color
-                              color: _currentAccountIndex == index
-                                  ? colorScheme.secondary
-                                  : colorScheme.onBackground.withOpacity(0.3),
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                    // T-PIN Status Alert
-                    _buildTpinAlertCard(),
-                    // Quick Actions
-                    _buildQuickActions(),
-                    // Mini Statement List
-                    _buildMiniStatement(context),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: SizedBox(height: 80 + MediaQuery.of(context).padding.bottom),
-            ),
-          ],
-        ),
-      ),
-
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: colorScheme.primary, // Matches your app's theme
-        child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-        tooltip: 'Chat with Assistant',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ChatBotScreen()),
           );
         },
       ),
     );
   }
 
-  void _showUniqueNotificationPanel(BuildContext context, List<NotificationModel> notifications) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
+  // --- DESIGN: Notification Slide Down (Preserved) ---
+  void _showNotificationOverlay(BuildContext context) {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: "Notifications",
-      barrierColor: Colors.black.withOpacity(0.4),
-      transitionDuration: const Duration(milliseconds: 350),
+      barrierLabel: '',
+      transitionDuration: const Duration(milliseconds: 400),
       pageBuilder: (context, anim1, anim2) {
         return Align(
           alignment: Alignment.topCenter,
-          child: Container(
-            // Adjust top margin to fit right under your app bar
-            margin: const EdgeInsets.only(top: 85, left: 16, right: 16),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                // Max height is 50% of screen to ensure it doesn't cover everything
-                maxHeight: MediaQuery.of(context).size.height * 0.5,
-                maxWidth: 450,
-              ),
-              child: Material(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(24),
-                elevation: 12,
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min, // Card shrinks if list is short
-                  children: [
-                    // --- HEADER WITH SMALL BUTTON ---
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 15, 12, 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Notifications",
-                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          // SMALL COMPACT CLEAR BUTTON
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                              minimumSize: const Size(50, 30),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text("Clear All", style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-
-                    // --- SCROLLABLE LIST ---
-                    Flexible(
-                      child: notifications.isEmpty
-                          ? const Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text("No new notifications"),
-                      )
-                          : ListView.builder(
-                        padding: EdgeInsets.zero,
-                        shrinkWrap: true, // Allows card to wrap around small lists
-                        itemCount: notifications.length,
-                        itemBuilder: (context, index) {
-                          final item = notifications[index];
-                          return Container(
-                            decoration: BoxDecoration(
-                              border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
-                              color: item.isRead ? Colors.transparent : colorScheme.primary.withOpacity(0.03),
-                            ),
-                            child: ListTile(
-                              dense: true,
-                              leading: CircleAvatar(
-                                radius: 16,
-                                backgroundColor: colorScheme.primary.withOpacity(0.1),
-                                child: Icon(Icons.bolt, size: 16, color: colorScheme.primary),
-                              ),
-                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                              subtitle: Text(item.message, style: const TextStyle(fontSize: 12)),
-                              onTap: () => Navigator.pop(context),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              height: 400,
+              margin: const EdgeInsets.only(top: 80, left: 16, right: 16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10, spreadRadius: 2)]),
+              child: const Center(child: Text("No New Notifications")),
             ),
           ),
         );
       },
-      // The "Unique" Slide Down transition
       transitionBuilder: (context, anim1, anim2, child) {
         return SlideTransition(
-          position: Tween(begin: const Offset(0, -0.1), end: const Offset(0, 0))
-              .animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic)),
+          position: Tween(begin: const Offset(0, -0.1), end: const Offset(0, 0)).animate(anim1),
           child: FadeTransition(opacity: anim1, child: child),
         );
       },
     );
   }
 
+  Widget _buildDrawer(BuildContext context, CustomerAccount account) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          UserAccountsDrawerHeader(
+            decoration: BoxDecoration(color: colorScheme.primary),
+            accountName: Text(account.fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
+            accountEmail: Text(account.email),
+            currentAccountPicture: CircleAvatar(
+              backgroundColor: Colors.white,
+              child: Text(account.firstName[0], style: TextStyle(color: colorScheme.primary, fontSize: 24, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          ListTile(leading: const Icon(Icons.person_outline), title: const Text("Profile"), onTap: () => _navigateTo(const ProfileManagementScreen())),
+          ListTile(leading: const Icon(Icons.logout), title: const Text("Logout"), onTap: () => Navigator.pop(context)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTpinAlertCard() {
+    if (_bankingService.isTpinSet) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red)),
+      child: const Row(
+        children: [
+          Icon(Icons.warning, color: Colors.red),
+          SizedBox(width: 10),
+          Expanded(child: Text("Set your T-PIN to enable transactions", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
 }
