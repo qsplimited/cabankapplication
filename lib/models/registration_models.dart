@@ -26,4 +26,4 @@ class AuthResponse {
       token: json['token'],
     );
   }
-}
+}  //used registered model
