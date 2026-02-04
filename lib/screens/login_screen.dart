@@ -20,8 +20,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-focus the keyboard so the user can type immediately
+    // Fetch the saved ID from storage as soon as the app opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(registrationProvider.notifier).loadSavedId();
       _mpinFocusNode.requestFocus();
     });
   }
@@ -146,19 +147,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 // Inside LoginScreen
               TextButton(
                 onPressed: () {
-                  // This looks at the provider state. If the user just registered,
-                  // the ID will be here.
-                  final idToPass = ref.read(registrationProvider).customerId;
-
+                  final savedId = ref.read(registrationProvider).customerId;
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ForgotMpinIdentity(autoCustomerId: idToPass),
+                      builder: (context) => ForgotMpinIdentity(autoCustomerId: savedId),
                     ),
                   );
                 },
                 child: const Text("Forgot MPIN?"),
-              ),
+              )
             ],
           ),
         ),

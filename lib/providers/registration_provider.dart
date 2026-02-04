@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:dio/dio.dart';
 import '../api/i_device_service.dart';
 import '../api/real_device_service.dart';
 import '../models/registration_models.dart';
@@ -14,6 +13,7 @@ class RegistrationState {
   final String? errorMessage;
   final String? customerId;
   final String? deviceId;
+  final String? tempPassword;
 
   RegistrationState({
     this.currentStep = 0,
@@ -21,6 +21,7 @@ class RegistrationState {
     this.errorMessage,
     this.customerId,
     this.deviceId,
+    this.tempPassword,
   });
 
   RegistrationState copyWith({
@@ -29,6 +30,7 @@ class RegistrationState {
     String? errorMessage,
     String? customerId,
     String? deviceId,
+    String? tempPassword,
   }) {
     return RegistrationState(
       currentStep: currentStep ?? this.currentStep,
@@ -36,6 +38,7 @@ class RegistrationState {
       errorMessage: errorMessage ?? this.errorMessage,
       customerId: customerId ?? this.customerId,
       deviceId: deviceId ?? this.deviceId,
+      tempPassword: tempPassword ?? this.tempPassword,
     );
   }
 }
@@ -46,17 +49,40 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
 
   RegistrationNotifier(this._service) : super(RegistrationState());
 
-  void reset() {
-    state = RegistrationState();
+  void reset() => state = RegistrationState();
+
+  Future<void> loadSavedId() async {
+    final savedId = await _storage.read(key: 'last_registered_id');
+    if (savedId != null) {
+      state = state.copyWith(customerId: savedId);
+    }
   }
 
-  // NEW: Call this from Login Screen when "Forgot MPIN" is clicked
-  // to ensure the Identity screen has the ID ready.
-  void setCustomerId(String id) {
-    state = state.copyWith(customerId: id);
+  // NEW METHOD: Added to resolve 'login is not defined' error
+  Future<void> login(String mpin) async {
+    state = state.copyWith(status: RegistrationStatus.loading, errorMessage: null);
+    try {
+      final did = await getUniqueDeviceId();
+      // Calls your endpoint: GET /customer/login/bympin
+      final response = await _service.loginWithMpin(mpin: mpin, deviceId: did);
+
+      if (response.success) {
+        state = state.copyWith(status: RegistrationStatus.success);
+      } else {
+        state = state.copyWith(
+            status: RegistrationStatus.failure,
+            errorMessage: response.message
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+          status: RegistrationStatus.failure,
+          errorMessage: "Login failed. Please check connection."
+      );
+    }
   }
 
-  // STEP 1: Identity
+  // Unified Identity Check (Step 1)
   Future<void> submitIdentity(String customerId, String password) async {
     state = state.copyWith(status: RegistrationStatus.loading, errorMessage: null);
     try {
@@ -66,54 +92,45 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
       );
 
       if (response.success) {
+        await _storage.write(key: 'last_registered_id', value: customerId);
+
         state = state.copyWith(
           status: RegistrationStatus.success,
           currentStep: 1,
           customerId: customerId,
+          tempPassword: password,
           deviceId: deviceId,
         );
-
         await Future.delayed(const Duration(milliseconds: 100));
         state = state.copyWith(status: RegistrationStatus.initial);
       } else {
         state = state.copyWith(status: RegistrationStatus.failure, errorMessage: response.message);
       }
     } catch (e) {
-      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Identity Check Failed");
+      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Connection Error");
     }
   }
 
-  // STEP 2: OTP
   Future<void> verifyOtp(String otp) async {
     final cid = state.customerId;
-    // Fallback to getting device ID if state was lost
-    final did = state.deviceId ?? await getUniqueDeviceId();
-
-    if (cid == null) {
-      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Session Expired");
-      return;
-    }
+    if (cid == null) return;
 
     state = state.copyWith(status: RegistrationStatus.loading);
     try {
-      final success = await _service.verifyOtp(otp: otp, customerId: cid, deviceId: did);
+      final success = await _service.verifyOtp(otp: otp, customerId: cid, deviceId: state.deviceId ?? "");
       if (success) {
         state = state.copyWith(status: RegistrationStatus.success, currentStep: 2);
       } else {
         state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Invalid OTP");
       }
     } catch (e) {
-      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "OTP Verification Error");
+      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "OTP Verification Failed");
     }
   }
 
-  // STEP 3: Finalize (Sets New MPIN in DB)
   Future<void> finalizeRegistration(String mpin) async {
     final cid = state.customerId;
-    if (cid == null) {
-      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Session Expired");
-      return;
-    }
+    if (cid == null) return;
 
     state = state.copyWith(status: RegistrationStatus.loading);
     try {
@@ -130,26 +147,6 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
       }
     } catch (e) {
       state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Failed to set MPIN");
-    }
-  }
-
-  // LOGIN: By MPIN
-// Inside RegistrationNotifier
-  Future<void> login(String mpin) async {
-    state = state.copyWith(status: RegistrationStatus.loading);
-    try {
-      final did = await getUniqueDeviceId();
-      final response = await _service.loginWithMpin(mpin: mpin, deviceId: did);
-
-      if (response.success) {
-        // SAVE THE ID LOCALLY SO "FORGOT" CAN FIND IT
-        await _storage.write(key: 'last_registered_id', value: state.customerId);
-        state = state.copyWith(status: RegistrationStatus.success);
-      } else {
-        state = state.copyWith(status: RegistrationStatus.failure, errorMessage: response.message);
-      }
-    } catch (e) {
-      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Login Failed");
     }
   }
 }

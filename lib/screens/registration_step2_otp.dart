@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/registration_provider.dart';
 import 'registration_step3_mpin.dart';
-// import 'forgot_mpin_step2_new_mpin.dart'; // PAUSED: Not needed for registration flow
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
 
@@ -22,7 +21,10 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
   @override
   void initState() {
     super.initState();
-    _otpController.addListener(() => setState(() {}));
+    // Auto-focus the field when the screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -32,18 +34,10 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
     super.dispose();
   }
 
-  // --- RESEND LOGIC COMMENTED OUT AS REQUESTED ---
-  /*
-  Timer? _timer;
-  int _secondsRemaining = 30;
-  bool _canResend = false;
-  ... (timer methods)
-  */
-
   void _handleVerify() {
     final otp = _otpController.text.trim();
     if (otp.length == 6) {
-      // Calls: GET /customer/otp/validate
+      // Calls: GET /customer/otp/validate in the provider
       ref.read(registrationProvider.notifier).verifyOtp(otp);
     }
   }
@@ -52,53 +46,51 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
   Widget build(BuildContext context) {
     final regState = ref.watch(registrationProvider);
 
-    // NAVIGATION LISTENER
+    // NAVIGATION AND ERROR LISTENER
     ref.listen(registrationProvider, (previous, next) {
-      if (next.currentStep == 2 && previous?.currentStep != 2) {
-
-        // --- FORGOT FLOW NAVIGATION COMMENTED OUT ---
-        /*
-        if (next.isResetFlow) {
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const ForgotMpinStep2NewMpin())
-          );
-        } else { ... }
-        */
-
-        // ALWAYS move to Step 3 for now to keep the flow simple
+      // 1. Success Navigation: If step moves to 2, go to Set MPIN screen
+      if (next.status == RegistrationStatus.success && next.currentStep == 2) {
         Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const RegistrationStep3Mpin())
+          context,
+          MaterialPageRoute(builder: (_) => const RegistrationStep3Mpin()),
         );
       }
 
-      if (next.status == RegistrationStatus.failure && previous?.status != RegistrationStatus.failure) {
+      // 2. Error Handling: Show snackbar if OTP is invalid
+      if (next.status == RegistrationStatus.failure && next.errorMessage != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(next.errorMessage ?? "Invalid OTP"),
-              backgroundColor: Colors.red
+            content: Text(next.errorMessage!),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
+        _otpController.clear();
+        _focusNode.requestFocus();
       }
     });
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('OTP Verification', style: TextStyle(color: Colors.white)),
+        title: const Text('OTP Verification', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: kAccentOrange,
         centerTitle: true,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(kPaddingLarge),
         child: Column(
           children: [
             const SizedBox(height: 40),
-            const Icon(Icons.lock_reset_rounded, size: 80, color: kAccentOrange),
-            const SizedBox(height: 20),
-            const Text("Enter 6-Digit OTP", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const Icon(Icons.mark_email_unread_outlined, size: 80, color: kAccentOrange),
+            const SizedBox(height: 24),
+            const Text("Verify Your Identity", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            const Text("A code has been sent to your mobile", style: TextStyle(color: Colors.grey)),
+            Text(
+              "OTP sent for Customer ID: ${regState.customerId ?? 'User'}",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
             const SizedBox(height: 50),
 
             // OTP INPUT BOXES
@@ -108,6 +100,7 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  // Hidden TextField to capture input
                   SizedBox(
                     height: 58,
                     child: Opacity(
@@ -117,14 +110,15 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
                         focusNode: _focusNode,
                         keyboardType: TextInputType.number,
                         maxLength: 6,
-                        autofocus: true,
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         onChanged: (val) {
+                          setState(() {}); // Rebuild to update visual boxes
                           if (val.length == 6) _handleVerify();
                         },
                       ),
                     ),
                   ),
+                  // Visual OTP Boxes
                   IgnorePointer(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -137,6 +131,7 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
 
             const SizedBox(height: 60),
 
+            // VERIFY BUTTON
             SizedBox(
               width: double.infinity,
               height: kButtonHeight,
@@ -146,11 +141,12 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
                     : _handleVerify,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kAccentOrange,
+                  disabledBackgroundColor: kAccentOrange.withOpacity(0.5),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusSmall)),
                 ),
                 child: regState.status == RegistrationStatus.loading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("VERIFY OTP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    : const Text("VERIFY OTP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
             ),
           ],
@@ -167,11 +163,11 @@ class _RegistrationStep2OtpState extends ConsumerState<RegistrationStep2Otp> {
       width: 48,
       height: 58,
       decoration: BoxDecoration(
-        color: isFocused ? kAccentOrange.withOpacity(0.1) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        color: isFocused ? kAccentOrange.withOpacity(0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(kRadiusSmall),
         border: Border.all(
           color: isFocused ? kAccentOrange : Colors.grey.shade300,
-          width: isFocused ? 2 : 1.5,
+          width: isFocused ? 2.5 : 1.5,
         ),
       ),
       child: Center(
