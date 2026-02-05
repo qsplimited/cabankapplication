@@ -105,22 +105,63 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   // --- DESIGN: SliverAppBar with Notification Logic ---
   Widget _buildAppBar(BuildContext context, String name) {
     final colorScheme = Theme.of(context).colorScheme;
+
     return SliverAppBar(
-      expandedHeight: 120.0,
+      expandedHeight: 90.0, // Reduced from 120 to 90 to remove extra space
       floating: false,
       pinned: true,
+      elevation: 0,
       backgroundColor: colorScheme.primary,
+      automaticallyImplyLeading: true, // Ensures drawer icon is aligned
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.only(left: 55, bottom: 16),
-        title: Text(
-          "Welcome back, $name",
-          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+        centerTitle: false,
+        titlePadding: const EdgeInsets.only(left: 56, bottom: 12), // Aligned with Drawer icon
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Welcome back,",
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            Text(
+              name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
         ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_none, color: Colors.white),
-          onPressed: () => _showNotificationOverlay(context),
+        Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
+                onPressed: () => _showNotificationOverlay(context),
+              ),
+              // Optional: Small red dot for "new" notifications
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                ),
+              )
+            ],
+          ),
         ),
       ],
     );
@@ -143,91 +184,108 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildSingleAccountCard(BuildContext context, CustomerAccount account) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Masking logic for Account Number
     final displayAcc = _isAccountNoVisible
         ? account.savingAccountNumber
-        : "**** **** ${account.savingAccountNumber.substring(account.savingAccountNumber.length - 4)}";
+        : "**** **** ${account.savingAccountNumber.substring(account.savingAccountNumber.length > 4 ? account.savingAccountNumber.length - 4 : 0)}";
 
-    return GestureDetector(
-      onTap: () => _navigateTo(DetailedAccountViewScreen(customerId: account.customerId)),
-      child: Card(
-        elevation: 4,
-        margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), // Tight margins
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => DetailedAccountViewScreen(customerId: account.customerId)),
+        ),
         child: Container(
-          // FIX: Constrain height to prevent overflow
-          constraints: const BoxConstraints(minHeight: 160, maxHeight: 185),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: const Border(left: BorderSide(color: Colors.orange, width: 6)),
+            borderRadius: BorderRadius.circular(12),
+            border: const Border(left: BorderSide(color: Colors.orange, width: 5)),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
-            mainAxisSize: MainAxisSize.min, // FIX: Don't take unnecessary vertical space
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // TOP ROW: Visible Account Type & Hidden Account Number
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(account.accountType.toUpperCase(),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                  SizedBox(
-                    height: 30,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 20,
-                      icon: Icon(_isBalanceVisible ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
-                    ),
-                  )
+                  Text(
+                    account.accountType.toUpperCase(),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.orange, letterSpacing: 1),
+                  ),
+                  Row(
+                    children: [
+                      Text(displayAcc, style: TextStyle(color: Colors.grey.shade700, fontSize: 13, fontWeight: FontWeight.w500)),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => setState(() => _isAccountNoVisible = !_isAccountNoVisible),
+                        child: Icon(_isAccountNoVisible ? Icons.visibility : Icons.visibility_off, size: 18, color: Colors.grey),
+                      ),
+                    ],
+                  ),
                 ],
               ),
+
+              const SizedBox(height: 12),
               const Text("Available Balance", style: TextStyle(color: Colors.grey, fontSize: 12)),
-              const SizedBox(height: 4),
 
-              // THE LIVE BALANCE FETCH
-              FutureBuilder<double>(
-                future: ref.read(dashboardApiServiceProvider).fetchCurrentBalance(account.customerId),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Text("₹ ...", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold));
-                  }
-
-                  final balance = snapshot.data ?? 0.0;
-                  return FittedBox( // FIX: Prevents horizontal RenderFlex error
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      _isBalanceVisible ? "₹ ${balance.toStringAsFixed(2)}" : "•••••••",
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: colorScheme.primary),
-                    ),
-                  );
-                },
-              ),
-
-              const Spacer(), // Pushes the footer to the bottom safely
-
+              // MIDDLE ROW: Hidden Balance with Fixed Alignment (RenderFlex Fix)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded( // FIX: Prevents long names from causing overflow
+                  Expanded(
+                    child: FutureBuilder<double>(
+                      future: ref.read(dashboardApiServiceProvider).fetchCurrentBalance(account.savingAccountNumber),
+                      builder: (context, snapshot) {
+                        final balance = snapshot.data ?? 0.0;
+                        return FittedBox( // Scales text to fit container perfectly
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _isBalanceVisible ? "₹ ${balance.toStringAsFixed(2)}" : "₹ •••••••",
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                              letterSpacing: _isBalanceVisible ? 0 : 2,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(_isBalanceVisible ? Icons.visibility : Icons.visibility_off, color: colorScheme.primary, size: 22),
+                    onPressed: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+              const Divider(height: 1, thickness: 0.5),
+              const SizedBox(height: 10),
+
+              // BOTTOM ROW: Always Visible User Name
+              Row(
+                children: [
+                  const Icon(Icons.person_outline, size: 16, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
-                      "${account.firstName} | $displayAcc",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      account.fullName, // Visible by default
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: Colors.black87),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  SizedBox(
-                    height: 30,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 20,
-                      icon: Icon(_isAccountNoVisible ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _isAccountNoVisible = !_isAccountNoVisible),
-                    ),
-                  )
                 ],
-              )
+              ),
             ],
           ),
         ),
