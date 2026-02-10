@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 // Import the real service we just fixed
 import 'package:cabankapplication/api/real_device_service.dart';
 import 'package:cabankapplication/api/i_device_service.dart';
@@ -28,8 +30,21 @@ final deviceServiceProvider = Provider<IDeviceService>((ref) {
   return globalDeviceService;
 });
 
+
+
+
 Future<void> main() async {
+
+
   WidgetsFlutterBinding.ensureInitialized();
+
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+  // 3. Check if a user is already registered
+  final bool isRegistered = prefs.getBool('is_registered') ?? false;
+  final String? savedId = prefs.getString('saved_customer_id');
+
+
   try {
     // Attempt to load env, but don't crash if missing
     await dotenv.load(fileName: ".env");

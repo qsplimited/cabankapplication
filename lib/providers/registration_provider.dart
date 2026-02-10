@@ -4,6 +4,7 @@ import '../api/i_device_service.dart';
 import '../api/real_device_service.dart';
 import '../models/registration_models.dart';
 import '../utils/device_id_util.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum RegistrationStatus { initial, loading, success, failure }
 
@@ -49,21 +50,18 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
 
   RegistrationNotifier(this._service) : super(RegistrationState());
 
-  void reset() => state = RegistrationState();
-
-  Future<void> loadSavedId() async {
-    final savedId = await _storage.read(key: 'last_registered_id');
-    if (savedId != null) {
-      state = state.copyWith(customerId: savedId);
-    }
+  // --- KEY METHOD: Lock the gate after navigation ---
+  void resetStatus() {
+    state = state.copyWith(status: RegistrationStatus.initial, errorMessage: null);
   }
 
-  // NEW METHOD: Added to resolve 'login is not defined' error
+  void reset() => state = RegistrationState();
+
+  // --- LOGIN VERIFICATION (For Dashboard Use) ---
   Future<void> login(String mpin) async {
     state = state.copyWith(status: RegistrationStatus.loading, errorMessage: null);
     try {
       final did = await getUniqueDeviceId();
-      // Calls your endpoint: GET /customer/login/bympin
       final response = await _service.loginWithMpin(mpin: mpin, deviceId: did);
 
       if (response.success) {
@@ -71,36 +69,31 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
       } else {
         state = state.copyWith(
             status: RegistrationStatus.failure,
-            errorMessage: response.message
+            errorMessage: response.message ?? "Incorrect Login PIN"
         );
       }
     } catch (e) {
       state = state.copyWith(
           status: RegistrationStatus.failure,
-          errorMessage: "Login failed. Please check connection."
+          errorMessage: "Verification failed. Check internet."
       );
     }
   }
 
-  // Unified Identity Check (Step 1)
+  // --- OTHER METHODS ---
+  Future<void> loadSavedId() async {
+    final savedId = await _storage.read(key: 'last_registered_id');
+    if (savedId != null) state = state.copyWith(customerId: savedId);
+  }
+
   Future<void> submitIdentity(String customerId, String password) async {
     state = state.copyWith(status: RegistrationStatus.loading, errorMessage: null);
     try {
       final deviceId = await getUniqueDeviceId();
-      final response = await _service.verifyCredentials(
-          AuthRequest(customerId: customerId, password: password)
-      );
-
+      final response = await _service.verifyCredentials(AuthRequest(customerId: customerId, password: password));
       if (response.success) {
         await _storage.write(key: 'last_registered_id', value: customerId);
-
-        state = state.copyWith(
-          status: RegistrationStatus.success,
-          currentStep: 1,
-          customerId: customerId,
-          tempPassword: password,
-          deviceId: deviceId,
-        );
+        state = state.copyWith(status: RegistrationStatus.success, currentStep: 1, customerId: customerId, tempPassword: password, deviceId: deviceId);
         await Future.delayed(const Duration(milliseconds: 100));
         state = state.copyWith(status: RegistrationStatus.initial);
       } else {
@@ -114,7 +107,6 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
   Future<void> verifyOtp(String otp) async {
     final cid = state.customerId;
     if (cid == null) return;
-
     state = state.copyWith(status: RegistrationStatus.loading);
     try {
       final success = await _service.verifyOtp(otp: otp, customerId: cid, deviceId: state.deviceId ?? "");
@@ -131,25 +123,24 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
   Future<void> finalizeRegistration(String mpin) async {
     final cid = state.customerId;
     if (cid == null) return;
-
     state = state.copyWith(status: RegistrationStatus.loading);
     try {
-      final res = await _service.finalizeRegistration(
-        mpin: mpin,
-        customerId: cid,
-        deviceId: state.deviceId ?? await getUniqueDeviceId(),
-      );
-
+      final res = await _service.finalizeRegistration(mpin: mpin, customerId: cid, deviceId: state.deviceId ?? await getUniqueDeviceId());
       if (res['success'] == true) {
+        final SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('saved_customer_id', cid);
+        await prefs.setBool('is_registered', true);
         state = state.copyWith(status: RegistrationStatus.success, currentStep: 4);
       } else {
-        state = state.copyWith(status: RegistrationStatus.failure, errorMessage: res['message']);
+        state = state.copyWith(status: RegistrationStatus.failure, errorMessage: res['message'] ?? "Finalization Failed");
       }
     } catch (e) {
-      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Failed to set MPIN");
+      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Connection Error");
     }
   }
 }
+
+
 
 final registrationProvider = StateNotifierProvider<RegistrationNotifier, RegistrationState>((ref) {
   return RegistrationNotifier(RealDeviceService());

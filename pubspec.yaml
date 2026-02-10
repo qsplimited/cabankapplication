@@ -54,7 +54,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0 # Check for the latest stable version
   json_annotation: ^4.8.1 # Check for the latest stable version
 
-
+  shared_preferences: ^2.2.2
 
 
 

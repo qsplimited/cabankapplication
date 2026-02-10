@@ -6,6 +6,8 @@ import '../models/customer_account_model.dart';
 // 1. Instance of the Real API Service
 final dashboardApiServiceProvider = Provider((ref) => DashboardApiService());
 
+
+
 // 2. Main Account Provider
 // This watches the registration state. If customerId changes, it re-fetches.
 final dashboardAccountProvider = FutureProvider<CustomerAccount>((ref) async {

@@ -38,6 +38,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_mpinController.text.length == 6) {
       // This calls the GET /customer/login/bympin endpoint in your RealDeviceService
       ref.read(registrationProvider.notifier).login(_mpinController.text);
+
+      ref.read(registrationProvider.notifier).loadSavedId();
     }
   }
 

@@ -20,6 +20,9 @@ import 'chat_bot_screen.dart';
 import 'atm_locator_screen.dart';
 import '../providers/dashboard_provider.dart';
 import '../models/customer_account_model.dart';
+import 'tpin_screen.dart';
+
+import 'fund_transfer_screen.dart';
 
 final BankingService _bankingService = BankingService();
 
@@ -53,13 +56,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // WATCH THE REAL API DATA
     final accountAsync = ref.watch(dashboardAccountProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: colorScheme.background,
-      // 1. DRAWER (Preserved Logic)
       drawer: accountAsync.maybeWhen(
         data: (account) => _buildDrawer(context, account),
         orElse: () => const Drawer(child: Center(child: CircularProgressIndicator())),
@@ -68,32 +69,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onRefresh: () async => ref.refresh(dashboardAccountProvider),
         child: CustomScrollView(
           slivers: [
-            // 2. APP BAR (Preserved with dynamic Welcome Name)
             accountAsync.when(
               data: (account) => _buildAppBar(context, account.firstName),
               loading: () => _buildAppBar(context, "User"),
               error: (_, __) => _buildAppBar(context, "Error"),
             ),
 
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  const SizedBox(height: kPaddingMedium),
-
-                  // 3. ACCOUNT CARD (Preserved Design, Real Data)
-                  accountAsync.when(
-                    data: (account) => _buildAccountCarousel(context, account),
-                    loading: () => const SizedBox(height: 180, child: Center(child: CircularProgressIndicator())),
-                    error: (err, _) => Center(child: Text("Connection Error: $err")),
-                  ),
-
-                  _buildTpinAlertCard(),
-
-                  // 4. QUICK SERVICES GRID (Preserved Logic - Not Skipped)
-                  _buildQuickActions(),
-
-                  const SizedBox(height: 30),
-                ],
+            // THIS IS THE FIX: Wrapping the Column inside accountAsync.when
+            accountAsync.when(
+              data: (account) => SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    const SizedBox(height: kPaddingMedium),
+                    _buildAccountCarousel(context, account), // Preserved
+                    _buildTpinAlertCard(),                  // Preserved
+                    _buildQuickActions(account),            // FIXED: Passing account
+                    const SizedBox(height: 30),
+                  ],
+                ),
+              ),
+              loading: () => const SliverToBoxAdapter(
+                child: SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
+              ),
+              error: (err, _) => SliverToBoxAdapter(
+                child: Center(child: Text("Connection Error: $err")),
               ),
             ),
           ],
@@ -294,20 +293,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // --- DESIGN: Quick Actions Grid (Preserved) ---
-  Widget _buildQuickActions() {
+  Widget _buildQuickActions(CustomerAccount account) { // Added parameter here
     final colorScheme = Theme.of(context).colorScheme;
     final List<Map<String, dynamic>> actions = [
-      {'label': 'Quick Transfer', 'icon': Icons.flash_on_outlined, 'color': kAccentOrange, 'screen': const QuickTransferScreen()},
+      {
+        'label': 'Quick Transfer',
+        'icon': Icons.flash_on_outlined,
+        'color': kAccentOrange,
+        // This passes the real account data fetched from dashboardAccountProvider
+        'screen': FundTransferScreen(account: account),
+      },
+
+
       {'label': 'Transfer', 'icon': Icons.send_outlined, 'color': colorScheme.primary, 'screen': TransferFundsScreen(bankingService: _bankingService)},
       {'label': 'Payees', 'icon': Icons.people_alt_outlined, 'color': colorScheme.primary, 'screen': const bms.BeneficiaryManagementScreen()},
       {'label': 'Loan', 'icon': Icons.request_quote, 'color': colorScheme.primary, 'screen': const LoanLandingScreen()},
       {'label': 'History', 'icon': Icons.history, 'color': colorScheme.primary, 'screen': ths.TransactionHistoryScreen()},
-      {'label': 'T-PIN', 'icon': Icons.lock_reset_outlined, 'color': colorScheme.primary, 'screen': const TpinManagementScreen()},
+      {
+        'label': 'T-PIN',
+        'icon': Icons.lock_reset_outlined,
+        'color': colorScheme.primary,
+        // SUCCESS: Using the real account number from the API
+        'screen': TpinScreen(accountNumber: account.savingAccountNumber),
+      },
       {'label': 'Services', 'icon': Icons.design_services, 'color': colorScheme.primary, 'screen': ServicesManagementScreen()},
       {'label': 'Deposits', 'icon': Icons.lock_clock, 'color': colorScheme.primary, 'screen': DepositOpeningScreen()},
       {'label': 'Locate Us', 'icon': Icons.map_outlined, 'color': colorScheme.primary, 'screen': AtmLocatorScreen()},
     ];
 
+    // ... Rest of your GridView.builder code remains exactly the same
     return Padding(
       padding: const EdgeInsets.all(kPaddingMedium),
       child: GridView.builder(
@@ -325,7 +339,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(action['icon'], color: action['color'], size: 30),
+                  Icon(action['icon'], color: action['color'] ?? colorScheme.primary, size: 30),
                   const SizedBox(height: 5),
                   Text(action['label'], textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 ],

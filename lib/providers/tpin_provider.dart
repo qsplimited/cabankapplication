@@ -83,13 +83,31 @@ class TpinNotifier extends StateNotifier<TpinProcessState> {
     }
   }
 
+/*  void reset() {
+    state = TpinProcessState(status: TpinStateStatus.initial);
+  }*/
+
+
+
   Future<void> submitNewPin({required String newPin, String? oldPin}) async {
     state = state.copyWith(status: TpinStateStatus.loading);
     try {
+      // 1. Call your real API service here
+      // Example: final res = await _service.setTpinApi(accountNumber, newPin);
+
+      // For now, using your existing service call:
       final res = await _service.updateTransactionPin(newPin: newPin, oldPin: oldPin);
-      state = state.copyWith(status: TpinStateStatus.success, isTpinSet: true, message: res);
+
+      state = state.copyWith(
+          status: TpinStateStatus.success,
+          isTpinSet: true,
+          message: res
+      );
     } catch (e) {
-      state = state.copyWith(status: TpinStateStatus.error, error: e.toString());
+      state = state.copyWith(
+          status: TpinStateStatus.error,
+          error: e.toString()
+      );
     }
   }
 
