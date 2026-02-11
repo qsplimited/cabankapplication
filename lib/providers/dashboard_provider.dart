@@ -1,31 +1,38 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'registration_provider.dart'; // Ensure this contains your logged-in customerId
+import 'registration_provider.dart';
 import '../api/dashboard_api_service.dart';
 import '../models/customer_account_model.dart';
 
 // 1. Instance of the Real API Service
 final dashboardApiServiceProvider = Provider((ref) => DashboardApiService());
 
-
-
 // 2. Main Account Provider
-// This watches the registration state. If customerId changes, it re-fetches.
-final dashboardAccountProvider = FutureProvider<CustomerAccount>((ref) async {
-  // Pull the real ID (e.g., "A-0046") from your login state
+// Updated to chain profile and balance endpoints for a single source of truth
+// lib/providers/dashboard_provider.dart
+
+// lib/providers/dashboard_provider.dart
+
+// Use autoDispose so it can be refreshed easily
+final dashboardAccountProvider = FutureProvider.autoDispose<CustomerAccount>((ref) async {
   final authState = ref.watch(registrationProvider);
   final customerId = authState.customerId;
 
-  if (customerId == null) {
-    throw Exception("No User Session Found. Please Login.");
-  }
+  if (customerId == null) throw Exception("No Session");
 
-  // Fetch from the real API using the ID
-  return ref.read(dashboardApiServiceProvider).fetchAccountDetails(customerId);
+  final apiService = ref.read(dashboardApiServiceProvider);
+
+  // 1. Get the profile
+  final profile = await apiService.fetchAccountDetails(customerId);
+
+  // 2. Get the NEW balance from the history endpoint you showed earlier
+  // This is what will pull the 19,000
+  final latestBalance = await apiService.fetchCurrentBalance(profile.savingAccountNumber);
+
+  // 3. Return the merged data
+  return profile.copyWith(balance: latestBalance);
 });
 
-// 3. Detail Provider for the Detailed Screen
-// We use a family provider so we can pass the customerId from the UI
-final accountDetailProvider = FutureProvider.family<CustomerAccount, String>((ref, id) async {
-  // Simply returns the data already fetched in the main provider
+// Update this to watch the autoDispose provider
+final accountDetailProvider = FutureProvider.family.autoDispose<CustomerAccount, String>((ref, id) async {
   return await ref.watch(dashboardAccountProvider.future);
 });

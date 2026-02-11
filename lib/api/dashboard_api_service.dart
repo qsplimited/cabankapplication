@@ -15,11 +15,24 @@ class DashboardApiService {
     }
   }
 
+// lib/api/dashboard_api_service.dart
+
+// lib/api/dashboard_api_service.dart
+
+// lib/api/dashboard_api_service.dart
+
   Future<double> fetchCurrentBalance(String accountNumber) async {
     try {
-      final res = await _dio.get('/api/transactions/history', queryParameters: {'accountNumber': accountNumber});
+      final res = await _dio.get(
+        '/api/transactions/history',
+        queryParameters: {
+          'accountNumber': accountNumber,
+          '_t': DateTime.now().millisecondsSinceEpoch, // FORCES server to give fresh data
+        },
+      );
+
       if (res.statusCode == 200 && res.data is List && res.data.isNotEmpty) {
-        // Pulls the latest currentBalance from the first transaction object
+        // res.data[0] is the latest transaction from your Swagger output
         return double.tryParse(res.data[0]['currentBalance'].toString()) ?? 0.0;
       }
       return 0.0;

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/customer_account_model.dart';
 import '../api/transaction_service.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 import 'transfer_confirm_screen.dart';
-
 import '../providers/dashboard_provider.dart';
 
 // Provider for the transaction service logic
@@ -20,10 +21,11 @@ class FundTransferScreen extends ConsumerStatefulWidget {
 class _FundTransferScreenState extends ConsumerState<FundTransferScreen> {
   final _toAccController = TextEditingController();
   final _amountController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
 
   String _recipientName = "";
   bool _isFetchingName = false;
-  final _formKey = GlobalKey<FormState>();
+  String? _accountError;
 
   @override
   void dispose() {
@@ -32,15 +34,14 @@ class _FundTransferScreenState extends ConsumerState<FundTransferScreen> {
     super.dispose();
   }
 
-  // Automatically fetches the recipient name once a valid account length is typed
   void _onAccountChanged(String value) async {
-    // Assuming 10 digits is the minimum for your bank's account numbers
-    if (value.length >= 10) {
-      setState(() {
-        _isFetchingName = true;
-        _recipientName = "";
-      });
+    setState(() {
+      _accountError = null;
+      _recipientName = "";
+    });
 
+    if (value.length == 12) { // Assuming standard 12-digit account
+      setState(() => _isFetchingName = true);
       try {
         final name = await ref.read(transServiceProvider).getRecipientName(value);
         setState(() {
@@ -49,119 +50,100 @@ class _FundTransferScreenState extends ConsumerState<FundTransferScreen> {
         });
       } catch (e) {
         setState(() {
-          _recipientName = "Account not found";
+          _accountError = "Beneficiary not found";
           _isFetchingName = false;
         });
       }
-    } else {
-      if (_recipientName.isNotEmpty) setState(() => _recipientName = "");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: kLightBackground, // Using professional light grey
       appBar: AppBar(
-        title: const Text("Transfer Funds"),
+        title: const Text("Intra-Bank Transfer"),
+        backgroundColor: kAccentOrange, // Brand Orange
+        foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(kPaddingLarge), // Standardized padding
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Sender Info Section
-              _buildSenderCard(),
-              const SizedBox(height: 30),
+              _buildCompactSourceCard(),
+              const SizedBox(height: kSpacingLarge),
 
-              // 2. Recipient Input Field
-              const Text("Recipient Details",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-              const SizedBox(height: 12),
+              _buildSectionHeader("PAYEE DETAILS"),
+              const SizedBox(height: kSpacingSmall),
               TextFormField(
                 controller: _toAccController,
                 onChanged: _onAccountChanged,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: "To Account Number",
-                  prefixIcon: const Icon(Icons.account_balance_outlined),
+                  labelText: "Beneficiary Account Number",
+                  hintText: "Enter 12-digit account number",
+                  errorText: _accountError,
+                  prefixIcon: const Icon(Icons.account_balance_outlined, color: kBrandNavy),
                   suffixIcon: _isFetchingName
-                      ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(strokeWidth: 2))
                       : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                validator: (val) => (val == null || val.isEmpty) ? "Enter account number" : null,
               ),
 
-              // Recipient Name Feedback
-              if (_recipientName.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0, left: 4.0),
-                  child: Text(
-                    "Recipient: $_recipientName",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: _recipientName.contains("not found") ? Colors.red : Colors.green[700],
-                    ),
-                  ),
-                ),
+              // Enhanced Verified Recognition Badge
+              if (_recipientName.isNotEmpty) _buildVerifiedBadge(),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: kSpacingLarge),
 
-              // 3. Amount Input Field
+              _buildSectionHeader("TRANSACTION AMOUNT"),
+              const SizedBox(height: kSpacingSmall),
               TextFormField(
                 controller: _amountController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  labelText: "Amount",
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kBrandNavy),
+                decoration: const InputDecoration(
+                  labelText: "Transfer Amount",
                   prefixText: "₹ ",
-                  prefixStyle: const TextStyle(fontSize: 20),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  prefixStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kBrandNavy),
                 ),
                 validator: (val) {
-                  if (val == null || val.isEmpty) return "Enter amount";
-                  if (double.tryParse(val) == null) return "Enter a valid number";
+                  if (val == null || val.isEmpty) return "Please enter an amount";
+                  if (double.tryParse(val) == null) return "Invalid amount format";
                   return null;
                 },
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 60),
 
-              // 4. Continue Button
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[900],
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: (_recipientName.isEmpty || _recipientName.contains("not found"))
-                      ? null
-                      : () {
-                    if (_formKey.currentState!.validate()) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TransferConfirmScreen(
-                            fromAccount: widget.account.savingAccountNumber,
-                            toAccount: _toAccController.text,
-                            recipientName: _recipientName,
-                            amount: double.parse(_amountController.text),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text(
-                    "CONTINUE",
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+              // Styled Primary Action Button
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kAccentOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusMedium)),
                 ),
+                onPressed: (_recipientName.isEmpty || _accountError != null)
+                    ? null
+                    : () {
+                  if (_formKey.currentState!.validate()) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TransferConfirmScreen(
+                          fromAccount: widget.account.savingAccountNumber,
+                          toAccount: _toAccController.text,
+                          recipientName: _recipientName,
+                          amount: double.parse(_amountController.text),
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: const Text("PROCEED TO REVIEW"),
               ),
             ],
           ),
@@ -170,38 +152,85 @@ class _FundTransferScreenState extends ConsumerState<FundTransferScreen> {
     );
   }
 
-  // Custom UI for the "From Account" display
-  Widget _buildSenderCard() {
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: kLightTextSecondary,
+        letterSpacing: 1.1,
+      ),
+    );
+  }
+
+  Widget _buildCompactSourceCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(kPaddingMedium),
       decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue[100]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(kRadiusMedium),
+        border: Border.all(color: kBrandNavy.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: kBrandNavy.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Transfer From", style: TextStyle(color: Colors.blueGrey, fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(widget.account.savingAccountNumber,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-          const SizedBox(height: 4),
-
-          // Use FutureBuilder to fetch the real balance from your API
+          const Text("SOURCE ACCOUNT",
+              style: TextStyle(color: kLightTextSecondary, fontSize: 10, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(
+            widget.account.savingAccountNumber,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kBrandNavy, letterSpacing: 1.2),
+          ),
+          const Divider(height: 20),
           FutureBuilder<double>(
             future: ref.read(dashboardApiServiceProvider).fetchCurrentBalance(widget.account.savingAccountNumber),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Text("Balance: Loading...", style: TextStyle(fontSize: 13));
-              }
               final balance = snapshot.data ?? 0.0;
-              return Text(
-                "Balance: ₹ ${balance.toStringAsFixed(2)}",
-                style: TextStyle(color: Colors.blue[800], fontSize: 13, fontWeight: FontWeight.w500),
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Available Balance", style: TextStyle(color: kLightTextSecondary, fontSize: 13)),
+                  Text(
+                    "₹ ${balance.toStringAsFixed(2)}",
+                    style: const TextStyle(color: kBrandNavy, fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                ],
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerifiedBadge() {
+    return Container(
+      margin: const EdgeInsets.only(top: kPaddingSmall),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: kSuccessGreen.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(kRadiusSmall),
+        border: Border.all(color: kSuccessGreen.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.verified_user, color: kSuccessGreen, size: 16),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              "Verified Payee: $_recipientName",
+              style: const TextStyle(color: kSuccessGreen, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
           ),
         ],
       ),

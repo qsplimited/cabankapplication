@@ -1,9 +1,8 @@
+import 'package:cabankapplication/screens/security_pin_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../api/transaction_service.dart';
-import '../widgets/tpin_input_sheet.dart';
-
-final transServiceProvider = Provider((ref) => TransactionService());
+import '../theme/app_colors.dart';
+import '../theme/app_dimensions.dart';
 
 class TransferConfirmScreen extends ConsumerWidget {
   final String fromAccount;
@@ -22,109 +21,104 @@ class TransferConfirmScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(title: const Text("Confirm Details"), centerTitle: true),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text("Confirm Details"),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: kBrandNavy,
+        elevation: 0,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(kPaddingLarge),
         child: Column(
           children: [
-            // The Receipt Slip
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+            // Professional Receipt Card
+            Card(
+              elevation: 0,
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kRadiusLarge),
+                side: BorderSide(color: kBrandNavy.withOpacity(0.1)),
               ),
-              child: Column(
-                children: [
-                  const Icon(Icons.check_circle_outline, color: Colors.blue, size: 50),
-                  const SizedBox(height: 16),
-                  const Text("Transaction Summary", style: TextStyle(fontSize: 16, color: Colors.grey)),
-                  Text("₹ ${amount.toStringAsFixed(2)}",
-                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black)),
-                  const Divider(height: 40),
-                  _buildDetailRow("From Account", fromAccount),
-                  _buildDetailRow("To Account", toAccount),
-                  _buildDetailRow("Recipient", recipientName),
-                  const Divider(height: 40),
-                  _buildDetailRow("Bank Charges", "₹ 0.00"),
-                  _buildDetailRow("Total Payable", "₹ ${amount.toStringAsFixed(2)}", isBold: true),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(kPaddingLarge),
+                child: Column(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined, size: 48, color: kBrandNavy),
+                    const SizedBox(height: kPaddingMedium),
+                    const Text("You are transferring",
+                        style: TextStyle(color: kLightTextSecondary, fontSize: 14)),
+                    const SizedBox(height: 8),
+                    Text(
+                      "₹ ${amount.toStringAsFixed(2)}",
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: kBrandNavy,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: kPaddingMedium),
+                      child: Divider(),
+                    ),
+                    _buildConfirmRow("From Account", fromAccount),
+                    _buildConfirmRow("Recipient Name", recipientName),
+                    _buildConfirmRow("Recipient Account", toAccount),
+                    _buildConfirmRow("Transfer Type", "Intra-Bank Transfer"),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 50),
 
+            const SizedBox(height: kSpacingExtraLarge),
+
+            // Proceed Button
             SizedBox(
               width: double.infinity,
-              height: 56,
+              height: kButtonHeight,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[900],
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: kAccentOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(kRadiusMedium),
+                  ),
+                  elevation: 2,
                 ),
-                onPressed: () => _openPinSheet(context, ref),
-                child: const Text("CONFIRM & PAY", style: TextStyle(color: Colors.white, fontSize: 16)),
+                onPressed: () {
+                  // FIX: Added the missing 'recipientName' parameter here
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SecurityPinScreen(
+                        fromAccount: fromAccount,
+                        toAccount: toAccount,
+                        amount: amount,
+                        recipientName: recipientName, // Added this line
+                      ),
+                    ),
+                  );
+                },
+                child: const Text(
+                  "PROCEED TO PAY",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  void _openPinSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => TpinInputSheet(
-        onConfirm: (pin) {
-          Navigator.pop(context); // Close sheet
-          _handleTransfer(context, ref, pin);
-        },
-      ),
-    );
-  }
-
-  void _handleTransfer(BuildContext context, WidgetRef ref, String pin) async {
-    // Show loading
-    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-
-    try {
-      final res = await ref.read(transServiceProvider).transferFunds(
-        fromAcc: fromAccount,
-        toAcc: toAccount,
-        amount: amount,
-        mpin: pin,
-      );
-
-      Navigator.pop(context); // Close loading
-      _showStatusDialog(context, true, res.transactionRefNo);
-    } catch (e) {
-      Navigator.pop(context); // Close loading
-      _showStatusDialog(context, false, e.toString());
-    }
-  }
-
-  void _showStatusDialog(BuildContext context, bool isSuccess, String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(isSuccess ? Icons.verified : Icons.error, color: isSuccess ? Colors.green : Colors.red, size: 70),
-            const SizedBox(height: 20),
-            Text(isSuccess ? "Success!" : "Failed", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            Text(isSuccess ? "Ref: $message" : message, textAlign: TextAlign.center),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-              child: const Text("GO TO DASHBOARD"),
+            const SizedBox(height: kPaddingMedium),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.security, size: 14, color: kLightTextSecondary),
+                SizedBox(width: 4),
+                Text(
+                  "Verified & Secure Transaction",
+                  style: TextStyle(color: kLightTextSecondary, fontSize: 12),
+                ),
+              ],
             )
           ],
         ),
@@ -132,14 +126,21 @@ class TransferConfirmScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isBold = false}) {
+  Widget _buildConfirmRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(value, style: TextStyle(fontWeight: isBold ? FontWeight.bold : FontWeight.w600, fontSize: 14)),
+          Text(label, style: const TextStyle(color: kLightTextSecondary, fontSize: 13)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: kBrandNavy,
+            ),
+          ),
         ],
       ),
     );

@@ -8,21 +8,21 @@ class TpinApi {
 
   Future<Map<String, dynamic>> createTransactionMpin({
     required String accountNumber,
-    required String mpin,
+    required String tpin, // Renamed for clarity to match backend
   }) async {
     try {
-      // This matches your curl: POST to URL?accountNumber=X&mpin=Y
+      // Endpoint: /api/transactions/create-transaction-mpin
+      // Parameters: accountNumber and tpin (NOT mpin)
       final response = await _dio.post(
         '/api/transactions/create-transaction-mpin',
         queryParameters: {
           'accountNumber': accountNumber,
-          'mpin': mpin,
+          'tpin': tpin, // Fixed key to match backend
         },
       );
 
       return response.data;
     } on DioException catch (e) {
-      // Handling specific Dio errors
       throw e.response?.data['message'] ?? "Server Error";
     }
   }

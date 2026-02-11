@@ -46,6 +46,8 @@ dependencies:
   flutter_riverpod: ^2.5.1
 
   # Use the latest stable version
+
+  screenshot: ^3.0.0
   pdf: ^3.10.0              # Creates the PDF
   path_provider: ^2.1.0     # Finds the saving location
   permission_handler: ^11.3.1 # Handles storage permissions
@@ -60,7 +62,7 @@ dependencies:
 
 
   printing: ^5.9.1 # Often used alongside pdf for printing/saving
-  share_plus: ^7.1.0 # For opening the device's share sheet
+  share_plus: ^10.1.0 # For opening the device's share sheet
 
   flutter_dotenv: ^5.1.0
   connectivity_plus: ^6.0.3

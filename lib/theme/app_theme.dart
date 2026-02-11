@@ -30,6 +30,22 @@ class AppTheme {
     isDark: false,
   );
 
+
+  // Inside AppTheme class, you can define a specific decoration for PIN bubbles
+  static BoxDecoration pinDecoration = BoxDecoration(
+    color: kLightBackground,
+    borderRadius: BorderRadius.circular(kRadiusMedium),
+    border: Border.all(color: kBrandNavy.withOpacity(0.2)),
+    boxShadow: [
+      BoxShadow(
+        color: kBrandNavy.withOpacity(0.05),
+        blurRadius: 10,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  );
+
+
   // -------------------------
   // DARK THEME
   // -------------------------

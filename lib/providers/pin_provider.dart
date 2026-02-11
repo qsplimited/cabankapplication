@@ -16,19 +16,24 @@ class PinNotifier extends StateNotifier<PinState> {
     connectTimeout: const Duration(seconds: 10),
   ));
 
-  Future<bool> setTransactionPin(String accountNumber, String mpin) async {
+  Future<bool> setTransactionPin(String accountNumber, String tpin) async {
     state = PinState(isLoading: true);
     try {
       final response = await _dio.post(
         '/api/transactions/create-transaction-mpin',
         queryParameters: {
           'accountNumber': accountNumber,
-          'mpin': mpin,
+          'tpin': tpin, // FIXED: Changed parameter key and value to match backend
         },
       );
 
       state = PinState(isLoading: false);
+      // Returns true if 200 OK or 201 Created
       return response.statusCode == 200 || response.statusCode == 201;
+    } on DioException catch (e) {
+      final errorMsg = e.response?.data['message'] ?? e.toString();
+      state = PinState(isLoading: false, errorMessage: errorMsg);
+      return false;
     } catch (e) {
       state = PinState(isLoading: false, errorMessage: e.toString());
       return false;

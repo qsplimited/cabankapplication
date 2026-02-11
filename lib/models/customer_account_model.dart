@@ -9,7 +9,9 @@ class CustomerAccount {
   final String email;
   final String documentType;
   final String documentNumber;
+  final String accountNumber;
   final String createdDate;
+  final double balance; // This will hold the value from history
 
   CustomerAccount({
     required this.customerId,
@@ -22,13 +24,36 @@ class CustomerAccount {
     required this.email,
     required this.documentType,
     required this.documentNumber,
+    required this.accountNumber,
     required this.createdDate,
+    this.balance = 0.0,
   });
 
   String get fullName => "$firstName $lastName";
 
+  // ADD THIS METHOD: It allows merging profile + balance
+  CustomerAccount copyWith({double? balance}) {
+    return CustomerAccount(
+      customerId: customerId,
+      savingAccountNumber: savingAccountNumber,
+      firstName: firstName,
+      lastName: lastName,
+      branchCode: branchCode,
+      accountType: accountType,
+      mobileNo: mobileNo,
+      email: email,
+      documentType: documentType,
+      documentNumber: documentNumber,
+      accountNumber: accountNumber,
+      createdDate: createdDate,
+      balance: balance ?? this.balance,
+    );
+  }
+
   factory CustomerAccount.fromJson(Map<String, dynamic> json) {
+    // Navigation into the 'value' object as per your API response
     final val = json['value'] ?? {};
+
     return CustomerAccount(
       customerId: val['customerId']?.toString() ?? '',
       savingAccountNumber: val['savingAccountNumber']?.toString() ?? '',
@@ -40,7 +65,13 @@ class CustomerAccount {
       email: val['email']?.toString() ?? '',
       documentType: val['documentType']?.toString() ?? '',
       documentNumber: val['documentNumber']?.toString() ?? '',
+      accountNumber: val['accountNumber']?.toString() ?? '',
       createdDate: val['createdDate']?.toString() ?? '',
+
+      // FIX: Look for 'balance' in the top level or value object
+      // to avoid resetting to 0.0 if the data already exists.
+      balance: (json['balance'] as num?)?.toDouble() ??
+          (val['balance'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
