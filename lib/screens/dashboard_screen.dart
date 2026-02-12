@@ -397,7 +397,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: Text(account.firstName[0], style: TextStyle(color: colorScheme.primary, fontSize: 24, fontWeight: FontWeight.bold)),
             ),
           ),
-          ListTile(leading: const Icon(Icons.person_outline), title: const Text("Profile"), onTap: () => _navigateTo(const ProfileManagementScreen())),
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text("Profile"),
+            onTap: () => _navigateTo(const ProfileManagementScreen()), // No need to pass ID anymore!
+          ),
           ListTile(leading: const Icon(Icons.logout), title: const Text("Logout"), onTap: () => Navigator.pop(context)),
         ],
       ),

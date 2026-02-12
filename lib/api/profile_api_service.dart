@@ -1,31 +1,26 @@
-import '../models/profile_model.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../models/customer_account_model.dart';
+import 'api_constants.dart';
+
 
 class ProfileApiService {
-  // Mock JSON data representing what your API will return
-  static final Map<String, dynamic> _mockProfileJson = {
-    'fullName': 'Aarav Sharma',
-    'cifId': 'CIF10023456',
-    'mobileNumber': '+91 98765 43210',
-    'dateOfBirth': '20/05/1990',
-    'emailId': 'aarav.sharma@example.com',
-    'communicationAddress': 'Plot No. 12, Sector 15, Dwarka, New Delhi - 110078',
-    'kycDetails': {
-      'aadhaarNumber': 'XXXX XXXX 1234',
-      'panNumber': 'ABCDE1234F',
-    },
-    'lastLoginTimestamp': '2025-11-27T09:30:00',
-  };
+  // If using a physical device, replace 'localhost' with your machine's IP address
+  final String baseUrl = ApiConstants.baseUrl;
 
-  /// Fetch profile from API
-  Future<ProfileData> getProfile() async {
-    await Future.delayed(const Duration(milliseconds: 800)); // Simulate network latency
-    return ProfileData.fromJson(_mockProfileJson);
-  }
+  Future<CustomerAccount> getCustomerProfile(String customerId) async {
+    final url = Uri.parse('$baseUrl/customer/get/by/cstmrid?customerId=$customerId');
 
-  /// Update a specific field via API (e.g., PUT /profile/update)
-  Future<bool> updateField(String fieldKey, String value) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    // In real API: return response.statusCode == 200;
-    return true;
+    try {
+      final response = await http.get(url, headers: {'accept': '*/*'});
+
+      if (response.statusCode == 200) {
+        return CustomerAccount.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Failed to load profile for user: $customerId');
+      }
+    } catch (e) {
+      throw Exception('Network Error: $e');
+    }
   }
 }

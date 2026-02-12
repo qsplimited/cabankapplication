@@ -1,4 +1,6 @@
 class CustomerAccount {
+  final int? id; // Added from API
+  final String? approverStaffId; // Added from API
   final String customerId;
   final String savingAccountNumber;
   final String firstName;
@@ -11,9 +13,11 @@ class CustomerAccount {
   final String documentNumber;
   final String accountNumber;
   final String createdDate;
-  final double balance; // This will hold the value from history
+  final double balance;
 
   CustomerAccount({
+    this.id,
+    this.approverStaffId,
     required this.customerId,
     required this.savingAccountNumber,
     required this.firstName,
@@ -31,9 +35,10 @@ class CustomerAccount {
 
   String get fullName => "$firstName $lastName";
 
-  // ADD THIS METHOD: It allows merging profile + balance
   CustomerAccount copyWith({double? balance}) {
     return CustomerAccount(
+      id: id,
+      approverStaffId: approverStaffId,
       customerId: customerId,
       savingAccountNumber: savingAccountNumber,
       firstName: firstName,
@@ -51,10 +56,11 @@ class CustomerAccount {
   }
 
   factory CustomerAccount.fromJson(Map<String, dynamic> json) {
-    // Navigation into the 'value' object as per your API response
     final val = json['value'] ?? {};
 
     return CustomerAccount(
+      id: val['id'] as int?,
+      approverStaffId: val['approverStaffId']?.toString(),
       customerId: val['customerId']?.toString() ?? '',
       savingAccountNumber: val['savingAccountNumber']?.toString() ?? '',
       firstName: val['firstName']?.toString() ?? '',
@@ -65,11 +71,8 @@ class CustomerAccount {
       email: val['email']?.toString() ?? '',
       documentType: val['documentType']?.toString() ?? '',
       documentNumber: val['documentNumber']?.toString() ?? '',
-      accountNumber: val['accountNumber']?.toString() ?? '',
+      accountNumber: val['accountNumber']?.toString() ?? val['savingAccountNumber']?.toString() ?? '',
       createdDate: val['createdDate']?.toString() ?? '',
-
-      // FIX: Look for 'balance' in the top level or value object
-      // to avoid resetting to 0.0 if the data already exists.
       balance: (json['balance'] as num?)?.toDouble() ??
           (val['balance'] as num?)?.toDouble() ?? 0.0,
     );

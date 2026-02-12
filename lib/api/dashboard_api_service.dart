@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import '../models/customer_account_model.dart';
+import 'api_constants.dart';
+
 
 class DashboardApiService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://192.168.0.102:8088',
+    baseUrl: ApiConstants.baseUrl, // <--- USE CONSTANT
   ));
 
   Future<CustomerAccount> fetchAccountDetails(String customerId) async {
@@ -24,16 +26,18 @@ class DashboardApiService {
   Future<double> fetchCurrentBalance(String accountNumber) async {
     try {
       final res = await _dio.get(
-        '/api/transactions/history',
-        queryParameters: {
-          'accountNumber': accountNumber,
-          '_t': DateTime.now().millisecondsSinceEpoch, // FORCES server to give fresh data
-        },
+          '/api/transactions/history',
+          queryParameters: {
+            'accountNumber': accountNumber, // Matches your Swagger key
+            '_t': DateTime.now().millisecondsSinceEpoch,
+          }
       );
 
       if (res.statusCode == 200 && res.data is List && res.data.isNotEmpty) {
-        // res.data[0] is the latest transaction from your Swagger output
-        return double.tryParse(res.data[0]['currentBalance'].toString()) ?? 0.0;
+        // Many backends append new transactions to the END.
+        // We pick the very last transaction to get the most recent balance.
+        final latestTransaction = res.data.last;
+        return double.tryParse(latestTransaction['currentBalance'].toString()) ?? 0.0;
       }
       return 0.0;
     } catch (e) {

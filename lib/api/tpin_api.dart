@@ -1,8 +1,11 @@
 import 'package:dio/dio.dart';
+import 'api_constants.dart';
 
 class TpinApi {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://192.168.0.102:8088',
+    // 2. USE THE CONSTANT: This ensures if your IP changes to .104 or .105 later,
+    // you only change it in ONE file (api_constants.dart).
+    baseUrl: ApiConstants.baseUrl,
     connectTimeout: const Duration(seconds: 10),
   ));
 

@@ -3,13 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/transaction_response_model.dart';
 import '../models/account_details_model.dart'; // Ensure this exists for mapping
 
+import 'api_constants.dart';
+
 // Global provider for the service
 final transServiceProvider = Provider((ref) => TransactionService());
 
 class TransactionService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: 'http://192.168.0.102:8088'));
+  // 2. CHANGE THIS: Use the constant instead of .102
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: ApiConstants.baseUrl,
+    connectTimeout: const Duration(seconds: 10),
+  ));
 
-  // --- NEW METHOD FOR REFRESHING BALANCE ---
   Future<AccountDetails> getAccountDetails(String accountNumber) async {
     try {
       final response = await _dio.get(

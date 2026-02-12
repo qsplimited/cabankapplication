@@ -17,18 +17,17 @@ final dashboardAccountProvider = FutureProvider.autoDispose<CustomerAccount>((re
   final authState = ref.watch(registrationProvider);
   final customerId = authState.customerId;
 
-  if (customerId == null) throw Exception("No Session");
+  if (customerId == null) throw Exception("No User Session Found");
 
   final apiService = ref.read(dashboardApiServiceProvider);
 
-  // 1. Get the profile
+  // 1. Fetch Profile
   final profile = await apiService.fetchAccountDetails(customerId);
 
-  // 2. Get the NEW balance from the history endpoint you showed earlier
-  // This is what will pull the 19,000
-  final latestBalance = await apiService.fetchCurrentBalance(profile.savingAccountNumber);
+  // 2. Fetch Balance using accountNumber (Matches Swagger: ?accountNumber=...)
+  // FIX: Use profile.accountNumber instead of profile.savingAccountNumber
+  final latestBalance = await apiService.fetchCurrentBalance(profile.accountNumber);
 
-  // 3. Return the merged data
   return profile.copyWith(balance: latestBalance);
 });
 

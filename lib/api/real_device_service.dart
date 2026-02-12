@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
 import 'i_device_service.dart';
+import 'api_constants.dart';
 import '../models/registration_models.dart';
 
 class RealDeviceService implements IDeviceService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://192.168.0.102:8088',
-    headers: {'Accept': '*/*'}, // Matches Swagger Header
+    // 2. CHANGE THIS: Use the Constant instead of hardcoding
+    baseUrl: ApiConstants.baseUrl,
+    headers: {'Accept': '*/*'},
+    connectTimeout: const Duration(seconds: 10), // Add a timeout
   ));
 
   @override
