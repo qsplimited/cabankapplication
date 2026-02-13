@@ -22,6 +22,8 @@ class _ForgotMpinIdentityState extends ConsumerState<ForgotMpinIdentity> {
     final regState = ref.watch(registrationProvider);
     final displayId = regState.customerId ?? widget.autoCustomerId;
 
+// This existing code in forgot_mpin_identity.dart
+// already handles the transition to OTP after successful ID/Pass check
     ref.listen(registrationProvider, (prev, next) {
       if (next.status == RegistrationStatus.success && next.currentStep == 1) {
         Navigator.push(context, MaterialPageRoute(builder: (_) => const RegistrationStep2Otp()));
@@ -65,12 +67,17 @@ class _ForgotMpinIdentityState extends ConsumerState<ForgotMpinIdentity> {
               child: ElevatedButton(
                 onPressed: (displayId == null || regState.status == RegistrationStatus.loading)
                     ? null
-                    : () => ref.read(registrationProvider.notifier).submitIdentity(displayId, _passController.text),
-                style: ElevatedButton.styleFrom(backgroundColor: kAccentOrange),
+                    : () {
+                  // Re-uses the /customer/login endpoint to verify identity and send OTP
+                  ref.read(registrationProvider.notifier).submitIdentity(
+                      displayId!,
+                      _passController.text
+                  );
+                },
                 child: regState.status == RegistrationStatus.loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("SEND OTP", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
+                    ? const CircularProgressIndicator()
+                    : const Text("SEND OTP"),
+              )
             ),
           ],
         ),

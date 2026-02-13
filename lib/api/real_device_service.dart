@@ -61,18 +61,46 @@ class RealDeviceService implements IDeviceService {
     });
     return {'success': res.data['value'] == true, 'message': res.data['message']};
   }
+// real_device_service.dart
+  @override
+  Future<AuthResponse> sendOtpByCustomerId(String customerId) async {
+    try {
+      // POST request to the specific endpoint for Forgot MPIN
+      final res = await _dio.post(
+          '/customer/sendotp/by/customer/id',
+          queryParameters: {'customerId': customerId}
+      );
+
+      return AuthResponse(
+        success: res.data['value'] == true,
+        message: res.data['message'] ?? 'OTP Sent Successfully',
+      );
+    } catch (e) {
+      print("Send OTP Error: $e");
+      return AuthResponse(success: false, message: "Failed to send OTP. Please try again.");
+    }
+  }
+// real_device_service.dart
 
   @override
   Future<AuthResponse> loginWithMpin({required String mpin, required String deviceId}) async {
-    // GET http://localhost:8088/customer/login/bympin?deviceId=...&mpin=...
-    final res = await _dio.get('/customer/login/bympin', queryParameters: {
-      'deviceId': deviceId,
-      'mpin': mpin,
-    });
-    return AuthResponse(
-      success: res.data['value'] == true,
-      message: res.data['message'] ?? '',
-    );
+    try {
+      // DEBUG: Check if deviceId is empty before sending
+      print("LOGIN ATTEMPT - DeviceID: '$deviceId', PIN: '$mpin'");
+
+      final res = await _dio.get('/customer/login/bympin', queryParameters: {
+        'deviceId': deviceId,
+        'mpin': mpin,
+      });
+
+      return AuthResponse(
+        success: res.data['value'] == true, // Explicitly check the backend's boolean
+        message: res.data['message'] ?? '',
+      );
+    } catch (e) {
+      print("Network Error: $e");
+      return AuthResponse(success: false, message: "Server connection failed");
+    }
   }
 
   @override

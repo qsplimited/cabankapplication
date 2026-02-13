@@ -5,6 +5,7 @@ import '../providers/registration_provider.dart';
 import 'forgot_mpin_identity.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimensions.dart';
+import 'registration_step2_otp.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -34,12 +35,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    if (_mpinController.text.length == 6) {
-      // This calls the GET /customer/login/bympin endpoint in your RealDeviceService
-      ref.read(registrationProvider.notifier).login(_mpinController.text);
+// login_screen.dart
 
-      ref.read(registrationProvider.notifier).loadSavedId();
+// login_screen.dart
+
+  void _handleLogin() async { // Ensure async is here
+    if (_mpinController.text.length == 6) {
+      // Must use await to prevent the app from continuing before the server answers
+      await ref.read(registrationProvider.notifier).login(_mpinController.text);
     }
   }
 
@@ -147,15 +150,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const SizedBox(height: 20),
 
 // Inside LoginScreen
+// login_screen.dart
               TextButton(
-                onPressed: () {
+                onPressed: () async {
+                  // 1. Get the Customer ID that was loaded during initState
                   final savedId = ref.read(registrationProvider).customerId;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ForgotMpinIdentity(autoCustomerId: savedId),
-                    ),
-                  );
+
+                  if (savedId != null && savedId.isNotEmpty) {
+                    // 2. Call the provider to trigger the OTP via the new endpoint
+                    await ref.read(registrationProvider.notifier).forgotMpinTrigger(savedId);
+
+                    if (context.mounted) {
+                      final regState = ref.read(registrationProvider);
+                      if (regState.status == RegistrationStatus.success) {
+                        // 3. Move to OTP screen only if the API call was successful
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RegistrationStep2Otp()),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(regState.errorMessage ?? "Error sending OTP")),
+                        );
+                      }
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("No registered account found.")),
+                    );
+                  }
                 },
                 child: const Text("Forgot MPIN?"),
               )

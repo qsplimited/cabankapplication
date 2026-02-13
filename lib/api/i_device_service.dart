@@ -4,7 +4,9 @@ abstract class IDeviceService {
   Future<bool> checkDeviceBinding(String deviceId);
   Future<AuthResponse> verifyCredentials(AuthRequest request);
 
-  // These parameters are defined as String (Non-nullable)
+  // ADD THIS LINE: This allows the Provider to call this method
+  Future<AuthResponse> sendOtpByCustomerId(String customerId);
+
   Future<bool> verifyOtp({
     required String otp,
     required String customerId,

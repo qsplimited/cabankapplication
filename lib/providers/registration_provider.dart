@@ -58,15 +58,19 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
   void reset() => state = RegistrationState();
 
   // --- LOGIN VERIFICATION (For Dashboard Use) ---
+// registration_provider.dart
+
   Future<void> login(String mpin) async {
     state = state.copyWith(status: RegistrationStatus.loading, errorMessage: null);
     try {
       final did = await getUniqueDeviceId();
       final response = await _service.loginWithMpin(mpin: mpin, deviceId: did);
 
-      if (response.success) {
+      // CRITICAL: Ensure we only set success if response.success is strictly TRUE
+      if (response.success == true) {
         state = state.copyWith(status: RegistrationStatus.success);
       } else {
+        // If server says false, we MUST set failure to stop navigation
         state = state.copyWith(
             status: RegistrationStatus.failure,
             errorMessage: response.message ?? "Incorrect Login PIN"
@@ -75,11 +79,36 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
     } catch (e) {
       state = state.copyWith(
           status: RegistrationStatus.failure,
-          errorMessage: "Verification failed. Check internet."
+          errorMessage: "Connection failed. Please check your internet."
       );
     }
   }
+// registration_provider.dart (Relevant Part)
 
+
+  // --- NEW: FORGOT MPIN TRIGGER ---
+  Future<void> forgotMpinTrigger(String customerId) async {
+    state = state.copyWith(status: RegistrationStatus.loading, errorMessage: null);
+    try {
+      final deviceId = await getUniqueDeviceId();
+
+      // This call will now work because we updated i_device_service.dart
+      final response = await _service.sendOtpByCustomerId(customerId);
+
+      if (response.success) {
+        state = state.copyWith(
+          status: RegistrationStatus.success,
+          currentStep: 1, // This tells the app we are now at the OTP step
+          customerId: customerId,
+          deviceId: deviceId,
+        );
+      } else {
+        state = state.copyWith(status: RegistrationStatus.failure, errorMessage: response.message);
+      }
+    } catch (e) {
+      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Connection Error");
+    }
+  }
   // --- OTHER METHODS ---
   Future<void> loadSavedId() async {
     final savedId = await _storage.read(key: 'last_registered_id');
@@ -89,18 +118,29 @@ class RegistrationNotifier extends StateNotifier<RegistrationState> {
   Future<void> submitIdentity(String customerId, String password) async {
     state = state.copyWith(status: RegistrationStatus.loading, errorMessage: null);
     try {
-      final deviceId = await getUniqueDeviceId();
-      final response = await _service.verifyCredentials(AuthRequest(customerId: customerId, password: password));
+      final deviceId = await getUniqueDeviceId(); //
+
+      // Call the existing login endpoint.
+      // Sending an empty password here matches your web team's "Forgot" logic.
+      final response = await _service.verifyCredentials(
+          AuthRequest(customerId: customerId, password: password)
+      ); //
+
       if (response.success) {
-        await _storage.write(key: 'last_registered_id', value: customerId);
-        state = state.copyWith(status: RegistrationStatus.success, currentStep: 1, customerId: customerId, tempPassword: password, deviceId: deviceId);
-        await Future.delayed(const Duration(milliseconds: 100));
-        state = state.copyWith(status: RegistrationStatus.initial);
+        await _storage.write(key: 'last_registered_id', value: customerId); //
+
+        // Update state to success and move to Step 1 (OTP Step)
+        state = state.copyWith(
+            status: RegistrationStatus.success,
+            currentStep: 1,
+            customerId: customerId,
+            deviceId: deviceId
+        );
       } else {
-        state = state.copyWith(status: RegistrationStatus.failure, errorMessage: response.message);
+        state = state.copyWith(status: RegistrationStatus.failure, errorMessage: response.message); //
       }
     } catch (e) {
-      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Connection Error");
+      state = state.copyWith(status: RegistrationStatus.failure, errorMessage: "Connection Error"); //
     }
   }
 
